@@ -7,8 +7,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
-| `1.1.2` | `4` | Sep 2026 | Enhanced contact number resolution for WhatsApp and SMS, ensuring full stored international country codes (such as +91) are automatically used when dialing domestic numbers. |
-| `1.1.1` | `3` | Sep 2026 | T9 Nickname search, default Fav & T9 layout, automatic international country code resolution for WhatsApp/SMS, Key 1 VM deduplication, and non-jumping quick action buttons. |
+| `1.1.2` | `4` | Sep 2026 | Fixes an issue where messaging or calling an international contact from the dial pad could fail if typed without their country code. |
+| `1.1.1` | `3` | Sep 2026 | Search contacts by nickname, combined speed dial and letters keypad, steady dial pad layout, and clean voicemail button. |
 | `1.1.0` | `2` | Sep 2026 | Keypad 2x2 action buttons, adaptive channel highlights, WhatsApp dark-mode icon contrast, Bluetooth/car call redirection, Favorites per-number selection, and Nickname sync. |
 | `1.0.0` | `1` | Sep 2026 | Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh. |
 
@@ -17,9 +17,9 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ## Release 1.1.2 Change Log
 
 ### What's New & Improvements:
-- **Accurate WhatsApp & SMS Contact Matching**: When typing a local or 10-digit number for a contact saved with an international country code (such as +91 for India or +44 for UK), the app now automatically uses the full saved country code rather than defaulting to your phone's region.
-- **Direct Dial Pad Actions Sync**: Tapping the WhatsApp Chat, WhatsApp Call, SMS, or regular Call buttons from the dial pad now resolves the full international number of the matched contact directly.
-- **Reliable Messaging Links**: Prevents "number does not exist" or incorrect region errors when messaging contacts worldwide.
+- **Instant International WhatsApp & Texting**: When you type a contact's number on the dial pad, WhatsApp and text messages now open directly to that person, even if you typed their number without the country code.
+- **Fixed WhatsApp "Contact Not Found" Errors**: Fixed an issue where sending a WhatsApp message to an overseas contact could fail with an "invalid number" error when dialed without a country prefix.
+- **Accurate One-Tap Calling & Messaging**: Tapping WhatsApp Chat, WhatsApp Call, Text, or Phone Call from the dial pad always connects using your contact's complete, saved international number.
 
 ---
 
