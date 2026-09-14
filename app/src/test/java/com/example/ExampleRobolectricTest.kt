@@ -67,4 +67,24 @@ class ExampleRobolectricTest {
     assertTrue(notification.extras.getBoolean(androidx.core.app.NotificationCompat.EXTRA_SHOW_CHRONOMETER))
     assertEquals("Kishan", notification.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString())
   }
+
+  @Test
+  fun `verify external web dial intent is recognized and extracted correctly`() {
+    // Typical intent sent when tapping a phone number link on a website: ACTION_VIEW with tel: URI
+    val webTelIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("tel:+15551234567"))
+    assertTrue(com.example.util.ContactHelper.isDialOrTelIntent(webTelIntent))
+    assertEquals("+15551234567", com.example.util.ContactHelper.extractPhoneNumberFromIntent(webTelIntent))
+
+    // Intent with encoded characters or query parameters
+    val encodedTelIntent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:+1%20800%20555%200199?ext=101"))
+    assertTrue(com.example.util.ContactHelper.isDialOrTelIntent(encodedTelIntent))
+    assertEquals("+1 800 555 0199", com.example.util.ContactHelper.extractPhoneNumberFromIntent(encodedTelIntent))
+
+    // Intent with extra phone number
+    val extraPhoneIntent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
+      putExtra(android.content.Intent.EXTRA_PHONE_NUMBER, "4155552671")
+    }
+    assertTrue(com.example.util.ContactHelper.isDialOrTelIntent(extraPhoneIntent))
+    assertEquals("4155552671", com.example.util.ContactHelper.extractPhoneNumberFromIntent(extraPhoneIntent))
+  }
 }

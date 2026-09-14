@@ -31,7 +31,12 @@ fun QuickRecentsSection(
     onSelectNumber: (String) -> Unit
 ) {
     if (recentCalls.isEmpty()) return
-    val topRecent = remember(recentCalls) { recentCalls.take(6) }
+    // Show only unique calls without repetition, up to 8 recent calls
+    val topRecent = remember(recentCalls) {
+        recentCalls
+            .distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }
+            .take(8)
+    }
 
     Column(
         modifier = Modifier
@@ -54,7 +59,7 @@ fun QuickRecentsSection(
             topRecent.forEach { call ->
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onSelectNumber(call.phoneNumber) }
@@ -62,7 +67,7 @@ fun QuickRecentsSection(
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
                             imageVector = when (call.callType) {
@@ -76,22 +81,30 @@ fun QuickRecentsSection(
                                 2 -> MaterialTheme.colorScheme.primary
                                 else -> Color(0xFFDC2626)
                             },
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Column {
+                            // Primary: Phone number in larger bold font
                             Text(
-                                text = call.callerName?.ifBlank { null } ?: call.phoneNumber,
-                                style = MaterialTheme.typography.labelMedium,
+                                text = call.phoneNumber,
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                text = call.phoneNumber,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            // Secondary: Caller name (only if available and distinct from phone number)
+                            val name = call.callerName?.trim()
+                            if (!name.isNullOrBlank() && name != call.phoneNumber) {
+                                Text(
+                                    text = name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }

@@ -92,7 +92,8 @@
 
 The latest release and prior versions are available directly in the project repository and on the [OmniDial Website](docs/index.html):
 
-- **[OmniDial-v1.1.0.apk](OmniDial-v1.1.0.apk)** *(Latest Release — Build 2)*: 2x2 Call Action layout, adaptive preference highlighting, dark mode WhatsApp contrast, car call redirection, and favorites UX updates.
+- **[OmniDial-v1.1.1.apk](OmniDial-v1.1.1.apk)** *(Latest Release — Build 3)*: T9 Nickname search, Fav & T9 default keypad layout, automatic international country code resolution for WhatsApp/SMS, Key 1 VM deduplication, and non-jumping quick action buttons.
+- **[OmniDial-v1.1.0.apk](OmniDial-v1.1.0.apk)** *(Prior Release — Build 2)*: 2x2 Call Action layout, adaptive preference highlighting, dark mode WhatsApp contrast, car call redirection, and favorites UX updates.
 - **[OmniDial-v1.0.0.apk](OmniDial-v1.0.0.apk)** *(Prior Release — Build 1)*: Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh.
 - **[OmniDial.apk](OmniDial.apk)** *(Latest build direct alias)*.
 

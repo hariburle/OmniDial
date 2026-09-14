@@ -401,6 +401,21 @@ fun FavoritesScreen(
         }
 
         if (searchQuery.isNotBlank()) {
+            // Precomputed lookups for performance optimization in Favorites list search
+            val fastFavoritesLast10DigitsMap = remember(favorites) {
+                val map = mutableMapOf<String, FavoriteContact>()
+                favorites.forEach { fav ->
+                    val digits = fav.phoneNumber.filter { c -> c.isDigit() }.takeLast(10)
+                    if (digits.length >= 7) {
+                        map[digits] = fav
+                    }
+                }
+                map
+            }
+            val fastFavoritesNameMap = remember(favorites) {
+                favorites.associateBy { it.name.trim().lowercase() }
+            }
+
             // Live Search Results across Contacts & Favorites showing all phone numbers
             val queryClean = searchQuery.trim().lowercase()
             val filteredContacts = remember(searchQuery, deviceContacts, favorites) {
@@ -429,12 +444,25 @@ fun FavoritesScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredContacts, key = { "${it.contactId}_${it.phoneNumber}_${it.name}" }) { contact ->
-                        val favContactForThis = favorites.firstOrNull { fav ->
-                            val favDigits = fav.phoneNumber.filter { c -> c.isDigit() }.takeLast(10)
-                            contact.phoneNumbers.any { pn ->
+                        val favContactForThis = remember(contact.contactId, contact.phoneNumber, contact.name, contact.phoneNumbers, fastFavoritesLast10DigitsMap, fastFavoritesNameMap) {
+                            var match: FavoriteContact? = null
+                            for (pn in contact.phoneNumbers) {
                                 val pnDigits = pn.number.filter { c -> c.isDigit() }.takeLast(10)
-                                pnDigits.length >= 7 && pnDigits == favDigits
-                            } || fav.name.equals(contact.name.trim(), ignoreCase = true)
+                                if (pnDigits.length >= 7) {
+                                    match = fastFavoritesLast10DigitsMap[pnDigits]
+                                    if (match != null) break
+                                }
+                            }
+                            if (match == null) {
+                                val primaryDigits = contact.phoneNumber.filter { c -> c.isDigit() }.takeLast(10)
+                                if (primaryDigits.length >= 7) {
+                                    match = fastFavoritesLast10DigitsMap[primaryDigits]
+                                }
+                            }
+                            if (match == null) {
+                                match = fastFavoritesNameMap[contact.name.trim().lowercase()]
+                            }
+                            match
                         }
                         val isFav = favContactForThis != null
                         val effectiveNickname = favContactForThis?.nickname?.ifBlank { null } ?: contact.nickname?.ifBlank { null }

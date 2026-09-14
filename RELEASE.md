@@ -7,8 +7,20 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.1.1` | `3` | Sep 2026 | T9 Nickname search, default Fav & T9 layout, automatic international country code resolution for WhatsApp/SMS, Key 1 VM deduplication, and non-jumping quick action buttons. |
 | `1.1.0` | `2` | Sep 2026 | Keypad 2x2 action buttons, adaptive channel highlights, WhatsApp dark-mode icon contrast, Bluetooth/car call redirection, Favorites per-number selection, and Nickname sync. |
 | `1.0.0` | `1` | Sep 2026 | Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh. |
+
+---
+
+## Release 1.1.1 Change Log
+
+### What's New:
+- **T9 Search for Nicknames**: Dial pad T9 search now indexes and searches contact nicknames alongside full names and numbers.
+- **Fav & T9 as Default Layout**: Speed Dial Keypad display setting defaults to "Fav & T9", displaying speed dial contact names above digits and standard T9 letters below.
+- **Fixed-Position Quick Action Buttons**: Kept secondary action buttons (SMS, WhatsApp Chat, Secondary Call) permanently in place below the keypad with no vertical jumping.
+- **Automatic WhatsApp/SMS Country Code Resolution**: Automatically queries full contact numbers or appends device country calling codes (+91, +1, etc.) before handing off to WhatsApp/SMS to prevent missing country code errors.
+- **Key 1 Clean Labeling**: Removed redundant stacked "VM" and "Voicemail" text on Key 1.
 
 ---
 

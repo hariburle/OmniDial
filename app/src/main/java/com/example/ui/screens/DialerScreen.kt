@@ -18,15 +18,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.ui.components.WhatsAppIcon
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
@@ -34,9 +43,13 @@ import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContactPhone
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PersonAdd
@@ -58,10 +71,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,10 +85,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalTextInputService
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,7 +102,6 @@ import com.example.ui.components.AddFavoriteDialog
 import com.example.ui.components.ContactSaveDestination
 import com.example.ui.components.CreateContactDialog
 import com.example.ui.components.ContactPickerDialog
-import com.example.ui.components.FavoritesSection
 import com.example.ui.components.Keypad
 import com.example.ui.components.MultiNumberCallDialog
 import com.example.ui.components.RoleBanner
@@ -109,6 +126,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -138,6 +156,8 @@ fun DialerScreen(
     onClearSpeedDialSlot: (Int) -> Unit = {},
     confirmSpeedDialCall: Boolean = true,
     askToAssignUnassignedSpeedDial: Boolean = true,
+    speedDialKeypadDisplay: String = "speed_dial_above",
+    showDialerQuickActions: Boolean = true,
     deviceContacts: List<DeviceContact> = emptyList(),
     getPreferredCallingMode: (String) -> String = { "cellular" },
     learnedCallModes: Map<String, String> = emptyMap(),
@@ -159,15 +179,28 @@ fun DialerScreen(
         }
     }
     var selectedCallReason by remember { mutableStateOf<String?>(null) }
+    var showCallReasonMenu by remember { mutableStateOf(false) }
     var multiNumberContactToCall by remember { mutableStateOf<DeviceContact?>(null) }
     var multiNumberSpeedDialSlot by remember { mutableStateOf<Int?>(null) }
     var multiNumberFavoriteTarget by remember { mutableStateOf<FavoriteContact?>(null) }
 
-    // Combine all contacts for T9, prioritizing official device contacts for accurate names
+    // Combine all contacts for T9, prioritizing official device contacts for accurate names and user nicknames
     val allSearchContacts = remember(favorites, effectiveContacts) {
         fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
+        val favByDigits = favorites.associateBy { normDigits(it.phoneNumber) }
+        val favByName = favorites.associateBy { it.name.trim().lowercase() }
         val list = mutableListOf<DeviceContact>()
-        list.addAll(effectiveContacts)
+
+        effectiveContacts.forEach { dc ->
+            val dcDigits = normDigits(dc.phoneNumber)
+            val matchingFav = favByDigits[dcDigits] ?: favByName[dc.name.trim().lowercase()]
+            val effectiveNickname = matchingFav?.nickname?.ifBlank { null } ?: dc.nickname?.ifBlank { null }
+            if (effectiveNickname != null && effectiveNickname != dc.nickname) {
+                list.add(dc.copy(nickname = effectiveNickname))
+            } else {
+                list.add(dc)
+            }
+        }
         val knownDigits = effectiveContacts.flatMap { dc ->
             dc.phoneNumbers.map { normDigits(it.number) } + listOf(normDigits(dc.phoneNumber))
         }.filter { it.isNotBlank() }.toSet()
@@ -184,23 +217,47 @@ fun DialerScreen(
         }
     }
 
-    // T9 search results
-    val t9Matches = remember(number, allSearchContacts) {
-        if (number.isNotBlank()) {
-            T9Helper.search(allSearchContacts, number)
-        } else emptyList()
-    }
+    // T9 search results (Asynchronous background search so keypad input is lightning fast)
+    var t9Matches by remember { mutableStateOf<List<T9SearchResult>>(emptyList()) }
 
-    androidx.compose.runtime.LaunchedEffect(number) {
+    LaunchedEffect(number, allSearchContacts) {
         if (number.isNotBlank()) {
             val fav = favorites.firstOrNull { it.phoneNumber == number }
             if (fav != null) {
                 matchedContact = DeviceContact(fav.name, fav.phoneNumber, fav.label, fav.photoUri)
             } else {
-                matchedContact = ContactHelper.lookupContactByNumber(context, number)
+                withContext(Dispatchers.IO) {
+                    val lookedUp = ContactHelper.lookupContactByNumber(context, number)
+                    withContext(Dispatchers.Main) {
+                        matchedContact = lookedUp
+                    }
+                }
+            }
+
+            withContext(Dispatchers.Default) {
+                val matches = T9Helper.search(allSearchContacts, number)
+                withContext(Dispatchers.Main) {
+                    t9Matches = matches
+                }
             }
         } else {
             matchedContact = null
+            t9Matches = emptyList()
+        }
+    }
+
+    // Filter out the already-matched contact from T9 search matches to eliminate duplicate suggestions
+    val filteredT9Matches = remember(t9Matches, matchedContact, number) {
+        if (matchedContact != null) {
+            val cleanNum = number.filter { it.isDigit() }
+            t9Matches.filter { match ->
+                val matchClean = match.phoneNumber.filter { it.isDigit() }
+                val isSameNum = matchClean.isNotEmpty() && (matchClean == cleanNum || (cleanNum.length >= 7 && (matchClean.endsWith(cleanNum) || cleanNum.endsWith(matchClean))))
+                val isSameName = match.name.equals(matchedContact?.name, ignoreCase = true)
+                !isSameNum && !isSameName
+            }
+        } else {
+            t9Matches
         }
     }
 
@@ -224,250 +281,14 @@ fun DialerScreen(
                 .weight(1f),
             contentAlignment = Alignment.BottomCenter
         ) {
-            // QUICK RECENTS & FAVORITES SECTION - Shown prominently when app opens and number is empty
-            if (number.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Bottom
-                ) {
-                    if (recentCalls.isNotEmpty()) {
-                        QuickRecentsSection(
-                            recentCalls = recentCalls,
-                            onSelectNumber = { onSelectContactNumber(it) }
-                        )
-                    }
-                    if (favorites.isNotEmpty()) {
-                        FavoritesSection(
-                            favorites = favorites,
-                            onSelectContact = { selectedNumber ->
-                                onSelectContactNumber(selectedNumber)
-                            },
-                            onCallContact = { selectedNumber ->
-                                val normNum = selectedNumber.replace(Regex("[^0-9+]"), "")
-                                val matchedDevContact = deviceContacts.firstOrNull { dc ->
-                                    dc.phoneNumbers.any { it.number.replace(Regex("[^0-9+]"), "") == normNum } ||
-                                    dc.phoneNumber.replace(Regex("[^0-9+]"), "") == normNum
-                                }
-                                val matchedFav = favorites.firstOrNull { it.phoneNumber.replace(Regex("[^0-9+]"), "") == normNum }
-                                if (matchedDevContact != null && matchedDevContact.phoneNumbers.size > 1) {
-                                    multiNumberContactToCall = matchedDevContact
-                                    multiNumberSpeedDialSlot = null
-                                    multiNumberFavoriteTarget = matchedFav
-                                } else {
-                                    onSelectContactNumber(selectedNumber)
-                                    onPlaceCall(selectedNumber, null)
-                                }
-                            },
-                            onCreateRule = { selectedNumber ->
-                                onCreateRuleForNumber(selectedNumber)
-                            },
-                            onAddFavoriteClick = {
-                                showAddFavoriteDialog = true
-                            },
-                            onDeleteFavorite = onDeleteFavorite,
-                            modifier = Modifier.padding(bottom = 2.dp)
-                        )
-                    }
-                }
-            } else if (number.isNotEmpty()) {
-                // When number is entered, show matched contact info and T9 search matches above the edit box
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Matched contact pill, spam indicator, or Add to Favorites chip
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(34.dp)
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (matchedContact != null) {
-                            Row(
-                                modifier = Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                        RoundedCornerShape(20.dp)
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    if (!matchedContact!!.photoUri.isNullOrBlank()) {
-                                        coil.compose.AsyncImage(
-                                            model = matchedContact!!.photoUri,
-                                            contentDescription = matchedContact!!.name,
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = matchedContact!!.name.take(1).uppercase(),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                        }
-                                    }
-                                }
-                                Text(
-                                    text = matchedContact!!.name,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "• ${matchedContact!!.label}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            val comm = remember(number) { com.example.util.CommunityCallerIdService.lookup(number) }
-                            if (comm != null) {
-                                val isSpam = comm.spamScore > 50
-                                Row(
-                                    modifier = Modifier
-                                        .background(
-                                            if (isSpam) Color(0xFFFEE2E2) else Color(0xFFE0F2FE),
-                                            RoundedCornerShape(20.dp)
-                                        )
-                                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (isSpam) Icons.Default.Warning else Icons.Default.Verified,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp),
-                                        tint = if (isSpam) Color(0xFFDC2626) else Color(0xFF0284C7)
-                                    )
-                                    Text(
-                                        text = "${comm.name} • ${comm.category}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSpam) Color(0xFF991B1B) else Color(0xFF0369A1)
-                                    )
-                                }
-                            } else if (number.length >= 3) {
-                                AssistChip(
-                                    onClick = { showAddFavoriteDialog = true },
-                                    label = { Text("Add Contact", fontSize = 11.sp) },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.PersonAdd,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(14.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    },
-                                    modifier = Modifier.height(32.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // T9 Smart Search Matches Container in Top Container (ZERO bounce on keypad/edit box!)
-                    if (t9Matches.isNotEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .padding(horizontal = 16.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "T9 Matches (${t9Matches.size})",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "Tap to select",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(2.dp))
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    t9Matches.forEach { match ->
-                                        Card(
-                                            onClick = {
-                                                onSelectContactNumber(match.phoneNumber)
-                                            },
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                            ),
-                                            modifier = Modifier.testTag("t9_chip_${match.phoneNumber}")
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                Surface(
-                                                    shape = CircleShape,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(22.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Text(
-                                                            text = match.name.take(1).uppercase(),
-                                                            color = MaterialTheme.colorScheme.onPrimary,
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-                                                }
-                                                Column {
-                                                    Text(
-                                                        text = match.name,
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1
-                                                    )
-                                                    Text(
-                                                        text = match.phoneNumber,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            DialerSuggestionsList(
+                number = number,
+                recentCalls = recentCalls,
+                t9Matches = filteredT9Matches,
+                matchedContact = matchedContact,
+                onSelectContactNumber = { onSelectContactNumber(it) },
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
         // Fixed-Position Keypad and Dialing Controls (zero bouncing/shifting)
@@ -477,35 +298,191 @@ fun DialerScreen(
                 .padding(top = 10.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            var selectionState by remember(number) {
-                mutableStateOf(TextRange(number.length))
+            var localNumber by remember(number) { mutableStateOf(number) }
+            LaunchedEffect(number) {
+                if (localNumber != number) {
+                    localNumber = number
+                }
+            }
+
+            var selectionState by remember(localNumber) {
+                mutableStateOf(TextRange(localNumber.length))
             }
 
             val localOnDigitPress: (Char) -> Unit = { digit ->
-                val start = selectionState.start.coerceIn(0, number.length)
-                val end = selectionState.end.coerceIn(0, number.length)
+                val current = localNumber
+                val start = selectionState.start.coerceIn(0, current.length)
+                val end = selectionState.end.coerceIn(0, current.length)
                 val minSel = minOf(start, end)
                 val maxSel = maxOf(start, end)
-                val newText = number.substring(0, minSel) + digit + number.substring(maxSel)
+                val newText = current.substring(0, minSel) + digit + current.substring(maxSel)
+                localNumber = newText
                 selectionState = TextRange(minSel + 1)
                 onSelectContactNumber(newText)
             }
 
             val localOnDeleteDigit: () -> Unit = {
-                val start = selectionState.start.coerceIn(0, number.length)
-                val end = selectionState.end.coerceIn(0, number.length)
+                val current = localNumber
+                val start = selectionState.start.coerceIn(0, current.length)
+                val end = selectionState.end.coerceIn(0, current.length)
                 if (start == end) {
                     if (start > 0) {
-                        val newText = number.substring(0, start - 1) + number.substring(start)
+                        val newText = current.substring(0, start - 1) + current.substring(start)
+                        localNumber = newText
                         selectionState = TextRange(start - 1)
                         onSelectContactNumber(newText)
                     }
                 } else {
                     val minSel = minOf(start, end)
                     val maxSel = maxOf(start, end)
-                    val newText = number.substring(0, minSel) + number.substring(maxSel)
+                    val newText = current.substring(0, minSel) + current.substring(maxSel)
+                    localNumber = newText
                     selectionState = TextRange(minSel)
                     onSelectContactNumber(newText)
+                }
+            }
+
+            val localOnClearDigits: () -> Unit = {
+                localNumber = ""
+                selectionState = TextRange.Zero
+                onClearDigits()
+            }
+
+            // Fixed Row Just Above Number Text Field (38.dp height)
+            // Left: Add Reason (active tonal styling, clear icon, dismissal button)
+            // Right: Add Contact (contextual for unsaved numbers; no duplicate name for saved contacts)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // LEFT HALF (weight 1f): Reason Selector (fixed location, never jumps)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    val hasReason = selectedCallReason != null
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (hasReason)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
+                        border = if (hasReason)
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+                        else
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                        modifier = Modifier
+                            .clickable { showCallReasonMenu = true }
+                            .testTag("dialer_add_reason_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = if (hasReason) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (hasReason) "Reason: $selectedCallReason" else "Add Reason",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (hasReason) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            if (hasReason) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clip(CircleShape)
+                                        .clickable { selectedCallReason = null },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear Call Reason",
+                                        modifier = Modifier.size(12.dp),
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Call Reason",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showCallReasonMenu,
+                        onDismissRequest = { showCallReasonMenu = false }
+                    ) {
+                        val reasons = listOf(null, "Urgent", "Quick Question", "Work", "Personal", "Delivery")
+                        reasons.forEach { reason ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = reason ?: "None (Clear)",
+                                        color = if (reason == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    selectedCallReason = reason
+                                    showCallReasonMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // RIGHT HALF (weight 1f): Add Contact for unsaved numbers (clean empty state for saved contacts)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    if (number.isNotEmpty() && matchedContact == null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .clickable { showAddFavoriteDialog = true }
+                                .testTag("dialer_add_contact_chip")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonAdd,
+                                    contentDescription = "Add Contact",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Add Contact",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -557,6 +534,21 @@ fun DialerScreen(
                                 onDismissRequest = { showOverflowMenu = false }
                             ) {
                                 DropdownMenuItem(
+                                    text = { Text("Add to Contacts") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.PersonAdd,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        showAddFavoriteDialog = true
+                                        showOverflowMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
                                     text = { Text("Add 2-sec pause (,)") },
                                     onClick = {
                                         onDigitPress(',')
@@ -573,8 +565,7 @@ fun DialerScreen(
                                 DropdownMenuItem(
                                     text = { Text("Send Text Message (SMS)") },
                                     onClick = {
-                                        val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number"))
-                                        context.startActivity(smsIntent)
+                                        ContactHelper.launchSms(context, number)
                                         showOverflowMenu = false
                                     }
                                 )
@@ -589,7 +580,7 @@ fun DialerScreen(
                         }
                     }
 
-                    if (number.isEmpty()) {
+                    if (localNumber.isEmpty()) {
                         Text(
                             text = "Enter number or pick contact",
                             style = MaterialTheme.typography.titleMedium,
@@ -598,35 +589,39 @@ fun DialerScreen(
                             modifier = Modifier.weight(1f)
                         )
                     } else {
-                        val tFV = TextFieldValue(text = number, selection = selectionState)
-                        BasicTextField(
-                            value = tFV,
-                            onValueChange = { newValue ->
-                                selectionState = newValue.selection
-                                if (newValue.text != number) {
-                                    onSelectContactNumber(newValue.text)
+                        val tFV = TextFieldValue(text = localNumber, selection = selectionState)
+                        val keyboardController = LocalSoftwareKeyboardController.current
+                        @Suppress("DEPRECATION")
+                        CompositionLocalProvider(
+                            LocalTextInputService provides null
+                        ) {
+                            BasicTextField(
+                                value = tFV,
+                                onValueChange = { newValue ->
+                                    selectionState = newValue.selection
+                                    keyboardController?.hide()
+                                },
+                                readOnly = true,
+                                textStyle = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center
+                                ),
+                                singleLine = true,
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("dialer_number_display"),
+                                decorationBox = { innerTextField ->
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        innerTextField()
+                                    }
                                 }
-                            },
-                            textStyle = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center
-                            ),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("dialer_number_display"),
-                            decorationBox = { innerTextField ->
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    innerTextField()
-                                }
-                            }
-                        )
+                            )
+                        }
                     }
 
                     // Backspace button with click to delete single digit & long-press to clear entire field
@@ -636,12 +631,12 @@ fun DialerScreen(
                             .size(48.dp)
                             .clip(CircleShape)
                             .then(
-                                if (number.isNotEmpty()) {
+                                if (localNumber.isNotEmpty()) {
                                     Modifier.combinedClickable(
                                         onClick = localOnDeleteDigit,
                                         onLongClick = {
                                             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                            onClearDigits()
+                                            localOnClearDigits()
                                         }
                                     )
                                 } else Modifier
@@ -652,7 +647,7 @@ fun DialerScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Backspace,
                             contentDescription = "Delete Digit",
-                            tint = if (number.isNotEmpty())
+                            tint = if (localNumber.isNotEmpty())
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                         )
@@ -700,8 +695,9 @@ fun DialerScreen(
 
             // Main Telephone Keypad with Speed Dial Long-Press
             Keypad(
-                compact = true,
+                compact = false,
                 speedDialMap = speedDialMap,
+                speedDialDisplayMode = speedDialKeypadDisplay,
                 onDigitPress = localOnDigitPress,
                 onDigitLongPress = { digit ->
                     when (digit) {
@@ -736,328 +732,341 @@ fun DialerScreen(
                         }
                     }
                 },
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
 
-            // Dual-SIM Selector & Call Action Bar
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-            // Reclaimed Space: Compact Row combining SIM Slot & Call Reason Dropdown
-            var showCallReasonMenu by remember { mutableStateOf(false) }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Dual-SIM Toggle Pill
-                Surface(
-                    onClick = onToggleSim,
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.testTag("sim_toggle_button")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SimCard,
-                            contentDescription = "Active SIM",
-                            tint = if (simSlot == 1) Color(0xFF2563EB) else Color(0xFF16A34A),
-                            modifier = Modifier.size(15.dp)
-                        )
-                        val currentSim = activeSims.firstOrNull { it.slotIndex + 1 == simSlot }
-                        val simLabel = when {
-                            currentSim != null -> "SIM $simSlot (${currentSim.displayName.take(8)})"
-                            simSlot == 1 -> "SIM 1 (Primary)"
-                            else -> "SIM 2"
-                        }
-                        Text(
-                            text = simLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (activeSims.size > 1) {
-                            Text(
-                                text = "• Switch",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-
-                // Call Reason Context Dropdown next to SIM
-                Box {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (selectedCallReason != null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.clickable { showCallReasonMenu = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = if (selectedCallReason != null) "Reason: $selectedCallReason" else "Reason: None",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (selectedCallReason != null) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selectedCallReason != null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "Select Call Reason",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    DropdownMenu(
-                        expanded = showCallReasonMenu,
-                        onDismissRequest = { showCallReasonMenu = false }
-                    ) {
-                        val reasons = listOf(null, "Urgent", "Quick Question", "Work", "Personal", "Delivery")
-                        reasons.forEach { reason ->
-                            DropdownMenuItem(
-                                text = { Text(reason ?: "None (Clear)") },
-                                onClick = {
-                                    selectedCallReason = reason
-                                    showCallReasonMenu = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Call Actions Grid (2x2): An elegant, non-interfering layout with high-fidelity buttons and situational intelligence highlights
-            val callingMode = if (number.isNotBlank()) getPreferredCallingMode(number) else "none"
+            // Channel-Adaptive Hero Call Action + Auxiliary Secondary Actions Bar
+            val callingMode = if (localNumber.isNotBlank()) getPreferredCallingMode(localNumber) else "none"
             val isWaPreferred = callingMode == "whatsapp"
             val isGsmPreferred = callingMode == "cellular"
             val isDark = isSystemInDarkTheme()
-            val isNumEmpty = number.isBlank()
+            val isNumEmpty = localNumber.isBlank()
 
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .fillMaxWidth()
+                    .widthIn(max = 360.dp)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Row 1: Text Message (Left) | Phone (Right)
+                // 1. PRIMARY ACTION ROW (Aligned with 3 Keypad Columns: [SIM] [CALL] [BACKSPACE])
+                val heroContainerColor = if (isWaPreferred && !isNumEmpty) {
+                    Color(0xFF25D366) // WhatsApp brand green
+                } else {
+                    Color(0xFF059669) // Cellular / Phone Emerald green
+                }
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .height(68.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // --- Text Message ---
-                    val smsBgColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
-                    Card(
-                        onClick = {
-                            val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number"))
-                            context.startActivity(smsIntent)
-                        },
-                        enabled = !isNumEmpty,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = smsBgColor),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(58.dp)
-                            .then(if (isNumEmpty) Modifier.graphicsLayer(alpha = 0.45f) else Modifier)
+                    // PART 1 (Left 1/3, under column 1): SIM Selector Pill
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
+                        Surface(
+                            onClick = onToggleSim,
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .height(44.dp)
+                                .testTag("sim_toggle_button")
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF0284C7).copy(alpha = if (isDark) 0.25f else 0.12f)),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Chat,
-                                    contentDescription = "Text Message",
-                                    tint = Color(0xFF0284C7),
+                                    imageVector = Icons.Default.SimCard,
+                                    contentDescription = "Active SIM",
+                                    tint = if (simSlot == 1) Color(0xFF2563EB) else Color(0xFF16A34A),
                                     modifier = Modifier.size(16.dp)
                                 )
+                                Spacer(Modifier.width(4.dp))
+                                val currentSim = activeSims.firstOrNull { it.slotIndex + 1 == simSlot }
+                                val simLabel = if (currentSim != null && currentSim.displayName.isNotBlank()) {
+                                    currentSim.displayName.take(5)
+                                } else {
+                                    "SIM $simSlot"
+                                }
+                                Text(
+                                    text = simLabel,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
-                            Text(
-                                text = "Text Message",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     }
 
-                    // --- Phone ---
-                    val phoneBorderColor = if (isGsmPreferred) Color(0xFF059669) else MaterialTheme.colorScheme.outlineVariant
-                    val phoneBgColor = if (isGsmPreferred) {
-                        Color(0xFF059669).copy(alpha = if (isDark) 0.15f else 0.08f)
-                    } else {
-                        if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
-                    }
-                    val phoneIconBg = if (isGsmPreferred) Color(0xFF059669) else Color(0xFF059669).copy(alpha = if (isDark) 0.25f else 0.12f)
-                    val phoneIconColor = if (isGsmPreferred) Color.White else Color(0xFF059669)
-
-                    Card(
-                        onClick = { onPlaceCall(number, selectedCallReason) },
-                        enabled = !isNumEmpty,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = phoneBgColor),
-                        border = BorderStroke(if (isGsmPreferred) 2.dp else 1.dp, phoneBorderColor),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(58.dp)
-                            .then(if (isNumEmpty) Modifier.graphicsLayer(alpha = 0.45f) else Modifier)
+                    // PART 2 (Center 1/3, under column 2): Call Button (Circular or Pill when WhatsApp)
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
+                        Surface(
+                            onClick = {
+                                if (isNumEmpty) {
+                                    if (recentCalls.isNotEmpty()) {
+                                        val firstUnique = recentCalls.distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }.firstOrNull()
+                                        if (firstUnique != null) {
+                                            onSelectContactNumber(firstUnique.phoneNumber)
+                                        }
+                                    }
+                                } else if (isWaPreferred) {
+                                    onPlaceWhatsAppCall(localNumber)
+                                } else {
+                                    onPlaceCall(localNumber, selectedCallReason)
+                                }
+                            },
+                            shape = CircleShape,
+                            color = heroContainerColor,
+                            shadowElevation = 3.dp,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .size(64.dp)
+                                .testTag("hero_call_button")
                         ) {
                             Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(phoneIconBg),
+                                modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Call,
-                                    contentDescription = "Phone Call",
-                                    tint = phoneIconColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                if (isWaPreferred && !isNumEmpty) {
+                                    WhatsAppIcon(
+                                        modifier = Modifier.size(28.dp),
+                                        tint = Color.White
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Call,
+                                        contentDescription = "Call",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
                             }
-                            Text(
-                                text = "Phone",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        }
+                    }
+
+                    // PART 3 (Right 1/3, under column 3): Backspace Button
+                    // Exactly identical behavior to the back button next to number field:
+                    // Single click deletes one digit, long-press triggers haptic vibration and clears all digits.
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val view = LocalView.current
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (!isNumEmpty) {
+                                        if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                    } else Color.Transparent
+                                )
+                                .then(
+                                    if (!isNumEmpty) {
+                                        Modifier.combinedClickable(
+                                            onClick = localOnDeleteDigit,
+                                            onLongClick = {
+                                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                                localOnClearDigits()
+                                            }
+                                        )
+                                    } else Modifier
+                                )
+                                .testTag("dialer_bottom_backspace"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Backspace,
+                                contentDescription = "Delete Digit",
+                                tint = if (!isNumEmpty) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
                 }
 
-                // Row 2: WhatsApp - Msg (Left) | WhatsApp - Voice (Right)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // --- WhatsApp - Msg ---
-                    val waMsgBgColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
-                    Card(
-                        onClick = { ContactHelper.launchWhatsAppMessage(context, number) },
-                        enabled = !isNumEmpty,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = waMsgBgColor),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                // 2. AUXILIARY / SECONDARY ACTIONS ROW (SMS, WhatsApp Chat, Secondary Voice Channel)
+                // Kept consistently positioned to avoid keypad jumping; hide/show based on user preference
+                if (showDialerQuickActions) {
+                    val secBgColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
+                    val secBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    val hasNumber = !isNumEmpty
+                    val actionAlpha = if (hasNumber) 1f else 0.45f
+
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(58.dp)
-                            .then(if (isNumEmpty) Modifier.graphicsLayer(alpha = 0.45f) else Modifier)
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
+                        // Texting Button 1: SMS (Left)
+                        Card(
+                            onClick = {
+                                if (hasNumber) {
+                                    ContactHelper.launchSms(context, localNumber)
+                                } else if (recentCalls.isNotEmpty()) {
+                                    val firstUnique = recentCalls.distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }.firstOrNull()
+                                    if (firstUnique != null) {
+                                        ContactHelper.launchSms(context, firstUnique.phoneNumber)
+                                    }
+                                } else {
+                                    speedDialToast = "Enter number to send SMS"
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (hasNumber) secBgColor else secBgColor.copy(alpha = 0.35f)),
+                            border = secBorder,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .weight(1f)
+                                .height(40.dp)
+                                .testTag("secondary_sms")
                         ) {
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF0D9488).copy(alpha = if (isDark) 0.25f else 0.12f)),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxSize()
+                                    .padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Chat,
-                                    contentDescription = "WhatsApp Msg",
-                                    tint = Color(0xFF0D9488),
-                                    modifier = Modifier.size(16.dp)
+                                    contentDescription = "SMS",
+                                    tint = Color(0xFF0284C7).copy(alpha = actionAlpha),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "SMS",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (hasNumber) 1f else 0.5f),
+                                    maxLines = 1
                                 )
                             }
-                            Text(
-                                text = "WhatsApp - Msg",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
-                    }
 
-                    // --- WhatsApp - Voice ---
-                    val waBorderColor = if (isWaPreferred) Color(0xFF25D366) else MaterialTheme.colorScheme.outlineVariant
-                    val waBgColor = if (isWaPreferred) {
-                        Color(0xFF25D366).copy(alpha = if (isDark) 0.15f else 0.08f)
-                    } else {
-                        if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
-                    }
-                    val waIconBg = if (isWaPreferred) Color(0xFF25D366) else Color(0xFF25D366).copy(alpha = if (isDark) 0.25f else 0.12f)
-                    val waIconColor = if (isWaPreferred) Color.White else Color(0xFF1E7E34)
-
-                    Card(
-                        onClick = { onPlaceWhatsAppCall(number) },
-                        enabled = !isNumEmpty,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = waBgColor),
-                        border = BorderStroke(if (isWaPreferred) 2.dp else 1.dp, waBorderColor),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(58.dp)
-                            .then(if (isNumEmpty) Modifier.graphicsLayer(alpha = 0.45f) else Modifier)
-                    ) {
-                        Row(
+                        // Texting Button 2: WhatsApp Chat (Middle)
+                        Card(
+                            onClick = {
+                                if (hasNumber) {
+                                    ContactHelper.launchWhatsAppMessage(context, localNumber)
+                                } else if (recentCalls.isNotEmpty()) {
+                                    val firstUnique = recentCalls.distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }.firstOrNull()
+                                    if (firstUnique != null) {
+                                        ContactHelper.launchWhatsAppMessage(context, firstUnique.phoneNumber)
+                                    }
+                                } else {
+                                    speedDialToast = "Enter number to chat on WhatsApp"
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (hasNumber) secBgColor else secBgColor.copy(alpha = 0.35f)),
+                            border = secBorder,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .weight(1f)
+                                .height(40.dp)
+                                .testTag("secondary_whatsapp_chat")
                         ) {
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(waIconBg),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxSize()
+                                    .padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 WhatsAppIcon(
-                                    modifier = Modifier.size(16.dp),
-                                    tint = waIconColor
+                                    modifier = Modifier.size(15.dp),
+                                    tint = Color(0xFF25D366).copy(alpha = actionAlpha)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "WA Chat",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (hasNumber) 1f else 0.5f),
+                                    maxLines = 1
                                 )
                             }
-                            Text(
-                                text = "WhatsApp - Voice",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                        }
+
+                        // Calling Button: Secondary Voice Channel (Right)
+                        Card(
+                            onClick = {
+                                if (hasNumber) {
+                                    if (isWaPreferred) {
+                                        onPlaceCall(localNumber, selectedCallReason)
+                                    } else {
+                                        onPlaceWhatsAppCall(localNumber)
+                                    }
+                                } else if (recentCalls.isNotEmpty()) {
+                                    val firstUnique = recentCalls.distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }.firstOrNull()
+                                    if (firstUnique != null) {
+                                        onPlaceWhatsAppCall(firstUnique.phoneNumber)
+                                    }
+                                } else {
+                                    speedDialToast = "Enter number to call"
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (hasNumber) secBgColor else secBgColor.copy(alpha = 0.35f)),
+                            border = secBorder,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .testTag(if (isWaPreferred) "secondary_phone_call" else "secondary_whatsapp_call")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (isWaPreferred) {
+                                    Icon(
+                                        imageVector = Icons.Default.Call,
+                                        contentDescription = "Cellular Call",
+                                        tint = Color(0xFF059669).copy(alpha = actionAlpha),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Cellular",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (hasNumber) 1f else 0.5f),
+                                        maxLines = 1
+                                    )
+                                } else {
+                                    WhatsAppIcon(
+                                        modifier = Modifier.size(15.dp),
+                                        tint = Color(0xFF25D366).copy(alpha = actionAlpha)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "WhatsApp",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (hasNumber) 1f else 0.5f),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1178,16 +1187,24 @@ fun DialerScreen(
                         }
                     }
 
-                    // Prominent Call Button
+                    // Prominent Call Button (Channel-Adaptive)
+                    val favCallingMode = getPreferredCallingMode(fav.phoneNumber)
+                    val isFavWaPreferred = favCallingMode == "whatsapp"
+                    val displayName = fav.name.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: fav.name
+
                     Button(
                         onClick = {
                             val targetNum = fav.phoneNumber
                             speedDialActionSlotTarget = null
                             onSelectContactNumber(targetNum)
-                            onPlaceCall(targetNum, null)
+                            if (isFavWaPreferred) {
+                                onPlaceWhatsAppCall(targetNum)
+                            } else {
+                                onPlaceCall(targetNum, null)
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF059669),
+                            containerColor = if (isFavWaPreferred) Color(0xFF25D366) else Color(0xFF059669),
                             contentColor = Color.White
                         ),
                         shape = RoundedCornerShape(12.dp),
@@ -1196,17 +1213,60 @@ fun DialerScreen(
                             .height(48.dp)
                             .testTag("speed_dial_call_button")
                     ) {
-                        Icon(
-                            Icons.Filled.Call,
-                            contentDescription = "Call",
-                            modifier = Modifier.size(20.dp)
-                        )
+                        if (isFavWaPreferred) {
+                            WhatsAppIcon(
+                                modifier = Modifier.size(20.dp),
+                                tint = Color.White
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.Call,
+                                contentDescription = "Call",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "Call ${fav.name.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: fav.name}",
+                            text = if (isFavWaPreferred) "Call via WhatsApp ($displayName)" else "Call $displayName",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 15.sp
                         )
+                    }
+
+                    // Fallback alternative call channel
+                    OutlinedButton(
+                        onClick = {
+                            val targetNum = fav.phoneNumber
+                            speedDialActionSlotTarget = null
+                            onSelectContactNumber(targetNum)
+                            if (isFavWaPreferred) {
+                                onPlaceCall(targetNum, null)
+                            } else {
+                                onPlaceWhatsAppCall(targetNum)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        if (isFavWaPreferred) {
+                            Icon(
+                                Icons.Filled.Call,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFF059669)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cellular Call Instead", fontSize = 13.sp)
+                        } else {
+                            WhatsAppIcon(
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFF25D366)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("WhatsApp Voice Instead", fontSize = 13.sp)
+                        }
                     }
                 }
             },
@@ -1349,4 +1409,336 @@ fun DialerScreen(
         )
     }
 }
+
+/**
+ * Suggestions section displayed in the top area of the dialer panel.
+ * Shows recent calls when the dialed number is empty, and T9 search matches when typing.
+ * Crucially justified to the bottom so a single match is immediately above the number field.
+ */
+@Composable
+private fun DialerSuggestionsList(
+    number: String,
+    recentCalls: List<RecentCall>,
+    t9Matches: List<T9SearchResult>,
+    matchedContact: DeviceContact?,
+    onSelectContactNumber: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (number.isEmpty()) {
+        val uniqueRecents = remember(recentCalls) {
+            recentCalls
+                .distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }
+                .take(6)
+        }
+
+        if (uniqueRecents.isEmpty()) {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Text(
+                    text = "Keypad Ready",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.Bottom,
+                reverseLayout = false
+            ) {
+                items(uniqueRecents, key = { it.id }) { call ->
+                    DialerRecentSuggestionCard(
+                        call = call,
+                        onClick = { onSelectContactNumber(call.phoneNumber) }
+                    )
+                }
+            }
+        }
+    } else {
+        val searchSuggestions = remember(t9Matches, matchedContact, number) {
+            val list = mutableListOf<T9SearchResult>()
+            if (matchedContact != null) {
+                list.add(
+                    T9SearchResult(
+                        name = matchedContact.name,
+                        phoneNumber = matchedContact.phoneNumber,
+                        label = matchedContact.label,
+                        photoUri = matchedContact.photoUri,
+                        matchedByName = true,
+                        matchSnippet = "Matched Contact"
+                    )
+                )
+            }
+            t9Matches.forEach { match ->
+                val matchClean = match.phoneNumber.filter { it.isDigit() }
+                val isDuplicate = list.any { existing ->
+                    val exClean = existing.phoneNumber.filter { it.isDigit() }
+                    exClean == matchClean || existing.name.equals(match.name, ignoreCase = true)
+                }
+                if (!isDuplicate) {
+                    list.add(match)
+                }
+            }
+            list
+        }
+
+        if (searchSuggestions.isEmpty()) {
+            val comm = remember(number) { com.example.util.CommunityCallerIdService.lookup(number) }
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp, start = 16.dp, end = 16.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                if (comm != null) {
+                    val isSpam = comm.spamScore > 50
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSpam) Color(0xFFFEE2E2) else Color(0xFFE0F2FE),
+                        border = BorderStroke(1.dp, if (isSpam) Color(0xFFFCA5A5) else Color(0xFFBAE6FD))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSpam) Icons.Default.Warning else Icons.Default.Verified,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isSpam) Color(0xFFDC2626) else Color(0xFF0284C7)
+                            )
+                            Text(
+                                text = "${comm.name} • ${comm.category}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSpam) Color(0xFF991B1B) else Color(0xFF0369A1)
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "No matching contacts",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.Bottom,
+                reverseLayout = false
+            ) {
+                items(searchSuggestions, key = { it.phoneNumber + "_" + it.name }) { match ->
+                    DialerMatchSuggestionCard(
+                        match = match,
+                        query = number,
+                        onClick = { onSelectContactNumber(match.phoneNumber) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialerRecentSuggestionCard(
+    call: RecentCall,
+    onClick: () -> Unit
+) {
+    val callTypeIcon = when (call.callType) {
+        1 -> Icons.AutoMirrored.Filled.CallReceived
+        2 -> Icons.AutoMirrored.Filled.CallMade
+        else -> Icons.AutoMirrored.Filled.CallMissed
+    }
+    val iconColor = when (call.callType) {
+        1 -> Color(0xFF16A34A)
+        2 -> MaterialTheme.colorScheme.primary
+        else -> Color(0xFFDC2626)
+    }
+
+    val displayName = call.callerName?.takeIf { it.isNotBlank() && it != call.phoneNumber }
+    val primaryText = displayName ?: call.phoneNumber
+    val secondaryText = if (displayName != null) call.phoneNumber else null
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.5.dp)
+            .testTag("dialer_recent_suggestion_${call.phoneNumber}")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = primaryText.filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = primaryText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = callTypeIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = iconColor
+                    )
+                    Text(
+                        text = secondaryText ?: "Recent Call",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "Fill Number",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DialerMatchSuggestionCard(
+    match: T9SearchResult,
+    query: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.5.dp)
+            .testTag("dialer_match_suggestion_${match.phoneNumber}")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(36.dp)
+            ) {
+                if (!match.photoUri.isNullOrBlank()) {
+                    coil.compose.AsyncImage(
+                        model = match.photoUri,
+                        contentDescription = match.name,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = match.name.filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" },
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                val hasNick = !match.nickname.isNullOrBlank() && !match.nickname.equals(match.name, ignoreCase = true)
+                val displayName = if (hasNick) "${match.name} (${match.nickname})" else match.name
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = match.phoneNumber,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (match.label.isNotBlank()) {
+                        Text(
+                            text = "• ${match.label}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (match.matchSnippet.isNotBlank() && match.matchSnippet.startsWith("Nickname")) {
+                        Text(
+                            text = "• ${match.matchSnippet}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "Fill Number",
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
 }

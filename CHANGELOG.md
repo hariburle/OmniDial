@@ -4,20 +4,34 @@
 
 ---
 
-## 📌 [Unreleased] (Upcoming Release — v1.2.0 / Build 3)
+## 🚀 [v1.1.1] — Build 3 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
-- **Prominent Speed Dial Calling**: In the speed dial shortcut pop-up, the **Call** option is now framed as a prominent, elevated call button with instant contact name recognition, while secondary actions (`Reassign`, `Clear`, `Cancel`) are styled cleanly as subtle text links to keep dialing fast and focused.
-- **Speed Dial Confirmation Setting**: Added an accidental touch protection toggle in Settings allowing users to choose whether long-pressing keys (2–9) opens a confirmation popup or dials instantly.
-- **Unassigned Key Assignment Prompt**: Added a dedicated setting and prompt dialog when long-pressing unassigned keypad keys, asking whether you would like to assign a contact to that speed dial number.
+- **T9 Search for Nicknames**: Dial pad T9 search now indexes and searches contact nicknames alongside full names and phone numbers. If a contact matches by nickname, the nickname is displayed cleanly next to their name.
+- **Default Speed Dial Layout set to 'Fav & T9'**: The Speed Dial Keypad display setting defaults to "Fav & T9", displaying speed dial contact names above digits and standard T9 letters below.
+- **Non-Jumping Fixed Dial Pad Action Buttons**: Removed vertical dialer jumping when typing digits by keeping quick action buttons (SMS, WhatsApp Chat, Secondary Call) permanently visible below the keypad. Users can also toggle their visibility in Settings.
+- **Automatic International Country Code Resolution**: When sending a WhatsApp message or making a WhatsApp/SMS call, the app automatically checks stored contact records for the complete international number format or prepends the device's country calling code (e.g. +91, +1, +44), preventing WhatsApp "contact not available" errors.
+- **Key 1 Voicemail & Speed Dial Clean Rendering**: Eliminated duplicate "VM" and "Voicemail" labels on Key 1, showing a single clean icon and label or the assigned speed dial contact name.
+- **Dual Display Keypad (Speed Dial + T9 Letters)**: Keys 2–9 display both assigned speed dial contact names and standard T9 letters simultaneously with optimized aspect ratio and slot heights.
+- **Speed Dial Confirmation & Assignment Settings**: Added accidental touch protection toggle in Settings and an automatic prompt dialog when long-pressing unassigned keypad keys.
+- **Dynamic Contact Name Resolution in Recents**: The call log dynamically resolves and displays saved contact names, avatars, and initials for numbers in real-time.
+- **Bluetooth Audio Route Selector**: Route audio between earpiece, speakerphone, wired headsets, and Bluetooth audio devices.
 
 ### 🐛 Fixes & Polish (User-Facing)
-- **Speed Dial UI Polish**: Added dedicated number badge `#X` and formatted phone number labels inside the speed dial dialog for improved readability.
+- **WhatsApp Country Code Fix**: Numbers dialed without an explicit country code prefix automatically resolve their full international number before passing to WhatsApp.
+- **Key 1 Duplicate Label Fix**: Prevented redundant speed-dial and T9 VM text from appearing stacked on key 1.
+- **Keypad Jump Elimination**: The keypad maintains a fixed, stable height when typing, eliminating annoying layout shifts.
+- **Speed Dial UI Polish**: Added dedicated number badge `#X` and formatted phone number labels inside speed dial dialog for improved readability.
+- **Zero-Crash Dialer Resuming**: Fixed startup and resume crash (`SecurityException` on `cancelMissedCallsNotification`) by ensuring the app only clears system missed call notifications when it actively has the Default Dialer role.
+- **Favorite Star Instant Refresh**: Fixed a bug where the favorite star icon inside the contact detail bottom sheet of the Recents list would not immediately update or reflect the correct state after starring.
+- **Compact Call History Entries**: Refactored the call history layout in the contact detail bottom sheet to prevent text wrapping, eliminating massive empty spaces and visual stretching.
 
 ### 🔧 Technical / Architecture Notes
-- Added `confirmSpeedDialCall` and `askToAssignUnassignedSpeedDial` StateFlows in `MainViewModel.kt` backed by `SharedPreferences`.
-- Added serialization and restoration support in `BackupManager.kt`.
-- Updated `DialerScreen.kt` with `promptAssignSlotTarget` and prominent button styling.
+- Added `T9Helper.kt` nickname search matching and updated `T9SearchResult` model.
+- Added `resolveFullInternationalNumber` and `launchSms` in `ContactHelper.kt`.
+- Updated `MainViewModel.kt` with `showDialerQuickActions` and default `speedDialKeypadDisplay = "speed_dial_above"`.
+- Updated `app/build.gradle.kts` versionCode to 3 and versionName to "1.1.1".
+- Deduplicated `DialerScreen.kt` suggestions list and bound nickname displays to `DialerMatchSuggestionCard`.
 
 ---
 

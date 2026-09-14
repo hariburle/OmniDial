@@ -134,6 +134,7 @@ fun ContactDetailsBottomSheet(
     onCreateRule: (String) -> Unit,
     onSyncToPhone: (() -> Unit)? = null,
     onEditContact: (name: String, phoneNumber: String, label: String, nickname: String?) -> Unit = { _, _, _, _ -> },
+    onAddNewContact: ((name: String, number: String, label: String, saveToDevice: Boolean, addToFavorites: Boolean) -> Unit)? = null,
     onDeleteContact: ((DeviceContact) -> Unit)? = null,
     getPreferredCallingMode: (String) -> String = { "cellular" },
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
@@ -1042,34 +1043,30 @@ fun ContactDetailsBottomSheet(
                                             }
                                         }
 
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        val numberLabel = if (contact.phoneNumbers.size > 1) {
+                                            ContactHelper.getDescriptiveNumberLabel(contact, call.phoneNumber)
+                                        } else null
+
+                                        Text(
+                                            text = "${dateFormat.format(Date(call.timestamp))} • ${if (numberLabel != null) "[$numberLabel] " else ""}${call.phoneNumber}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+
+                                        // SIM Slot or WhatsApp Badge for Contact Call History
+                                        val isWaCall = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = if (isWaCall) Color(0xFF25D366).copy(alpha = 0.2f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
                                         ) {
-                                            val numberLabel = if (contact.phoneNumbers.size > 1) {
-                                                ContactHelper.getDescriptiveNumberLabel(contact, call.phoneNumber)
-                                            } else null
-
                                             Text(
-                                                text = "${dateFormat.format(Date(call.timestamp))} • ${if (numberLabel != null) "[$numberLabel] " else ""}${call.phoneNumber}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                text = if (isWaCall) "WhatsApp" else "SIM ${if (call.simSlot > 0) call.simSlot else 1}",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isWaCall) Color(0xFF166534) else MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                             )
-
-                                            // SIM Slot or WhatsApp Badge for Contact Call History
-                                            val isWaCall = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = if (isWaCall) Color(0xFF25D366).copy(alpha = 0.2f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                                            ) {
-                                                Text(
-                                                    text = if (isWaCall) "WhatsApp" else "SIM ${if (call.simSlot > 0) call.simSlot else 1}",
-                                                    fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isWaCall) Color(0xFF166534) else MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                )
-                                            }
                                         }
 
                                         if (!call.note.isNullOrBlank()) {
@@ -1494,12 +1491,16 @@ fun ContactDetailsBottomSheet(
             onDismiss = { showCreateContactDialog = false },
             onSave = { name, number, label, destination, addToFavorites ->
                 val saveToDevice = (destination == ContactSaveDestination.PHONE_CONTACTS)
-                if (saveToDevice) {
-                    ContactHelper.saveContactToDevice(context, name, number, label)
-                }
-                onEditContact(name, number, label, null)
-                if (addToFavorites) {
-                    onToggleFavorite()
+                if (onAddNewContact != null) {
+                    onAddNewContact(name, number, label, saveToDevice, addToFavorites)
+                } else {
+                    if (saveToDevice) {
+                        ContactHelper.saveContactToDevice(context, name, number, label)
+                    }
+                    onEditContact(name, number, label, null)
+                    if (addToFavorites) {
+                        onToggleFavorite()
+                    }
                 }
                 showCreateContactDialog = false
             }

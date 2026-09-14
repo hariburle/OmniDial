@@ -84,6 +84,52 @@ object ContactHelper {
         }
     }
 
+    fun isDialOrTelIntent(intent: Intent?): Boolean {
+        if (intent == null) return false
+        val action = intent.action
+        val data = intent.data
+        val scheme = data?.scheme
+        return action == Intent.ACTION_DIAL ||
+                action == Intent.ACTION_CALL ||
+                action == Intent.ACTION_CALL_BUTTON ||
+                (action == Intent.ACTION_VIEW && scheme == "tel") ||
+                scheme == "tel" ||
+                intent.hasExtra(Intent.EXTRA_PHONE_NUMBER) ||
+                intent.hasExtra("android.intent.extra.PHONE_NUMBER") ||
+                intent.hasExtra("phone") ||
+                intent.hasExtra("phoneNumber") ||
+                intent.hasExtra("number") ||
+                intent.getStringExtra("EXTRA_NAV_TAB") == "DIALER" ||
+                intent.getStringExtra("EXTRA_NAV_TAB") == "KEYPAD" ||
+                intent.getIntExtra("EXTRA_NAV_TAB_INDEX", -1) == 2
+    }
+
+    fun extractPhoneNumberFromIntent(intent: Intent?): String? {
+        if (intent == null) return null
+        val data = intent.data
+        if (data != null && data.scheme == "tel") {
+            val ssp = data.schemeSpecificPart
+            if (!ssp.isNullOrBlank()) {
+                val clean = ssp.substringBefore('?').trim()
+                return Uri.decode(clean)
+            }
+        }
+        val ssp = data?.schemeSpecificPart
+        if (!ssp.isNullOrBlank() && (intent.action == Intent.ACTION_DIAL || intent.action == Intent.ACTION_VIEW || intent.action == Intent.ACTION_CALL)) {
+            val clean = ssp.substringBefore('?').trim()
+            return Uri.decode(clean)
+        }
+        val extraNum = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
+            ?: intent.getStringExtra("android.intent.extra.PHONE_NUMBER")
+            ?: intent.getStringExtra("phoneNumber")
+            ?: intent.getStringExtra("phone")
+            ?: intent.getStringExtra("number")
+        if (!extraNum.isNullOrBlank()) {
+            return extraNum.trim()
+        }
+        return null
+    }
+
     fun getPrimaryContactsAccount(context: Context): Pair<String?, String?> {
         try {
             val uri = ContactsContract.RawContacts.CONTENT_URI
@@ -320,12 +366,75 @@ object ContactHelper {
     }
 
     /**
+     * Resolves a phone number into an international E.164-compatible digit string for WhatsApp and messaging:
+     * 1. If the number already has a leading '+', strips non-digits and uses it.
+     * 2. Checks saved contact records in address book to see if the contact has an international number stored (+...).
+     * 3. If the number is a standard domestic/national number (e.g. 10 digits without country code), automatically
+     *    prepends the device's default country calling code (e.g. 91 for India, 1 for US, 44 for UK, etc.).
+     */
+    fun resolveFullInternationalNumber(context: Context, rawNumber: String): String {
+        val trimmed = rawNumber.trim()
+        if (trimmed.isEmpty()) return ""
+
+        // 1. If starts with '+', it already has international country code
+        if (trimmed.startsWith("+")) {
+            return trimmed.replace(Regex("[^0-9]"), "")
+        }
+
+        // 2. If starts with "00", strip "00"
+        if (trimmed.startsWith("00")) {
+            return trimmed.substring(2).replace(Regex("[^0-9]"), "")
+        }
+
+        // 3. Try to find a matching contact in address book that might have the full international number
+        try {
+            val contact = lookupContactByNumber(context, trimmed)
+            if (contact != null) {
+                val contactNumber = contact.phoneNumber.trim()
+                if (contactNumber.startsWith("+")) {
+                    return contactNumber.replace(Regex("[^0-9]"), "")
+                }
+                for (pn in contact.phoneNumbers) {
+                    if (pn.number.trim().startsWith("+")) {
+                        return pn.number.replace(Regex("[^0-9]"), "")
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 4. Clean digits
+        var cleanDigits = trimmed.replace(Regex("[^0-9]"), "")
+        if (cleanDigits.isEmpty()) return ""
+
+        // 5. Get device default country calling code
+        val deviceIso = getDeviceCountryIso(context)
+        val callingCode = getCountryCallingCode(deviceIso)
+
+        // Handle national trunk prefix '0' (e.g. UK 07xxx -> 447xxx, India 098xxx -> 9198xxx)
+        if (cleanDigits.startsWith("0") && cleanDigits.length > 10) {
+            cleanDigits = cleanDigits.substring(1)
+        }
+
+        // If cleanDigits is a 10-digit domestic number or shorter, prepend country calling code
+        if (cleanDigits.length == 10) {
+            return "$callingCode$cleanDigits"
+        } else if (cleanDigits.length < 10) {
+            return "$callingCode$cleanDigits"
+        } else {
+            // If already starts with calling code or is longer international digits
+            if (!cleanDigits.startsWith(callingCode) && cleanDigits.length <= 11 && callingCode != "1") {
+                return "$callingCode$cleanDigits"
+            }
+            return cleanDigits
+        }
+    }
+
+    /**
      * Initiates a direct WhatsApp voice call without opening the chat screen.
      * Uses Android Contacts Provider VoIP Data item if available, or direct WhatsApp call intent.
      */
     fun launchWhatsAppCall(context: Context, rawNumber: String) {
-        val cleanNumber = rawNumber.replace(Regex("[^0-9+]"), "")
-        val digitsOnly = cleanNumber.trimStart('+')
+        val digitsOnly = resolveFullInternationalNumber(context, rawNumber)
 
         if (digitsOnly.isEmpty()) {
             android.widget.Toast.makeText(context, "Invalid phone number for WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
@@ -422,8 +531,7 @@ object ContactHelper {
     }
 
     fun launchWhatsAppMessage(context: Context, rawNumber: String) {
-        val cleanNumber = rawNumber.replace(Regex("[^0-9+]"), "")
-        val digitsOnly = cleanNumber.trimStart('+')
+        val digitsOnly = resolveFullInternationalNumber(context, rawNumber)
         if (digitsOnly.isEmpty()) {
             android.widget.Toast.makeText(context, "Invalid phone number for WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
             return
@@ -443,6 +551,24 @@ object ContactHelper {
             } catch (e: Exception) {
                 android.widget.Toast.makeText(context, "WhatsApp is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    fun launchSms(context: Context, rawNumber: String) {
+        val targetNumber = try {
+            val contact = lookupContactByNumber(context, rawNumber)
+            val fullNum = contact?.phoneNumber ?: rawNumber
+            fullNum.ifBlank { rawNumber }
+        } catch (_: Exception) {
+            rawNumber
+        }
+        try {
+            val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$targetNumber")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(smsIntent)
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(context, "Could not open Messaging app", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 

@@ -312,6 +312,14 @@ fun ContactsScreen(
         }
     }
 
+    // Precomputed lookups for performance optimization in Contacts list
+    val fastFavoritesPhoneDigitsSet = remember(favorites) {
+        favorites.map { it.phoneNumber.replace(Regex("[^0-9+]"), "") }.filter { it.isNotBlank() }.toSet()
+    }
+    val fastFavoritesNamesSet = remember(favorites) {
+        favorites.map { it.name.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
+    }
+
     val alphabet = remember(sortOrder) {
         if (sortOrder == ContactSortOrder.ASCENDING) {
             ('A'..'Z').toList() + listOf('#')
@@ -824,12 +832,22 @@ fun ContactsScreen(
                             }
 
                             items(contactsInGroup, key = { it.contactId?.toString() ?: (it.name + "_" + it.phoneNumber) }) { contact ->
-                                val isFav = favorites.any { fav ->
-                                    val normF = fav.phoneNumber.replace(Regex("[^0-9+]"), "")
-                                    contact.phoneNumbers.any { it.number.replace(Regex("[^0-9+]"), "") == normF } ||
-                                    contact.phoneNumber.replace(Regex("[^0-9+]"), "") == normF ||
-                                    fav.name.equals(contact.name, ignoreCase = true) ||
-                                    (!contact.nickname.isNullOrBlank() && fav.name.equals(contact.nickname, ignoreCase = true))
+                                val isFav = remember(contact.contactId, contact.phoneNumber, contact.name, contact.nickname, contact.phoneNumbers, fastFavoritesPhoneDigitsSet, fastFavoritesNamesSet) {
+                                    val contactNameLower = contact.name.trim().lowercase()
+                                    if (fastFavoritesNamesSet.contains(contactNameLower)) {
+                                        return@remember true
+                                    }
+                                    if (!contact.nickname.isNullOrBlank() && fastFavoritesNamesSet.contains(contact.nickname.trim().lowercase())) {
+                                        return@remember true
+                                    }
+                                    val normContact = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
+                                    if (normContact.isNotBlank() && fastFavoritesPhoneDigitsSet.contains(normContact)) {
+                                        return@remember true
+                                    }
+                                    contact.phoneNumbers.any { pn ->
+                                        val normPn = pn.number.replace(Regex("[^0-9+]"), "")
+                                        normPn.isNotBlank() && fastFavoritesPhoneDigitsSet.contains(normPn)
+                                    }
                                 }
 
                                 ContactRowItem(
@@ -868,12 +886,22 @@ fun ContactsScreen(
                     } else {
                         val (lastTsMap, countMap) = contactCallStats
                         items(sortedContacts, key = { it.contactId?.toString() ?: (it.name + "_" + it.phoneNumber) }) { contact ->
-                            val isFav = favorites.any { fav ->
-                                val normF = fav.phoneNumber.replace(Regex("[^0-9+]"), "")
-                                contact.phoneNumbers.any { it.number.replace(Regex("[^0-9+]"), "") == normF } ||
-                                contact.phoneNumber.replace(Regex("[^0-9+]"), "") == normF ||
-                                fav.name.equals(contact.name, ignoreCase = true) ||
-                                (!contact.nickname.isNullOrBlank() && fav.name.equals(contact.nickname, ignoreCase = true))
+                            val isFav = remember(contact.contactId, contact.phoneNumber, contact.name, contact.nickname, contact.phoneNumbers, fastFavoritesPhoneDigitsSet, fastFavoritesNamesSet) {
+                                val contactNameLower = contact.name.trim().lowercase()
+                                if (fastFavoritesNamesSet.contains(contactNameLower)) {
+                                    return@remember true
+                                }
+                                if (!contact.nickname.isNullOrBlank() && fastFavoritesNamesSet.contains(contact.nickname.trim().lowercase())) {
+                                    return@remember true
+                                }
+                                val normContact = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
+                                if (normContact.isNotBlank() && fastFavoritesPhoneDigitsSet.contains(normContact)) {
+                                    return@remember true
+                                }
+                                contact.phoneNumbers.any { pn ->
+                                    val normPn = pn.number.replace(Regex("[^0-9+]"), "")
+                                    normPn.isNotBlank() && fastFavoritesPhoneDigitsSet.contains(normPn)
+                                }
                             }
 
                             val (lastTs, count) = getContactStats(contact, lastTsMap, countMap)
@@ -1059,6 +1087,11 @@ fun ContactsScreen(
             },
             onCreateRule = { num ->
                 onCreateRule(num)
+                contactForDetailsSheet = null
+            },
+            onAddNewContact = { name, number, label, saveToDevice, addToFav ->
+                val dest = if (saveToDevice) ContactSaveDestination.PHONE_CONTACTS else ContactSaveDestination.APP_ONLY
+                onAddNewContact(name, number, label, dest, addToFav)
                 contactForDetailsSheet = null
             },
             onSyncToPhone = {

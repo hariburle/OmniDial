@@ -79,6 +79,13 @@
                 <data android:scheme="tel" />
             </intent-filter>
 
+            <!-- Support system CALL tel intents -->
+            <intent-filter>
+                <action android:name="android.intent.action.CALL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tel" />
+            </intent-filter>
+
             <!-- Support system missed calls notification click and viewing call logs -->
             <intent-filter>
                 <action android:name="android.telecom.action.SHOW_MISSED_CALLS_NOTIFICATION" />

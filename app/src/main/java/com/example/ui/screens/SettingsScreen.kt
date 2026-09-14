@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -49,10 +51,16 @@ fun SettingsScreen(
     onSetConfirmSpeedDialCall: (Boolean) -> Unit = {},
     askToAssignUnassignedSpeedDial: Boolean = true,
     onSetAskToAssignUnassignedSpeedDial: (Boolean) -> Unit = {},
+    speedDialKeypadDisplay: String = "speed_dial_above",
+    onSetSpeedDialKeypadDisplay: (String) -> Unit = {},
+    showDialerQuickActions: Boolean = true,
+    onSetShowDialerQuickActions: (Boolean) -> Unit = {},
     defaultStartTab: Int,
     onSetDefaultStartTab: (Int) -> Unit,
     swipeToSwitchPanels: Boolean,
     onSetSwipeToSwitchPanels: (Boolean) -> Unit,
+    navBarStyle: String = "full",
+    onSetNavBarStyle: (String) -> Unit = {},
     callAnswerStyle: String,
     onSetCallAnswerStyle: (String) -> Unit,
     onExportBackup: ((android.net.Uri, (Boolean) -> Unit) -> Unit)? = null,
@@ -135,18 +143,81 @@ fun SettingsScreen(
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "Theme Mode", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEach { (mode, label) ->
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(text = "Theme Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val themeOptions = listOf(
+                        Triple("system", "System", Icons.Default.BrightnessAuto),
+                        Triple("light", "Light", Icons.Default.LightMode),
+                        Triple("dark", "Dark", Icons.Default.DarkMode)
+                    )
+                    themeOptions.forEach { (mode, label, icon) ->
                         val selected = themeMode == mode
-                        AssistChip(
+                        Card(
                             onClick = { onSetThemeMode(mode) },
-                            label = { Text(label) },
-                            leadingIcon = if (selected) {
-                                { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            } else null
-                        )
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (selected)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                            ),
+                            border = BorderStroke(
+                                if (selected) 2.dp else 1.dp,
+                                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("theme_option_$mode")
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 46.dp, height = 36.dp)
+                                        .background(
+                                            when (mode) {
+                                                "light" -> Color(0xFFF8FAFC)
+                                                "dark" -> Color(0xFF0F172A)
+                                                else -> MaterialTheme.colorScheme.surface
+                                            },
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                            RoundedCornerShape(8.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = when (mode) {
+                                            "light" -> Color(0xFFEAB308)
+                                            "dark" -> Color(0xFF93C5FD)
+                                            else -> MaterialTheme.colorScheme.primary
+                                        },
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -401,31 +472,85 @@ fun SettingsScreen(
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(text = "WhatsApp Call Integration Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                 val options = listOf(
-                    Triple("ask_learn", "Ask & Learn", "Prompts once per contact and memorizes choice"),
-                    Triple("ask_always", "Ask Always", "Always shows Cellular vs WhatsApp choice on call"),
-                    Triple("all_international", "International Numbers", "Directs numbers outside your country (+1 for US, +91 for India, etc.) to WhatsApp automatically."),
-                    Triple("never", "Never", "Default standard cellular calls only")
+                    listOf(
+                        Triple("ask_learn", "Ask & Learn", "Prompts once & memorizes choice") to Icons.Default.Psychology,
+                        Triple("ask_always", "Ask Always", "Prompt cellular vs WhatsApp") to Icons.Default.HelpOutline
+                    ),
+                    listOf(
+                        Triple("all_international", "International", "Direct foreign numbers to WhatsApp") to Icons.Default.Public,
+                        Triple("never", "Cellular Only", "Standard carrier calls only") to Icons.Default.PhoneDisabled
+                    )
                 )
-                options.forEach { (mode, label, desc) ->
+                options.forEach { rowItems ->
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSetWhatsAppCallMode(mode) }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        RadioButton(
-                            selected = whatsAppCallMode == mode,
-                            onClick = { onSetWhatsAppCallMode(mode) },
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Column {
-                            Text(text = label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            Text(text = desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        rowItems.forEach { (info, icon) ->
+                            val (mode, label, desc) = info
+                            val isSelected = whatsAppCallMode == mode
+                            Card(
+                                onClick = { onSetWhatsAppCallMode(mode) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected)
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                ),
+                                border = BorderStroke(
+                                    if (isSelected) 2.dp else 1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("whatsapp_mode_$mode")
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = icon,
+                                                    contentDescription = null,
+                                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    Text(
+                                        text = desc,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 9.sp,
+                                        lineHeight = 11.sp,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -662,6 +787,177 @@ fun SettingsScreen(
 
                 HorizontalDivider()
 
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Dialpad,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Speed Dial Keypad Display",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Text(
+                        text = "Control whether speed dial contact names, T9 letters, or both appear on the keypad buttons",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        val speedDialOptions = listOf(
+                            "speed_dial_above",
+                            "t9_only",
+                            "speed_dial_only"
+                        )
+
+                        speedDialOptions.forEach { modeKey ->
+                            val isSelected = speedDialKeypadDisplay == modeKey
+                            val label = when (modeKey) {
+                                "speed_dial_above" -> "Fav & T9"
+                                "t9_only" -> "T9 Only"
+                                else -> "Fav Only"
+                            }
+                            Card(
+                                onClick = { onSetSpeedDialKeypadDisplay(modeKey) },
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected)
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                ),
+                                border = BorderStroke(
+                                    if (isSelected) 2.5.dp else 1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(98.dp)
+                                    .testTag("speed_dial_display_$modeKey")
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // Mini keypad button mockup (rectangular with number on left, fav/T9 on right)
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "2",
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Column(
+                                                horizontalAlignment = Alignment.End,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                when (modeKey) {
+                                                    "speed_dial_above" -> {
+                                                        Text(
+                                                            text = "Mom",
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            maxLines = 1
+                                                        )
+                                                        Text(
+                                                            text = "ABC",
+                                                            fontSize = 8.5.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    "t9_only" -> {
+                                                        Text(
+                                                            text = "ABC",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    "speed_dial_only" -> {
+                                                        Text(
+                                                            text = "Mom",
+                                                            fontSize = 10.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            maxLines = 1
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Show Quick Action Buttons",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Keep SMS, WhatsApp Chat, and Secondary Call buttons beneath the dialpad without layout jumping",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showDialerQuickActions,
+                        onCheckedChange = onSetShowDialerQuickActions,
+                        modifier = Modifier.testTag("show_dialer_quick_actions_switch")
+                    )
+                }
+
+                HorizontalDivider()
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -688,35 +984,226 @@ fun SettingsScreen(
 
                 HorizontalDivider()
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(text = "Default Startup Screen", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                // Visual Navigation Bar Style Selector
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ViewCarousel,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Navigation Bar Style",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val navOptions = listOf(
+                            Triple("full", "Standard", "Icons & text"),
+                            Triple("compact", "Compact", "Icons only"),
+                            Triple("indicator", "Minimal", "Gesture bar")
+                        )
+
+                        navOptions.forEach { (styleKey, title, subtitle) ->
+                            val isSelected = navBarStyle == styleKey
+                            Card(
+                                onClick = { onSetNavBarStyle(styleKey) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                ),
+                                border = BorderStroke(
+                                    if (isSelected) 2.dp else 1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("nav_bar_style_$styleKey")
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    // Visual Mockup of the Bar
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(28.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.surface,
+                                                RoundedCornerShape(6.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        when (styleKey) {
+                                            "full" -> {
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    repeat(3) { i ->
+                                                        Column(
+                                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(7.dp)
+                                                                    .background(
+                                                                        if (i == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                                        CircleShape
+                                                                    )
+                                                            )
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(width = 10.dp, height = 2.dp)
+                                                                    .background(
+                                                                        if (i == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                                        RoundedCornerShape(1.dp)
+                                                                    )
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            "compact" -> {
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    repeat(3) { i ->
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(9.dp)
+                                                                .background(
+                                                                    if (i == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                                    CircleShape
+                                                                )
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            "indicator" -> {
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Box(modifier = Modifier.size(5.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape))
+                                                    Box(modifier = Modifier.size(width = 16.dp, height = 4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
+                                                    Box(modifier = Modifier.size(5.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = subtitle,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 9.5.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Default Startup Screen",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                     Text(
-                        text = "Choose which tab opens first when launching the dialer",
+                        text = "Tap a tab below to choose which screen opens when launching the dialer",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val tabs = listOf(
-                        0 to "Favorites (Default)",
-                        1 to "Recents",
-                        2 to "Keypad Dialer",
-                        3 to "Contacts"
-                    )
-                    tabs.forEach { (tabIndex, tabTitle) ->
+
+                    // Interactive App Navigation Bar
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                        tonalElevation = 2.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onSetDefaultStartTab(tabIndex) }
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(vertical = 6.dp, horizontal = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = defaultStartTab == tabIndex,
-                                onClick = { onSetDefaultStartTab(tabIndex) },
-                                modifier = Modifier.size(36.dp)
+                            val tabs = listOf(
+                                0 to ("Favorites" to Icons.Default.Star),
+                                1 to ("Recents" to Icons.Default.History),
+                                2 to ("Keypad" to Icons.Default.Dialpad),
+                                3 to ("Contacts" to Icons.Default.Contacts)
                             )
-                            Text(text = tabTitle, style = MaterialTheme.typography.bodySmall)
+                            tabs.forEach { (index, tabData) ->
+                                val (label, icon) = tabData
+                                val isSelected = defaultStartTab == index
+                                Surface(
+                                    onClick = { onSetDefaultStartTab(index) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("nav_tab_button_$index")
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = label,
+                                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -735,54 +1222,171 @@ fun SettingsScreen(
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "Choose the gesture or interaction style for incoming phone calls",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
                 val answerStyles = listOf(
                     Triple(
                         "swipe_slider",
-                        "Horizontal Slide to Answer (Default)",
-                        "Slide handle right to answer, or slide left to decline. Smooth, tactile horizontal slider interface."
+                        "Slide to Answer",
+                        "Horizontal slider"
                     ),
                     Triple(
                         "swipe_up",
-                        "Swipe Up to Answer (Google Phone style)",
-                        "Swipe up to answer, swipe down to decline. Recommended standard to prevent accidental answering in pockets."
+                        "Swipe Up",
+                        "Google Phone gesture"
                     ),
                     Triple(
                         "button_tap",
-                        "Press to Answer (Single Tap)",
-                        "Direct one-tap buttons for Answer and Decline. Fastest and easiest for one-handed use."
+                        "Direct Buttons",
+                        "Single tap to Answer"
                     )
                 )
-                answerStyles.forEach { (style, label, desc) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSetCallAnswerStyle(style) }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        RadioButton(
-                            selected = callAnswerStyle == style,
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    answerStyles.forEach { (style, label, desc) ->
+                        val isSelected = callAnswerStyle == style
+                        Card(
                             onClick = { onSetCallAnswerStyle(style) },
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = desc,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                            ),
+                            border = BorderStroke(
+                                if (isSelected) 2.dp else 1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("call_answer_style_$style")
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                // Live Mockup of the Answering Style UI
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(64.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.surface,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        // Top caller hint
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                                            Box(modifier = Modifier.size(width = 24.dp, height = 3.dp).background(MaterialTheme.colorScheme.onSurface, RoundedCornerShape(1.dp)))
+                                        }
+
+                                        // Gesture preview
+                                        when (style) {
+                                            "swipe_slider" -> {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(20.dp)
+                                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                                        .padding(horizontal = 2.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFFDC2626), CircleShape), contentAlignment = Alignment.Center) {
+                                                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
+                                                        }
+                                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF16A34A), CircleShape), contentAlignment = Alignment.Center) {
+                                                            Icon(Icons.Default.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
+                                                        }
+                                                    }
+                                                    Box(modifier = Modifier.size(14.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                                                }
+                                            }
+                                            "swipe_up" -> {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                                ) {
+                                                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(14.dp))
+                                                    Box(modifier = Modifier.size(16.dp).background(Color(0xFF16A34A), CircleShape), contentAlignment = Alignment.Center) {
+                                                        Icon(Icons.Default.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
+                                                    }
+                                                }
+                                            }
+                                            "button_tap" -> {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Box(modifier = Modifier.size(18.dp).background(Color(0xFFDC2626), CircleShape), contentAlignment = Alignment.Center) {
+                                                        Icon(Icons.Default.CallEnd, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
+                                                    }
+                                                    Box(modifier = Modifier.size(18.dp).background(Color(0xFF16A34A), CircleShape), contentAlignment = Alignment.Center) {
+                                                        Icon(Icons.Default.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Status bar at bottom
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 16.dp, height = 2.dp)
+                                                .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(1.dp))
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = desc,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 8.5.sp,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }
@@ -1246,3 +1850,4 @@ fun SettingsScreen(
         )
     }
 }
+

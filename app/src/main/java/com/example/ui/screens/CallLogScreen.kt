@@ -115,6 +115,8 @@ fun CallLogScreen(
     onMarkSpam: (String) -> Unit = {},
     onRemoveSpam: (String) -> Unit = {},
     onToggleFavorite: (name: String, number: String, label: String, photoUri: String?) -> Unit = { _, _, _, _ -> },
+    onUpdateFavoriteNumber: (FavoriteContact, String, String) -> Unit = { _, _, _ -> },
+    onAddNewContact: (name: String, number: String, label: String, saveToDevice: Boolean, addToFavorites: Boolean) -> Unit = { _, _, _, _, _ -> },
     onUpdateNoteAndReminder: (RecentCall, String?, Long?) -> Unit = { _, _, _ -> },
     onUpdateContact: (oldNum: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
     onDeleteCall: (RecentCall) -> Unit = {},
@@ -132,8 +134,17 @@ fun CallLogScreen(
 
     if (contactDetailsTarget != null) {
         val (matchedContact, favContactInitial) = contactDetailsTarget!!
-        val favContact = favContactInitial?.let { f ->
-            favorites.find { it.id == f.id } ?: f
+        val favContact = remember(matchedContact, favorites) {
+            favorites.firstOrNull { fav ->
+                val favDigits = fav.phoneNumber.filter { it.isDigit() }.takeLast(10)
+                val phoneMatch = if (favDigits.length >= 7) {
+                    matchedContact.phoneNumbers.any { it.number.filter { c -> c.isDigit() }.takeLast(10) == favDigits } ||
+                    matchedContact.phoneNumber.filter { c -> c.isDigit() }.takeLast(10) == favDigits
+                } else false
+                phoneMatch ||
+                fav.name.equals(matchedContact.name.trim(), ignoreCase = true) ||
+                (!matchedContact.nickname.isNullOrBlank() && fav.name.equals(matchedContact.nickname!!.trim(), ignoreCase = true))
+            }
         }
         ContactDetailsBottomSheet(
             contact = matchedContact,
@@ -150,7 +161,7 @@ fun CallLogScreen(
             },
             onSetAsDefaultNumber = { newNum, newLabel ->
                 if (favContact != null) {
-                    onToggleFavorite(favContact.name, newNum, newLabel, matchedContact.photoUri)
+                    onUpdateFavoriteNumber(favContact, newNum, newLabel)
                 } else {
                     onToggleFavorite(matchedContact.name, newNum, newLabel, matchedContact.photoUri)
                 }
@@ -162,6 +173,10 @@ fun CallLogScreen(
             },
             onCreateRule = { num ->
                 onCreateRuleForNumber(num)
+            },
+            onAddNewContact = { name, number, label, saveToDevice, addToFav ->
+                onAddNewContact(name, number, label, saveToDevice, addToFav)
+                contactDetailsTarget = null
             },
             getPreferredCallingMode = getPreferredCallingMode,
             onSaveLearnedCallMode = onSaveLearnedCallMode,
@@ -326,6 +341,39 @@ fun CallLogScreen(
 
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
+    // Precomputed lookups for performance optimization during scrolling
+    val fastFavoritesNormalizedSet = remember(favorites) {
+        favorites.map { ContactHelper.normalizeToLocalDigits(it.phoneNumber) }.filter { it.isNotBlank() }.toSet()
+    }
+
+    // Pre-indexed device contacts by phone numbers (normalized)
+    val fastDeviceContactsMap = remember(deviceContacts) {
+        val map = mutableMapOf<String, DeviceContact>()
+        deviceContacts.forEach { dc ->
+            val normPrimary = ContactHelper.normalizeToLocalDigits(dc.phoneNumber)
+            if (normPrimary.isNotBlank() && !map.containsKey(normPrimary)) {
+                map[normPrimary] = dc
+            }
+            dc.phoneNumbers.forEach { pn ->
+                val normNum = ContactHelper.normalizeToLocalDigits(pn.number)
+                if (normNum.isNotBlank() && !map.containsKey(normNum)) {
+                    map[normNum] = dc
+                }
+            }
+        }
+        map
+    }
+
+    // Precomputed distinct caller name map
+    val fastRecentCallerDistinctNumbersCount = remember(recentCalls) {
+        val result = mutableMapOf<String, Int>()
+        val groupedByName = recentCalls.filter { !it.callerName.isNullOrBlank() }.groupBy { it.callerName!!.lowercase() }
+        groupedByName.forEach { (name, calls) ->
+            result[name] = calls.map { ContactHelper.normalizeToLocalDigits(it.phoneNumber) }.distinct().size
+        }
+        result
+    }
+
     androidx.compose.runtime.LaunchedEffect(highlightNumber, filteredGroupedCalls) {
         if (!highlightNumber.isNullOrBlank() && filteredGroupedCalls.isNotEmpty()) {
             val targetDigits = highlightNumber.filter { it.isDigit() }.takeLast(10)
@@ -436,18 +484,19 @@ fun CallLogScreen(
                 ) {
                     itemsIndexed(filteredGroupedCalls, key = { index, group -> "${group.primaryCall.id}_${group.primaryCall.timestamp}_$index" }) { _, group ->
                 val call = group.primaryCall
-                val isFav = favorites.any { fav ->
-                    ContactHelper.isSamePhoneNumber(fav.phoneNumber, call.phoneNumber)
+                val isFav = remember(call.phoneNumber, fastFavoritesNormalizedSet) {
+                    val norm = ContactHelper.normalizeToLocalDigits(call.phoneNumber)
+                    fastFavoritesNormalizedSet.contains(norm)
                 }
-                val matchedDc = remember(call.phoneNumber, call.callerName, deviceContacts) {
-                    deviceContacts.firstOrNull { dc ->
-                        ContactHelper.isSamePhoneNumber(dc.phoneNumber, call.phoneNumber) ||
-                        dc.phoneNumbers.any { ContactHelper.isSamePhoneNumber(it.number, call.phoneNumber) }
-                    } ?: if (!call.callerName.isNullOrBlank()) {
-                        deviceContacts.firstOrNull { it.name.equals(call.callerName, ignoreCase = true) }
-                    } else null
+                val matchedDc = remember(call.phoneNumber, call.callerName, fastDeviceContactsMap, deviceContacts) {
+                    val norm = ContactHelper.normalizeToLocalDigits(call.phoneNumber)
+                    var dcMatch = fastDeviceContactsMap[norm]
+                    if (dcMatch == null && !call.callerName.isNullOrBlank()) {
+                        dcMatch = deviceContacts.firstOrNull { it.name.equals(call.callerName, ignoreCase = true) }
+                    }
+                    dcMatch
                 }
-                val hasMultipleNumbers = remember(matchedDc, call.callerName, call.phoneNumber, recentCalls) {
+                val hasMultipleNumbers = remember(matchedDc, call.callerName, call.phoneNumber, fastRecentCallerDistinctNumbersCount) {
                     if (matchedDc != null) {
                         val hasMultipleInContact = matchedDc.phoneNumbers.size > 1
                         val numberNotInContact = matchedDc.phoneNumbers.none {
@@ -458,11 +507,7 @@ fun CallLogScreen(
                         }
                     }
                     if (!call.callerName.isNullOrBlank()) {
-                        val distinctCount = recentCalls
-                            .filter { it.callerName?.equals(call.callerName, ignoreCase = true) == true }
-                            .map { it.phoneNumber }
-                            .distinctBy { ContactHelper.normalizeToLocalDigits(it) }
-                            .size
+                        val distinctCount = fastRecentCallerDistinctNumbersCount[call.callerName.lowercase()] ?: 0
                         if (distinctCount > 1) {
                             return@remember true
                         }
@@ -479,6 +524,7 @@ fun CallLogScreen(
                     highlightNumber = highlightNumber,
                     hasMultipleNumbers = hasMultipleNumbers,
                     numberLabel = numberLabel,
+                    matchedDc = matchedDc,
                     onCallBack = { onCallBack(group.primaryCall.phoneNumber) },
                     onCreateRule = { onCreateRuleForNumber(group.primaryCall.phoneNumber) },
                     onOpenNoteDialog = { target ->
@@ -553,9 +599,12 @@ private fun CallLogItem(
     onToggleFavorite: () -> Unit,
     onOpenDetails: () -> Unit,
     onDeleteCall: () -> Unit = {},
-    onDeleteCallsForNumber: () -> Unit = {}
+    onDeleteCallsForNumber: () -> Unit = {},
+    matchedDc: DeviceContact? = null
 ) {
     val call = group.primaryCall
+    val photoToUse = matchedDc?.photoUri?.ifBlank { null } ?: call.photoUri?.ifBlank { null }
+    val nameToUse = matchedDc?.name?.ifBlank { null } ?: call.callerName?.ifBlank { null }
     val isWhatsApp = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
     val (typeIcon, typeColor, typeLabel) = when {
         isWhatsApp -> Triple(Icons.AutoMirrored.Filled.CallMade, Color(0xFF25D366), "WhatsApp Call")
@@ -623,17 +672,17 @@ private fun CallLogItem(
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
-                        } else if (!call.photoUri.isNullOrBlank()) {
+                        } else if (!photoToUse.isNullOrBlank()) {
                             coil.compose.AsyncImage(
-                                model = call.photoUri,
-                                contentDescription = call.callerName ?: call.phoneNumber,
+                                model = photoToUse,
+                                contentDescription = nameToUse ?: call.phoneNumber,
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
-                        } else if (!call.callerName.isNullOrBlank()) {
+                        } else if (!nameToUse.isNullOrBlank()) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = call.callerName.take(1).uppercase(),
+                                    text = nameToUse.take(1).uppercase(),
                                     fontWeight = FontWeight.Bold,
                                     color = if (isWhatsApp) Color(0xFF15803D) else typeColor,
                                     fontSize = 16.sp
@@ -672,7 +721,7 @@ private fun CallLogItem(
                                 )
                             }
                         }
-                    } else if (!call.photoUri.isNullOrBlank() || !call.callerName.isNullOrBlank()) {
+                    } else if (!photoToUse.isNullOrBlank() || !nameToUse.isNullOrBlank()) {
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.surface,
@@ -704,7 +753,7 @@ private fun CallLogItem(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = call.callerName?.ifBlank { call.phoneNumber } ?: call.phoneNumber,
+                            text = nameToUse ?: call.phoneNumber,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             color = if (group.isSpam) Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurface,

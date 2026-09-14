@@ -188,6 +188,26 @@ class MainViewModel(
         prefs.edit().putBoolean("ask_assign_unassigned_speed_dial", enabled).apply()
     }
 
+    // Speed Dial Keypad Display: "speed_dial_above" (fav and T9 stacked on right), "t9_only", "speed_dial_only"
+    private val _speedDialKeypadDisplay = MutableStateFlow(
+        prefs.getString("speed_dial_keypad_display", "speed_dial_above") ?: "speed_dial_above"
+    )
+    val speedDialKeypadDisplay: StateFlow<String> = _speedDialKeypadDisplay.asStateFlow()
+
+    fun setSpeedDialKeypadDisplay(mode: String) {
+        _speedDialKeypadDisplay.value = mode
+        prefs.edit().putString("speed_dial_keypad_display", mode).apply()
+    }
+
+    // Show Dialer Quick Action Buttons (SMS, WhatsApp Chat, Secondary Call)
+    private val _showDialerQuickActions = MutableStateFlow(prefs.getBoolean("show_dialer_quick_actions", true))
+    val showDialerQuickActions: StateFlow<Boolean> = _showDialerQuickActions.asStateFlow()
+
+    fun setShowDialerQuickActions(enabled: Boolean) {
+        _showDialerQuickActions.value = enabled
+        prefs.edit().putBoolean("show_dialer_quick_actions", enabled).apply()
+    }
+
     // Default start tab: 0 (Favorites)
     private val _defaultStartTab = MutableStateFlow(prefs.getInt("default_start_tab", 0))
     val defaultStartTab: StateFlow<Int> = _defaultStartTab.asStateFlow()
@@ -222,6 +242,15 @@ class MainViewModel(
     fun setSwipeToSwitchPanels(enabled: Boolean) {
         _swipeToSwitchPanels.value = enabled
         prefs.edit().putBoolean("swipe_to_switch_panels", enabled).apply()
+    }
+
+    // Navigation Bar Style ("full", "compact", "indicator")
+    private val _navBarStyle = MutableStateFlow(prefs.getString("nav_bar_style", "full") ?: "full")
+    val navBarStyle: StateFlow<String> = _navBarStyle.asStateFlow()
+
+    fun setNavBarStyle(style: String) {
+        _navBarStyle.value = style
+        prefs.edit().putString("nav_bar_style", style).apply()
     }
 
     fun isNumberWhitelistedNotSpam(phoneNumber: String): Boolean {
@@ -292,19 +321,35 @@ class MainViewModel(
         val navTabIndex = intent.getIntExtra("EXTRA_NAV_TAB_INDEX", -1)
         val highlightNum = intent.getStringExtra("EXTRA_HIGHLIGHT_NUMBER")
 
+        val isDialIntent = ContactHelper.isDialOrTelIntent(intent)
+        val extractedNumber = ContactHelper.extractPhoneNumberFromIntent(intent)
+
         if (navTab == "RECENTS" || 
             navTabIndex == 1 ||
             action == "android.telecom.action.SHOW_MISSED_CALLS_NOTIFICATION" ||
             type == "vnd.android.cursor.dir/calls"
         ) {
             _pendingNavTab.value = 1
+        } else if (isDialIntent || !extractedNumber.isNullOrBlank() || navTab == "DIALER" || navTab == "KEYPAD" || navTabIndex == 2) {
+            _pendingNavTab.value = 2
         } else if (navTabIndex in 0..4) {
             _pendingNavTab.value = navTabIndex
+        }
+
+        if (!extractedNumber.isNullOrBlank()) {
+            _dialerNumber.value = extractedNumber
         }
 
         if (!highlightNum.isNullOrBlank()) {
             _pendingHighlightNumber.value = highlightNum
         }
+    }
+
+    fun navigateToKeypad(withNumber: String? = null) {
+        if (!withNumber.isNullOrBlank()) {
+            _dialerNumber.value = withNumber
+        }
+        _pendingNavTab.value = 2
     }
 
     fun clearPendingNavTab() {
@@ -1814,6 +1859,8 @@ class MainViewModel(
                 _confirmFavoritesCall.value = prefs.getBoolean("confirm_fav_calls", true)
                 _confirmSpeedDialCall.value = prefs.getBoolean("confirm_speed_dial_call", true)
                 _askToAssignUnassignedSpeedDial.value = prefs.getBoolean("ask_assign_unassigned_speed_dial", true)
+                _speedDialKeypadDisplay.value = prefs.getString("speed_dial_keypad_display", "speed_dial_above") ?: "speed_dial_above"
+                _showDialerQuickActions.value = prefs.getBoolean("show_dialer_quick_actions", true)
                 _defaultStartTab.value = prefs.getInt("default_start_tab", 0)
                 _swipeToSwitchPanels.value = prefs.getBoolean("swipe_to_switch_panels", true)
                 _notSpamWhitelist.value = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()
@@ -1848,6 +1895,8 @@ class MainViewModel(
                 _confirmFavoritesCall.value = prefs.getBoolean("confirm_fav_calls", true)
                 _confirmSpeedDialCall.value = prefs.getBoolean("confirm_speed_dial_call", true)
                 _askToAssignUnassignedSpeedDial.value = prefs.getBoolean("ask_assign_unassigned_speed_dial", true)
+                _speedDialKeypadDisplay.value = prefs.getString("speed_dial_keypad_display", "speed_dial_above") ?: "speed_dial_above"
+                _showDialerQuickActions.value = prefs.getBoolean("show_dialer_quick_actions", true)
                 _defaultStartTab.value = prefs.getInt("default_start_tab", 0)
                 _swipeToSwitchPanels.value = prefs.getBoolean("swipe_to_switch_panels", true)
                 _notSpamWhitelist.value = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()

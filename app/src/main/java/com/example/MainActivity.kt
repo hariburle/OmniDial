@@ -29,8 +29,13 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import com.example.telecom.ActiveCallInfo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +44,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -86,6 +93,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -128,6 +136,9 @@ class MainActivity : ComponentActivity() {
         CallManager.init(applicationContext)
         com.example.telecom.FlipToShhhManager.initialize(this)
 
+        val isDialIntent = com.example.util.ContactHelper.isDialOrTelIntent(intent)
+        val extractedNumber = com.example.util.ContactHelper.extractPhoneNumberFromIntent(intent)
+
         val tabExtra = if (intent.getIntExtra("EXTRA_INITIAL_TAB", -1) != -1) {
             intent.getIntExtra("EXTRA_INITIAL_TAB", 0)
         } else if (intent.getStringExtra("EXTRA_NAV_TAB") == "RECENTS" || 
@@ -136,8 +147,10 @@ class MainActivity : ComponentActivity() {
             intent.type == "vnd.android.cursor.dir/calls"
         ) {
             1
+        } else if (isDialIntent || !extractedNumber.isNullOrBlank() || intent.getStringExtra("EXTRA_NAV_TAB") == "DIALER" || intent.getStringExtra("EXTRA_NAV_TAB") == "KEYPAD") {
+            2
         } else {
-            0
+            -1
         }
         handleDialIntent(intent)
         viewModel.handleIncomingIntent(intent)
@@ -161,6 +174,7 @@ class MainActivity : ComponentActivity() {
                         initialTab = tabExtra,
                         onOpenDialNumber = { number ->
                             viewModel.setDialerNumber(number)
+                            viewModel.navigateToKeypad(number)
                         }
                     )
                 }
@@ -314,13 +328,12 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDialIntent(intent: Intent?) {
         if (intent == null) return
-        val action = intent.action
-        val data: Uri? = intent.data
-
-        if (action == Intent.ACTION_DIAL || action == Intent.ACTION_VIEW || action == Intent.ACTION_CALL) {
-            data?.schemeSpecificPart?.let { rawNumber ->
-                viewModel.setDialerNumber(rawNumber)
-            }
+        val rawNumber = com.example.util.ContactHelper.extractPhoneNumberFromIntent(intent)
+        if (!rawNumber.isNullOrBlank()) {
+            viewModel.setDialerNumber(rawNumber)
+        }
+        if (com.example.util.ContactHelper.isDialOrTelIntent(intent) || !rawNumber.isNullOrBlank()) {
+            viewModel.navigateToKeypad(rawNumber)
         }
     }
 }
@@ -329,11 +342,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppContent(
     viewModel: MainViewModel,
-    initialTab: Int = 0,
+    initialTab: Int = -1,
     onOpenDialNumber: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var selectedTab by rememberSaveable { mutableIntStateOf(initialTab) }
     var ruleNumberToCreate by remember { mutableStateOf<String?>(null) }
 
     // Collect States
@@ -373,31 +385,21 @@ fun MainAppContent(
     val confirmFavoritesCall by viewModel.confirmFavoritesCall.collectAsStateWithLifecycle()
     val confirmSpeedDialCall by viewModel.confirmSpeedDialCall.collectAsStateWithLifecycle()
     val askToAssignUnassignedSpeedDial by viewModel.askToAssignUnassignedSpeedDial.collectAsStateWithLifecycle()
+    val speedDialKeypadDisplay by viewModel.speedDialKeypadDisplay.collectAsStateWithLifecycle()
+    val showDialerQuickActions by viewModel.showDialerQuickActions.collectAsStateWithLifecycle()
     val callAnswerStyle by viewModel.callAnswerStyle.collectAsStateWithLifecycle()
     val favoriteCardStyle by viewModel.favoriteCardStyle.collectAsStateWithLifecycle()
     val swipeToSwitchPanels by viewModel.swipeToSwitchPanels.collectAsStateWithLifecycle()
+    val navBarStyle by viewModel.navBarStyle.collectAsStateWithLifecycle()
     val localBackups by viewModel.localBackups.collectAsStateWithLifecycle()
 
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(initialPage = selectedTab.coerceIn(0, 4)) { 5 }
-
-    // Keep pagerState and selectedTab 100% synchronized on startup, deep-links, and gestures
-    LaunchedEffect(selectedTab) {
-        if (pagerState.currentPage != selectedTab) {
-            pagerState.scrollToPage(selectedTab)
-        }
-    }
-
-    LaunchedEffect(pagerState.currentPage) {
-        if (selectedTab != pagerState.currentPage) {
-            selectedTab = pagerState.currentPage
-        }
-    }
+    val pagerState = rememberPagerState(initialPage = (if (initialTab in 0..4) initialTab else 0)) { 5 }
+    val selectedTab = pagerState.currentPage
 
     fun navigateToTab(targetPage: Int) {
-        selectedTab = targetPage
         coroutineScope.launch {
-            pagerState.scrollToPage(targetPage)
+            pagerState.scrollToPage(targetPage.coerceIn(0, 4))
         }
     }
 
@@ -436,25 +438,37 @@ fun MainAppContent(
             val navTab = currentIntent.getStringExtra("EXTRA_NAV_TAB")
             val navTabIndex = currentIntent.getIntExtra("EXTRA_NAV_TAB_INDEX", -1)
             val highlightNum = currentIntent.getStringExtra("EXTRA_HIGHLIGHT_NUMBER")
+            val isDial = com.example.util.ContactHelper.isDialOrTelIntent(currentIntent)
+            val extracted = com.example.util.ContactHelper.extractPhoneNumberFromIntent(currentIntent)
+
             if (navTab == "RECENTS" || navTabIndex == 1) {
                 navigateToTab(1)
                 if (!highlightNum.isNullOrBlank()) {
                     highlightNumber = highlightNum
                 }
+            } else if (isDial || !extracted.isNullOrBlank() || navTab == "DIALER" || navTab == "KEYPAD" || navTabIndex == 2) {
+                if (!extracted.isNullOrBlank()) {
+                    viewModel.setDialerNumber(extracted)
+                }
+                navigateToTab(2)
             }
         }
     }
 
     LaunchedEffect(initialTab) {
-        if (initialTab in 1..4) {
+        if (initialTab in 0..4) {
             navigateToTab(initialTab)
         }
     }
 
     LaunchedEffect(defaultStartTab) {
-        if (!hasAppliedDefaultTab && initialTab == 0) {
+        if (!hasAppliedDefaultTab) {
             hasAppliedDefaultTab = true
-            selectedTab = defaultStartTab.coerceIn(0, 4)
+            // If app was launched normally without an explicit intent (initialTab == -1),
+            // apply the user-configured default start tab
+            if (initialTab == -1) {
+                navigateToTab(defaultStartTab.coerceIn(0, 4))
+            }
         }
     }
 
@@ -514,45 +528,150 @@ fun MainAppContent(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
-                NavigationBar(modifier = Modifier.testTag("bottom_nav_bar")) {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { navigateToTab(0) },
-                        icon = { Icon(Icons.Default.Star, contentDescription = "Favorites") },
-                        label = { Text("Favorites") },
-                        modifier = Modifier.testTag("nav_favorites")
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { navigateToTab(1) },
-                        icon = { Icon(Icons.Default.History, contentDescription = "Recents") },
-                        label = { Text("Recents") },
-                        modifier = Modifier.testTag("nav_recents")
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { navigateToTab(2) },
-                        icon = { Icon(Icons.Default.Dialpad, contentDescription = "Keypad") },
-                        label = { Text("Keypad") },
-                        modifier = Modifier.testTag("nav_keypad")
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 3,
-                        onClick = { navigateToTab(3) },
-                        icon = { Icon(Icons.Default.Contacts, contentDescription = "Contacts") },
-                        label = { Text("Contacts") },
-                        modifier = Modifier.testTag("nav_contacts")
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 4,
-                        onClick = {
-                            ruleNumberToCreate = null
-                            navigateToTab(4)
-                        },
-                        icon = { Icon(Icons.Default.SmartToy, contentDescription = "Rules") },
-                        label = { Text("Rules") },
-                        modifier = Modifier.testTag("nav_rules")
-                    )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (swipeToSwitchPanels) {
+                                Modifier.draggable(
+                                    state = rememberDraggableState { delta ->
+                                        // tracked on drag stopped
+                                    },
+                                    orientation = Orientation.Horizontal,
+                                    onDragStopped = { velocity ->
+                                        val thresholdVelocity = 300f
+                                        if (velocity < -thresholdVelocity) {
+                                            navigateToTab(selectedTab + 1)
+                                        } else if (velocity > thresholdVelocity) {
+                                            navigateToTab(selectedTab - 1)
+                                        }
+                                    }
+                                )
+                            } else Modifier
+                        )
+                ) {
+                    when (navBarStyle) {
+                        "indicator" -> {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 3.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .height(38.dp)
+                                    .testTag("bottom_nav_bar")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 20.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val navTabs = listOf(
+                                        0 to "Favorites",
+                                        1 to "Recents",
+                                        2 to "Keypad",
+                                        3 to "Contacts",
+                                        4 to "Rules"
+                                    )
+                                    navTabs.forEach { (tabIdx, tabLabel) ->
+                                        val isSelected = selectedTab == tabIdx
+                                        Box(
+                                            modifier = Modifier
+                                                .height(28.dp)
+                                                .clickable {
+                                                    if (tabIdx == 4) ruleNumberToCreate = null
+                                                    navigateToTab(tabIdx)
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                                .testTag("nav_${tabLabel.lowercase()}"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(
+                                                        width = if (isSelected) 30.dp else 7.dp,
+                                                        height = 5.dp
+                                                    )
+                                                    .background(
+                                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                                                        RoundedCornerShape(3.dp)
+                                                    )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "compact" -> {
+                            NavigationBar(
+                                modifier = Modifier.testTag("bottom_nav_bar")
+                            ) {
+                                val navItems = listOf(
+                                    Triple(0, Icons.Default.Star, "Favorites"),
+                                    Triple(1, Icons.Default.History, "Recents"),
+                                    Triple(2, Icons.Default.Dialpad, "Keypad"),
+                                    Triple(3, Icons.Default.Contacts, "Contacts"),
+                                    Triple(4, Icons.Default.SmartToy, "Rules")
+                                )
+                                navItems.forEach { (tabIdx, icon, name) ->
+                                    NavigationBarItem(
+                                        selected = selectedTab == tabIdx,
+                                        onClick = {
+                                            if (tabIdx == 4) ruleNumberToCreate = null
+                                            navigateToTab(tabIdx)
+                                        },
+                                        icon = { Icon(icon, contentDescription = name) },
+                                        alwaysShowLabel = false,
+                                        modifier = Modifier.testTag("nav_${name.lowercase()}")
+                                    )
+                                }
+                            }
+                        }
+                        else -> {
+                            NavigationBar(modifier = Modifier.testTag("bottom_nav_bar")) {
+                                NavigationBarItem(
+                                    selected = selectedTab == 0,
+                                    onClick = { navigateToTab(0) },
+                                    icon = { Icon(Icons.Default.Star, contentDescription = "Favorites") },
+                                    label = { Text("Favorites") },
+                                    modifier = Modifier.testTag("nav_favorites")
+                                )
+                                NavigationBarItem(
+                                    selected = selectedTab == 1,
+                                    onClick = { navigateToTab(1) },
+                                    icon = { Icon(Icons.Default.History, contentDescription = "Recents") },
+                                    label = { Text("Recents") },
+                                    modifier = Modifier.testTag("nav_recents")
+                                )
+                                NavigationBarItem(
+                                    selected = selectedTab == 2,
+                                    onClick = { navigateToTab(2) },
+                                    icon = { Icon(Icons.Default.Dialpad, contentDescription = "Keypad") },
+                                    label = { Text("Keypad") },
+                                    modifier = Modifier.testTag("nav_keypad")
+                                )
+                                NavigationBarItem(
+                                    selected = selectedTab == 3,
+                                    onClick = { navigateToTab(3) },
+                                    icon = { Icon(Icons.Default.Contacts, contentDescription = "Contacts") },
+                                    label = { Text("Contacts") },
+                                    modifier = Modifier.testTag("nav_contacts")
+                                )
+                                NavigationBarItem(
+                                    selected = selectedTab == 4,
+                                    onClick = {
+                                        ruleNumberToCreate = null
+                                        navigateToTab(4)
+                                    },
+                                    icon = { Icon(Icons.Default.SmartToy, contentDescription = "Rules") },
+                                    label = { Text("Rules") },
+                                    modifier = Modifier.testTag("nav_rules")
+                                )
+                            }
+                        }
+                    }
                 }
             }
         ) { innerPadding ->
@@ -580,7 +699,7 @@ fun MainAppContent(
                         learnedCallModes = learnedCallModes,
                         onSelectNumber = { num ->
                             viewModel.setDialerNumber(num)
-                            selectedTab = 2
+                            navigateToTab(2)
                         },
                         onCallNumber = { num ->
                             viewModel.initiateCall(context, num)
@@ -590,7 +709,7 @@ fun MainAppContent(
                         },
                         onCreateRule = { num ->
                             ruleNumberToCreate = num
-                            selectedTab = 4
+                            navigateToTab(4)
                         },
                         onDeleteFavorite = { fav -> viewModel.deleteFavorite(fav) },
                         onAddFavorite = { name, num, label, photoUri, nickname ->
@@ -645,12 +764,24 @@ fun MainAppContent(
                         },
                         onCreateRuleForNumber = { num ->
                             ruleNumberToCreate = num
-                            selectedTab = 4
+                            navigateToTab(4)
                         },
                         onMarkSpam = { num -> viewModel.markAsSpam(num) },
                         onRemoveSpam = { num -> viewModel.removeSpam(num) },
                         onToggleFavorite = { name, num, label, photoUri ->
                             viewModel.toggleFavorite(name, num, label, photoUri)
+                        },
+                        onUpdateFavoriteNumber = { contact, newNum, newLabel ->
+                            viewModel.updateFavoritePhoneNumber(contact, newNum, newLabel)
+                        },
+                        onAddNewContact = { name, num, label, saveToDevice, addToFavs ->
+                            viewModel.createNewContact(
+                                name = name,
+                                phoneNumber = num,
+                                label = label,
+                                saveToDevice = saveToDevice,
+                                addToFavorites = addToFavs
+                            )
                         },
                         onUpdateNoteAndReminder = { call, note, rem ->
                             viewModel.updateRecentCallNoteAndReminder(call, note, rem)
@@ -686,7 +817,7 @@ fun MainAppContent(
                         learnedCallModes = learnedCallModes,
                         onCreateRuleForNumber = { num ->
                             ruleNumberToCreate = num
-                            selectedTab = 4
+                            navigateToTab(4)
                         },
                         onAddFavorite = { name, num, label, photoUri ->
                             viewModel.addFavorite(name, num, label, photoUri)
@@ -706,6 +837,8 @@ fun MainAppContent(
                         },
                         confirmSpeedDialCall = confirmSpeedDialCall,
                         askToAssignUnassignedSpeedDial = askToAssignUnassignedSpeedDial,
+                        speedDialKeypadDisplay = speedDialKeypadDisplay,
+                        showDialerQuickActions = showDialerQuickActions,
                         deviceContacts = deviceContacts
                     )
                     3 -> ContactsScreen(
@@ -718,14 +851,14 @@ fun MainAppContent(
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
                         onSelectNumber = { num ->
                             viewModel.setDialerNumber(num)
-                            selectedTab = 2
+                            navigateToTab(2)
                         },
                         onCallNumber = { num ->
                             viewModel.initiateCall(context, num)
                         },
                         onCreateRule = { num ->
                             ruleNumberToCreate = num
-                            selectedTab = 4
+                            navigateToTab(4)
                         },
                         onToggleFavorite = { name, num, label, photoUri ->
                             viewModel.toggleFavorite(name, num, label, photoUri)
@@ -777,6 +910,10 @@ fun MainAppContent(
                         onSetConfirmSpeedDialCall = { viewModel.setConfirmSpeedDialCall(it) },
                         askToAssignUnassignedSpeedDial = askToAssignUnassignedSpeedDial,
                         onSetAskToAssignUnassignedSpeedDial = { viewModel.setAskToAssignUnassignedSpeedDial(it) },
+                        speedDialKeypadDisplay = speedDialKeypadDisplay,
+                        onSetSpeedDialKeypadDisplay = { viewModel.setSpeedDialKeypadDisplay(it) },
+                        showDialerQuickActions = showDialerQuickActions,
+                        onSetShowDialerQuickActions = { viewModel.setShowDialerQuickActions(it) },
                         defaultStartTab = defaultStartTab,
                         onSetDefaultStartTab = { viewModel.setDefaultStartTab(it) },
                         callAnswerStyle = callAnswerStyle,
@@ -790,6 +927,8 @@ fun MainAppContent(
                         deviceContacts = deviceContacts,
                         swipeToSwitchPanels = swipeToSwitchPanels,
                         onSetSwipeToSwitchPanels = { viewModel.setSwipeToSwitchPanels(it) },
+                        navBarStyle = navBarStyle,
+                        onSetNavBarStyle = { viewModel.setNavBarStyle(it) },
                         onExportBackup = { uri, onDone -> viewModel.exportBackup(uri, onDone) },
                         onImportBackup = { uri, onDone -> viewModel.importBackup(uri, onDone) },
                         localBackups = localBackups,
