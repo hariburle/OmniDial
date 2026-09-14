@@ -309,6 +309,29 @@ fun DialerScreen(
                 mutableStateOf(TextRange(localNumber.length))
             }
 
+            // Resolve full international contact number from matched contact or device address book
+            val effectiveNumber = remember(localNumber, matchedContact, allSearchContacts) {
+                if (localNumber.isBlank()) ""
+                else {
+                    val clean = localNumber.filter { it.isDigit() }
+                    val last10 = if (clean.length >= 10) clean.takeLast(10) else clean
+                    val matchedDc = matchedContact ?: allSearchContacts.firstOrNull { dc ->
+                        val dcClean = dc.phoneNumber.filter { it.isDigit() }
+                        (dcClean.isNotEmpty() && (dcClean.endsWith(last10) || last10.endsWith(dcClean))) ||
+                            dc.phoneNumbers.any { pn ->
+                                val pnClean = pn.number.filter { it.isDigit() }
+                                pnClean.isNotEmpty() && (pnClean.endsWith(last10) || last10.endsWith(pnClean))
+                            }
+                    }
+                    val intlNum = matchedDc?.let { dc ->
+                        if (dc.phoneNumber.trim().startsWith("+")) dc.phoneNumber
+                        else dc.phoneNumbers.firstOrNull { it.number.trim().startsWith("+") }?.number
+                            ?: dc.phoneNumber.ifBlank { null }
+                    }
+                    intlNum ?: localNumber
+                }
+            }
+
             val localOnDigitPress: (Char) -> Unit = { digit ->
                 val current = localNumber
                 val start = selectionState.start.coerceIn(0, current.length)
@@ -565,14 +588,14 @@ fun DialerScreen(
                                 DropdownMenuItem(
                                     text = { Text("Send Text Message (SMS)") },
                                     onClick = {
-                                        ContactHelper.launchSms(context, number)
+                                        ContactHelper.launchSms(context, effectiveNumber.ifBlank { number })
                                         showOverflowMenu = false
                                     }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Send WhatsApp Message") },
                                     onClick = {
-                                        ContactHelper.launchWhatsAppMessage(context, number)
+                                        ContactHelper.launchWhatsAppMessage(context, effectiveNumber.ifBlank { number })
                                         showOverflowMenu = false
                                     }
                                 )
@@ -824,9 +847,9 @@ fun DialerScreen(
                                         }
                                     }
                                 } else if (isWaPreferred) {
-                                    onPlaceWhatsAppCall(localNumber)
+                                    onPlaceWhatsAppCall(effectiveNumber)
                                 } else {
-                                    onPlaceCall(localNumber, selectedCallReason)
+                                    onPlaceCall(effectiveNumber, selectedCallReason)
                                 }
                             },
                             shape = CircleShape,
@@ -918,7 +941,7 @@ fun DialerScreen(
                         Card(
                             onClick = {
                                 if (hasNumber) {
-                                    ContactHelper.launchSms(context, localNumber)
+                                    ContactHelper.launchSms(context, effectiveNumber)
                                 } else if (recentCalls.isNotEmpty()) {
                                     val firstUnique = recentCalls.distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }.firstOrNull()
                                     if (firstUnique != null) {
@@ -964,7 +987,7 @@ fun DialerScreen(
                         Card(
                             onClick = {
                                 if (hasNumber) {
-                                    ContactHelper.launchWhatsAppMessage(context, localNumber)
+                                    ContactHelper.launchWhatsAppMessage(context, effectiveNumber)
                                 } else if (recentCalls.isNotEmpty()) {
                                     val firstUnique = recentCalls.distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }.firstOrNull()
                                     if (firstUnique != null) {
@@ -1009,9 +1032,9 @@ fun DialerScreen(
                             onClick = {
                                 if (hasNumber) {
                                     if (isWaPreferred) {
-                                        onPlaceCall(localNumber, selectedCallReason)
+                                        onPlaceCall(effectiveNumber, selectedCallReason)
                                     } else {
-                                        onPlaceWhatsAppCall(localNumber)
+                                        onPlaceWhatsAppCall(effectiveNumber)
                                     }
                                 } else if (recentCalls.isNotEmpty()) {
                                     val firstUnique = recentCalls.distinctBy { it.phoneNumber.filter { c -> c.isDigit() || c == '+' } }.firstOrNull()

@@ -386,7 +386,45 @@ object ContactHelper {
             return trimmed.substring(2).replace(Regex("[^0-9]"), "")
         }
 
-        // 3. Try to find a matching contact in address book that might have the full international number
+        val cleanDigits = trimmed.replace(Regex("[^0-9]"), "")
+        if (cleanDigits.isEmpty()) return ""
+        val last10 = if (cleanDigits.length >= 10) cleanDigits.takeLast(10) else cleanDigits
+
+        // 3. Search Device Contacts directly via CommonDataKinds.Phone.CONTENT_URI for any contact number ending in last 10 digits with a '+'
+        try {
+            val projection = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER
+            )
+            val cursor = context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                null,
+                null,
+                null
+            )
+            cursor?.use { c ->
+                val numIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val normIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER)
+                while (c.moveToNext()) {
+                    val rawCandidates = mutableListOf<String>()
+                    if (numIdx != -1) c.getString(numIdx)?.let { rawCandidates.add(it) }
+                    if (normIdx != -1) c.getString(normIdx)?.let { rawCandidates.add(it) }
+
+                    for (candidate in rawCandidates) {
+                        val candTrimmed = candidate.trim()
+                        if (candTrimmed.startsWith("+")) {
+                            val candDigits = candTrimmed.replace(Regex("[^0-9]"), "")
+                            if (candDigits.endsWith(last10) || (cleanDigits.length >= 7 && candDigits.endsWith(cleanDigits))) {
+                                return candDigits
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 4. Try to find a matching contact in address book via lookupContactByNumber
         try {
             val contact = lookupContactByNumber(context, trimmed)
             if (contact != null) {
@@ -402,30 +440,34 @@ object ContactHelper {
             }
         } catch (_: Exception) {}
 
-        // 4. Clean digits
-        var cleanDigits = trimmed.replace(Regex("[^0-9]"), "")
-        if (cleanDigits.isEmpty()) return ""
+        // 5. If cleanDigits already starts with a known international calling code (e.g. 919663306802 length 12 -> 91 + 10 digits)
+        for ((_, code) in countryCallingCodes) {
+            if (code != "1" && cleanDigits.startsWith(code) && cleanDigits.length == (code.length + 10)) {
+                return cleanDigits
+            }
+        }
 
-        // 5. Get device default country calling code
+        // 6. Get device default country calling code
         val deviceIso = getDeviceCountryIso(context)
         val callingCode = getCountryCallingCode(deviceIso)
 
         // Handle national trunk prefix '0' (e.g. UK 07xxx -> 447xxx, India 098xxx -> 9198xxx)
-        if (cleanDigits.startsWith("0") && cleanDigits.length > 10) {
-            cleanDigits = cleanDigits.substring(1)
+        var nationalDigits = cleanDigits
+        if (nationalDigits.startsWith("0") && nationalDigits.length > 10) {
+            nationalDigits = nationalDigits.substring(1)
         }
 
-        // If cleanDigits is a 10-digit domestic number or shorter, prepend country calling code
-        if (cleanDigits.length == 10) {
-            return "$callingCode$cleanDigits"
-        } else if (cleanDigits.length < 10) {
-            return "$callingCode$cleanDigits"
+        // If nationalDigits is a 10-digit domestic number or shorter, prepend country calling code
+        if (nationalDigits.length == 10) {
+            return "$callingCode$nationalDigits"
+        } else if (nationalDigits.length < 10) {
+            return "$callingCode$nationalDigits"
         } else {
             // If already starts with calling code or is longer international digits
-            if (!cleanDigits.startsWith(callingCode) && cleanDigits.length <= 11 && callingCode != "1") {
-                return "$callingCode$cleanDigits"
+            if (!nationalDigits.startsWith(callingCode) && nationalDigits.length <= 11 && callingCode != "1") {
+                return "$callingCode$nationalDigits"
             }
-            return cleanDigits
+            return nationalDigits
         }
     }
 

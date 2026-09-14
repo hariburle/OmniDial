@@ -4,6 +4,22 @@
 
 ---
 
+## 🚀 [v1.1.2] — Build 4 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Accurate WhatsApp & SMS International Number Matching**: When dialing a 10-digit or domestic number for a contact saved in your address book with an international prefix (e.g. `+91 9663306802`), the app automatically retrieves and uses the contact's stored country code instead of defaulting to device locale.
+- **Dialer Direct Action International Resolution**: All dial pad quick actions (WhatsApp Chat, WhatsApp Call, SMS, Hero Call button) immediately resolve and pass the matched contact's full international number format.
+
+### 🐛 Fixes & Polish (User-Facing)
+- **WhatsApp Fallback Region Fix**: Fixed an issue where typing a 10-digit number on a US-locale device/emulator for an Indian or international contact could inadvertently prepend `+1` instead of the contact's stored `+91` calling code.
+
+### 🔧 Technical / Architecture Notes
+- Enhanced `ContactHelper.resolveFullInternationalNumber()` to directly query `ContactsContract.CommonDataKinds.Phone.CONTENT_URI` by matching trailing digits against all saved numbers with a `+` prefix.
+- Updated `DialerScreen.kt` with dynamic `effectiveNumber` resolution from `matchedContact` and `allSearchContacts`.
+- Incremented `versionCode` to 4 and `versionName` to `"1.1.2"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.1.1] — Build 3 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

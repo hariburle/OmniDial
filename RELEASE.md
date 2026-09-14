@@ -7,9 +7,21 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.1.2` | `4` | Sep 2026 | Enhanced contact number resolution for WhatsApp and SMS, ensuring full stored international country codes (such as +91) are automatically used when dialing domestic numbers. |
 | `1.1.1` | `3` | Sep 2026 | T9 Nickname search, default Fav & T9 layout, automatic international country code resolution for WhatsApp/SMS, Key 1 VM deduplication, and non-jumping quick action buttons. |
 | `1.1.0` | `2` | Sep 2026 | Keypad 2x2 action buttons, adaptive channel highlights, WhatsApp dark-mode icon contrast, Bluetooth/car call redirection, Favorites per-number selection, and Nickname sync. |
 | `1.0.0` | `1` | Sep 2026 | Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh. |
+
+---
+
+## Release 1.1.2 Change Log
+
+### What's New & Improvements:
+- **Accurate WhatsApp & SMS Contact Matching**: When typing a local or 10-digit number for a contact saved with an international country code (such as +91 for India or +44 for UK), the app now automatically uses the full saved country code rather than defaulting to your phone's region.
+- **Direct Dial Pad Actions Sync**: Tapping the WhatsApp Chat, WhatsApp Call, SMS, or regular Call buttons from the dial pad now resolves the full international number of the matched contact directly.
+- **Reliable Messaging Links**: Prevents "number does not exist" or incorrect region errors when messaging contacts worldwide.
+
+---
 
 ---
 
