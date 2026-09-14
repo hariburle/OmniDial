@@ -3,8 +3,8 @@
 [![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](CHANGELOG.md)
-[![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](DESIGN.md)
+[![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](documents/CHANGELOG.md)
+[![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](documents/DESIGN.md)
 
 **OmniDial** is an intelligent, feature-rich native Android Telecom phone dialer designed for modern Android devices. Built with **Jetpack Compose (Material 3)**, **Kotlin Coroutines/StateFlow**, and Android's native **Telecom `InCallService`**, it combines T9 smart search, horizontal panel swipe navigation, automated call screening/gate buzzer rules, persistent drag-and-drop VIP favorite grid reordering, SIM slot badges, dedicated spam protection, and dual-SIM management into a fast, private, dark-mode-first experience.
 
@@ -90,12 +90,13 @@
 
 ## 📦 Download & Installation
 
-The latest release and prior versions are available directly in the project repository and on the [OmniDial Website](docs/index.html):
+The latest release and prior versions are available directly in the `docs/apks/` directory and on the [OmniDial Website](docs/index.html):
 
-- **[OmniDial-v1.1.1.apk](OmniDial-v1.1.1.apk)** *(Latest Release — Build 3)*: T9 Nickname search, Fav & T9 default keypad layout, automatic international country code resolution for WhatsApp/SMS, Key 1 VM deduplication, and non-jumping quick action buttons.
-- **[OmniDial-v1.1.0.apk](OmniDial-v1.1.0.apk)** *(Prior Release — Build 2)*: 2x2 Call Action layout, adaptive preference highlighting, dark mode WhatsApp contrast, car call redirection, and favorites UX updates.
-- **[OmniDial-v1.0.0.apk](OmniDial-v1.0.0.apk)** *(Prior Release — Build 1)*: Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh.
-- **[OmniDial.apk](OmniDial.apk)** *(Latest build direct alias)*.
+- **[OmniDial-v1.1.2.apk](docs/apks/OmniDial-v1.1.2.apk)** *(Latest Release — Build 4)*: Instant international WhatsApp & texting resolution, overseas dial without country code fix, and accurate full-number one-tap calling.
+- **[OmniDial-v1.1.1.apk](docs/apks/OmniDial-v1.1.1.apk)** *(Prior Release — Build 3)*: T9 Nickname search, Fav & T9 default keypad layout, automatic international country code resolution for WhatsApp/SMS, Key 1 VM deduplication, and non-jumping quick action buttons.
+- **[OmniDial-v1.1.0.apk](docs/apks/OmniDial-v1.1.0.apk)** *(Prior Release — Build 2)*: 2x2 Call Action layout, adaptive preference highlighting, dark mode WhatsApp contrast, car call redirection, and favorites UX updates.
+- **[OmniDial-v1.0.0.apk](docs/apks/OmniDial-v1.0.0.apk)** *(Prior Release — Build 1)*: Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh.
+- **[OmniDial.apk](docs/apks/OmniDial.apk)** *(Latest build direct alias)*.
 
 ---
 
