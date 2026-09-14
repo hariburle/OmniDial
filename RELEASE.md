@@ -15,12 +15,15 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## Release 1.1.1 Change Log
 
-### What's New:
-- **T9 Search for Nicknames**: Dial pad T9 search now indexes and searches contact nicknames alongside full names and numbers.
-- **Fav & T9 as Default Layout**: Speed Dial Keypad display setting defaults to "Fav & T9", displaying speed dial contact names above digits and standard T9 letters below.
-- **Fixed-Position Quick Action Buttons**: Kept secondary action buttons (SMS, WhatsApp Chat, Secondary Call) permanently in place below the keypad with no vertical jumping.
-- **Automatic WhatsApp/SMS Country Code Resolution**: Automatically queries full contact numbers or appends device country calling codes (+91, +1, etc.) before handing off to WhatsApp/SMS to prevent missing country code errors.
-- **Key 1 Clean Labeling**: Removed redundant stacked "VM" and "Voicemail" text on Key 1.
+### What's New & Improvements:
+- **Search by Nickname**: You can now search for contacts on the dial pad using their nicknames in addition to their full names and phone numbers.
+- **Speed Dial & Letters Together**: The dial pad now shows your favorite speed dial contact names above each number and classic letters below by default.
+- **Smooth, Steady Dial Pad**: Action buttons below the dial pad (Text, WhatsApp Chat, and Phone Call) stay neatly in place without causing the screen to jump when typing.
+- **Smart Country Codes for WhatsApp & SMS**: The app automatically attaches country codes (like +1, +91, +44) when opening WhatsApp or Text messages, preventing "contact not found" errors on local numbers.
+- **Cleaner Voicemail Key**: Removed redundant stacked text on the '1' key for a clean, unified Voicemail button.
+- **Faster Speed Dialing**: Long-pressing speed dial keys shows a large, easy-to-tap Call button, while long-pressing an empty key lets you assign a shortcut immediately.
+- **Live Contact Names in Call History**: Your recent call history now updates contact names, nicknames, and photos immediately as you save or edit contacts.
+- **Instant Favorite Updates**: Starring or unstarring a contact updates immediately throughout the app without needing a refresh.
 
 ---
 
