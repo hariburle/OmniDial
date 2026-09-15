@@ -4,6 +4,14 @@
 
 ---
 
+## 🛠️ [Unreleased]
+
+### ⚡ Performance & Polish
+- **Instant Keypad & Tab Switching**: Eliminated the tab switching delay when navigating to the Keypad panel from Contacts or Rules by offloading contact normalization, favorite cross-referencing, and T9 candidate matching to background worker threads via `searchContacts` StateFlow.
+- **Pre-Warmed Viewport Retention**: Configured `HorizontalPager` with `beyondViewportPageCount = 4` so all 5 panels remain pre-warmed in memory, delivering zero-lag swipe and bottom tab transitions.
+
+---
+
 ## 🚀 [v1.1.4] — Build 6 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

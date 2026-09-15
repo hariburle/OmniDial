@@ -162,6 +162,7 @@ fun DialerScreen(
     speedDialKeypadDisplay: String = "speed_dial_above",
     showDialerQuickActions: Boolean = true,
     deviceContacts: List<DeviceContact> = emptyList(),
+    precomputedSearchContacts: List<DeviceContact>? = null,
     getPreferredCallingMode: (String) -> String = { "cellular" },
     learnedCallModes: Map<String, String> = emptyMap(),
     modifier: Modifier = Modifier
@@ -187,36 +188,40 @@ fun DialerScreen(
     var multiNumberSpeedDialSlot by remember { mutableStateOf<Int?>(null) }
     var multiNumberFavoriteTarget by remember { mutableStateOf<FavoriteContact?>(null) }
 
-    // Combine all contacts for T9, prioritizing official device contacts for accurate names and user nicknames
-    val allSearchContacts = remember(favorites, effectiveContacts) {
-        fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
-        val favByDigits = favorites.associateBy { normDigits(it.phoneNumber) }
-        val favByName = favorites.associateBy { it.name.trim().lowercase() }
-        val list = mutableListOf<DeviceContact>()
+    // Use background pre-computed contacts if provided, otherwise fallback to local computation
+    val allSearchContacts = remember(precomputedSearchContacts, favorites, effectiveContacts) {
+        if (precomputedSearchContacts != null) {
+            precomputedSearchContacts
+        } else {
+            fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
+            val favByDigits = favorites.associateBy { normDigits(it.phoneNumber) }
+            val favByName = favorites.associateBy { it.name.trim().lowercase() }
+            val list = mutableListOf<DeviceContact>()
 
-        effectiveContacts.forEach { dc ->
-            val dcDigits = normDigits(dc.phoneNumber)
-            val matchingFav = favByDigits[dcDigits] ?: favByName[dc.name.trim().lowercase()]
-            val effectiveNickname = matchingFav?.nickname?.ifBlank { null } ?: dc.nickname?.ifBlank { null }
-            if (effectiveNickname != null && effectiveNickname != dc.nickname) {
-                list.add(dc.copy(nickname = effectiveNickname))
-            } else {
-                list.add(dc)
+            effectiveContacts.forEach { dc ->
+                val dcDigits = normDigits(dc.phoneNumber)
+                val matchingFav = favByDigits[dcDigits] ?: favByName[dc.name.trim().lowercase()]
+                val effectiveNickname = matchingFav?.nickname?.ifBlank { null } ?: dc.nickname?.ifBlank { null }
+                if (effectiveNickname != null && effectiveNickname != dc.nickname) {
+                    list.add(dc.copy(nickname = effectiveNickname))
+                } else {
+                    list.add(dc)
+                }
             }
-        }
-        val knownDigits = effectiveContacts.flatMap { dc ->
-            dc.phoneNumbers.map { normDigits(it.number) } + listOf(normDigits(dc.phoneNumber))
-        }.filter { it.isNotBlank() }.toSet()
+            val knownDigits = effectiveContacts.flatMap { dc ->
+                dc.phoneNumbers.map { normDigits(it.number) } + listOf(normDigits(dc.phoneNumber))
+            }.filter { it.isNotBlank() }.toSet()
 
-        favorites.forEach { fav ->
-            val fDigits = normDigits(fav.phoneNumber)
-            if (fDigits.isBlank() || !knownDigits.contains(fDigits)) {
-                list.add(DeviceContact(fav.name, fav.phoneNumber, fav.label, fav.photoUri, nickname = fav.nickname, isStarred = true))
+            favorites.forEach { fav ->
+                val fDigits = normDigits(fav.phoneNumber)
+                if (fDigits.isBlank() || !knownDigits.contains(fDigits)) {
+                    list.add(DeviceContact(fav.name, fav.phoneNumber, fav.label, fav.photoUri, nickname = fav.nickname, isStarred = true))
+                }
             }
-        }
-        list.distinctBy { dc ->
-            val digits = normDigits(dc.phoneNumber)
-            if (digits.isNotBlank()) digits else (dc.name.trim().lowercase() + "_" + (dc.contactId ?: 0L))
+            list.distinctBy { dc ->
+                val digits = normDigits(dc.phoneNumber)
+                if (digits.isNotBlank()) digits else (dc.name.trim().lowercase() + "_" + (dc.contactId ?: 0L))
+            }
         }
     }
 

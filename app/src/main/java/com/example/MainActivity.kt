@@ -377,6 +377,7 @@ fun MainAppContent(
     val selectedSimSlot by viewModel.selectedSimSlot.collectAsStateWithLifecycle()
     val activeSims by viewModel.activeSims.collectAsStateWithLifecycle()
     val deviceContacts by viewModel.deviceContacts.collectAsStateWithLifecycle()
+    val searchContacts by viewModel.searchContacts.collectAsStateWithLifecycle()
     val pendingCloudConfirmation by viewModel.pendingCloudConfirmation.collectAsStateWithLifecycle()
     val pendingCallMethodChoice by viewModel.pendingCallMethodChoice.collectAsStateWithLifecycle()
 
@@ -734,7 +735,7 @@ fun MainAppContent(
                 HorizontalPager(
                     state = pagerState,
                     userScrollEnabled = swipeToSwitchPanels,
-                    beyondViewportPageCount = 2,
+                    beyondViewportPageCount = 4,
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
                     when (page) {
@@ -890,7 +891,8 @@ fun MainAppContent(
                         askToAssignUnassignedSpeedDial = askToAssignUnassignedSpeedDial,
                         speedDialKeypadDisplay = speedDialKeypadDisplay,
                         showDialerQuickActions = showDialerQuickActions,
-                        deviceContacts = deviceContacts
+                        deviceContacts = deviceContacts,
+                        precomputedSearchContacts = searchContacts
                     )
                     3 -> ContactsScreen(
                         favorites = favorites,

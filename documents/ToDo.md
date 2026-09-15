@@ -20,6 +20,12 @@
 - [x] **Task 8.3: Rich Sensory Haptics (Android 13+ Primitives)**
   - *Goal*: Provide tactile feedback matching Google Pixel and Material 3 standards.
   - *Deliverable*: Integrated `HapticFeedbackHelper` utilizing Android 13+ `VibrationEffect.createPredefined(EFFECT_CLICK / EFFECT_HEAVY_CLICK / EFFECT_TICK)` across keypad tapping, long presses, and call connection events.
+- [x] **Task 8.4: Direct Automatic Backup & Restore Manager (v1.1.4 — Build 6)**
+  - *Goal*: Eliminate manual SAF file prompts with single-tap auto-backup, restore, and file management across dual storage directories.
+  - *Deliverable*: Modular `BackupManagementCard` and updated `BackupManager` supporting automatic multi-location JSON backup, live list scan, one-tap restore, and file import.
+- [x] **Task 8.5: Zero-Lag Keypad Switching & Pager Pre-Warming (v1.1.5)**
+  - *Goal*: Eliminate frame drops and UI freezes when navigating from Contacts or Rules to Keypad.
+  - *Deliverable*: Asynchronous background contact normalization and deduplication via `searchContacts` StateFlow on `Dispatchers.Default`, paired with `beyondViewportPageCount = 4` pre-warmed pager rendering.
 
 ---
 

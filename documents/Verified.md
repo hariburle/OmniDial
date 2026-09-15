@@ -248,3 +248,46 @@ This document archives all verified and tested test scripts, features, and regre
   3. Place a call and observe tactile feedback when the call transitions to the active/connected state.
 - **Expected Result**:
   - Crisp tactile tick on digit tap (`EFFECT_CLICK`), solid feedback on speed dial long-press (`EFFECT_HEAVY_CLICK`), and distinct connection confirmation.
+
+### 27. Task 12 (Phase 1): Keypad Dial Button Internal Highlight Geometry
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. Navigate to the **Keypad** (Tab 2).
+  2. Enter a phone number for which a preferred channel (Phone vs WhatsApp) is detected.
+- **Expected Result**:
+  - The preference highlight ring renders *inside* the circular dial button container.
+  - The dial button outer dimensions stay locked to `56.dp`, and zero vertical jitter or key shifting occurs when entering digits.
+
+### 28. Task 14 (Phase 6): Recents Search & Live Filtering
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. Open **Recents** (Tab 1).
+  2. Type a caller name, number, or note in the top `"Search by name or number"` search bar.
+- **Expected Result**:
+  - Recents list filters dynamically in real time matching the search query.
+
+### 29. Task 16 (Phase 6): Ask & Learn Preferred Channel Recomposition & Equal Contacts Icon Sizing
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. In **Contacts** (Tab 3), expand a contact's phone number options.
+  2. Inspect the WhatsApp Call button vs Phone Call button.
+- **Expected Result**:
+  - Both Phone and WhatsApp call action buttons have 1:1 identical 36.dp button dimensions and 18.dp icons.
+  - The preferred channel button displays a filled container background highlight without increasing icon size.
+
+### 30. Task 17 (Phase 6): Configure Mode Popular Contact Ignore [X] Action
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. On **Favorites** (Tab 0), tap **Configure** mode.
+  2. Locate a card in the **Popular** section and tap the prominent red **[X]** ignore button.
+- **Expected Result**:
+  - The popular contact is immediately ignored and removed from the popular list.
+
+### 31. Task 18 (Phase 6): Horizontal Pager Smoothness & Sub-Tab Swipe Integration
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. Swipe horizontally between main panels at various speeds.
+  2. In **Rules / Settings** (Tab 4), swipe horizontally between sub-tabs.
+- **Expected Result**:
+  - Main panel swiping is pre-rendered and transitions smoothly without getting stuck midway.
+

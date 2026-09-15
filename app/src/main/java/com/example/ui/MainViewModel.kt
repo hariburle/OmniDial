@@ -36,6 +36,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Collections
@@ -410,6 +412,47 @@ class MainViewModel(
 
     val favorites: StateFlow<List<FavoriteContact>> = repository.favorites
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Pre-computed, background-normalized search contacts for instant dialer response without UI frame drops
+    val searchContacts: StateFlow<List<DeviceContact>> = combine(_deviceContacts, favorites) { effectiveContacts, favs ->
+        fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
+        val favByDigits = favs.associateBy { normDigits(it.phoneNumber) }
+        val favByName = favs.associateBy { it.name.trim().lowercase() }
+        val list = ArrayList<DeviceContact>(effectiveContacts.size + favs.size)
+
+        for (dc in effectiveContacts) {
+            val dcDigits = normDigits(dc.phoneNumber)
+            val matchingFav = favByDigits[dcDigits] ?: favByName[dc.name.trim().lowercase()]
+            val effectiveNickname = matchingFav?.nickname?.ifBlank { null } ?: dc.nickname?.ifBlank { null }
+            if (effectiveNickname != null && effectiveNickname != dc.nickname) {
+                list.add(dc.copy(nickname = effectiveNickname))
+            } else {
+                list.add(dc)
+            }
+        }
+        val knownDigits = HashSet<String>(effectiveContacts.size * 2)
+        for (dc in effectiveContacts) {
+            val mainDigits = normDigits(dc.phoneNumber)
+            if (mainDigits.isNotBlank()) knownDigits.add(mainDigits)
+            for (pn in dc.phoneNumbers) {
+                val pDigits = normDigits(pn.number)
+                if (pDigits.isNotBlank()) knownDigits.add(pDigits)
+            }
+        }
+
+        for (fav in favs) {
+            val fDigits = normDigits(fav.phoneNumber)
+            if (fDigits.isBlank() || !knownDigits.contains(fDigits)) {
+                list.add(DeviceContact(fav.name, fav.phoneNumber, fav.label, fav.photoUri, nickname = fav.nickname, isStarred = true))
+            }
+        }
+        list.distinctBy { dc ->
+            val digits = normDigits(dc.phoneNumber)
+            if (digits.isNotBlank()) digits else (dc.name.trim().lowercase() + "_" + (dc.contactId ?: 0L))
+        }
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val spamNumbers: StateFlow<List<com.example.data.SpamNumber>> = repository.spamNumbers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
