@@ -7,6 +7,13 @@ import com.example.util.CommunityCallerInfo
 import com.example.util.ContactHelper
 import com.example.util.DeviceContact
 
+enum class TrustTier {
+    VERIFIED_BUSINESS,     // Green - Verified businesses, banks, emergency/official services, saved contacts
+    PRIORITY_LOGISTICS,    // Amber - Delivery drivers, ride-shares, building intercoms, appointment reminders
+    HIGH_RISK_SPAM,        // Red - High report count, fraud/scam warnings, community blacklists
+    NEUTRAL_UNKNOWN        // Grey - Standard unknown numbers
+}
+
 data class CallerIdentity(
     val phoneNumber: String,
     val displayName: String,
@@ -16,7 +23,9 @@ data class CallerIdentity(
     val isVoicemail: Boolean,
     val isSpam: Boolean,
     val spamScore: Int,
-    val communityInfo: CommunityCallerInfo?
+    val communityInfo: CommunityCallerInfo?,
+    val trustTier: TrustTier = TrustTier.NEUTRAL_UNKNOWN,
+    val trustBadgeLabel: String? = null
 )
 
 /**
@@ -37,7 +46,9 @@ class ResolveCallerIdentityUseCase(
                 isVoicemail = true,
                 isSpam = false,
                 spamScore = 0,
-                communityInfo = null
+                communityInfo = null,
+                trustTier = TrustTier.VERIFIED_BUSINESS,
+                trustBadgeLabel = "System Voicemail"
             )
         }
 
@@ -53,7 +64,9 @@ class ResolveCallerIdentityUseCase(
                 isVoicemail = false,
                 isSpam = false,
                 spamScore = 0,
-                communityInfo = null
+                communityInfo = null,
+                trustTier = TrustTier.VERIFIED_BUSINESS,
+                trustBadgeLabel = "Saved Contact"
             )
         }
 
@@ -70,15 +83,33 @@ class ResolveCallerIdentityUseCase(
                 isVoicemail = false,
                 isSpam = false,
                 spamScore = 0,
-                communityInfo = null
+                communityInfo = null,
+                trustTier = TrustTier.VERIFIED_BUSINESS,
+                trustBadgeLabel = "Favorite"
             )
         }
 
         // 3. Check Community / Offline Spam Directory
         val community = CommunityCallerIdService.lookup(phoneNumber)
-        val isSpam = community?.verificationType?.contains("Spam", ignoreCase = true) == true
+        val isSpam = community?.verificationType?.contains("Spam", ignoreCase = true) == true || (community?.spamScore ?: 0) >= 50
         val spamScore = community?.spamScore ?: 0
         val displayName = community?.name ?: phoneNumber
+
+        val (tier, badgeLabel) = when {
+            isSpam -> Pair(TrustTier.HIGH_RISK_SPAM, "High Spam Risk (${spamScore}%)")
+            community != null && (community.category.contains("Delivery", ignoreCase = true) ||
+                community.category.contains("Logistics", ignoreCase = true) ||
+                community.verificationType.contains("Delivery", ignoreCase = true) ||
+                community.name.contains("Delivery", ignoreCase = true) ||
+                community.defaultCallReason?.contains("Buzzer", ignoreCase = true) == true) ->
+                Pair(TrustTier.PRIORITY_LOGISTICS, "Priority Delivery")
+            community != null && (community.isVerified ||
+                community.verificationType.contains("Verified", ignoreCase = true) ||
+                community.verificationType.contains("Financial", ignoreCase = true)) ->
+                Pair(TrustTier.VERIFIED_BUSINESS, community.verificationType)
+            community != null -> Pair(TrustTier.NEUTRAL_UNKNOWN, "Community Identified")
+            else -> Pair(TrustTier.NEUTRAL_UNKNOWN, null)
+        }
 
         return CallerIdentity(
             phoneNumber = phoneNumber,
@@ -89,7 +120,9 @@ class ResolveCallerIdentityUseCase(
             isVoicemail = false,
             isSpam = isSpam,
             spamScore = spamScore,
-            communityInfo = community
+            communityInfo = community,
+            trustTier = tier,
+            trustBadgeLabel = badgeLabel
         )
     }
 }

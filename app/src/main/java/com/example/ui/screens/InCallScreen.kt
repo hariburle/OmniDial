@@ -385,6 +385,15 @@ fun InCallScreen(
                         )
                     }
 
+                    // Trust Badge (Verified Business, Priority Logistics, Spam Risk)
+                    if (callInfo.trustTier != com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN || !callInfo.trustBadgeLabel.isNullOrBlank()) {
+                        com.example.ui.components.TrustBadge(
+                            tier = callInfo.trustTier,
+                            label = callInfo.trustBadgeLabel,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+
                     // Contextual Caller ID ("Call Reason")
                     if (!callInfo.callReason.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(6.dp))

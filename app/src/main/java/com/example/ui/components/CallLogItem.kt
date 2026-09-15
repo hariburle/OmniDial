@@ -281,6 +281,39 @@ fun CallLogItem(
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                 )
                             }
+                        } else {
+                            val community = remember(call.phoneNumber) {
+                                com.example.util.CommunityCallerIdService.lookup(call.phoneNumber)
+                            }
+                            if (community != null && (community.category.contains("Delivery", ignoreCase = true) || community.verificationType.contains("Delivery", ignoreCase = true))) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFFFF3E0)
+                                ) {
+                                    Text(
+                                        text = "Delivery",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE65100),
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            } else if (community != null && community.isVerified && (community.verificationType.contains("Verified", ignoreCase = true) || community.verificationType.contains("Financial", ignoreCase = true))) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFE8F5E9)
+                                ) {
+                                    Text(
+                                        text = "Verified",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF2E7D32),
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 

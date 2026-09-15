@@ -18,6 +18,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +35,7 @@ object FlipToShhhManager : SensorEventListener {
     private var accelSensor: Sensor? = null
     private var proximitySensor: Sensor? = null
     private var appContext: Context? = null
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _isFlipToShhhEnabled = MutableStateFlow(true)
     val isFlipToShhhEnabled: StateFlow<Boolean> = _isFlipToShhhEnabled.asStateFlow()

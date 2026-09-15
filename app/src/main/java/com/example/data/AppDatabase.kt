@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +21,16 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_recent_calls_phoneNumber ON recent_calls(phoneNumber)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_recent_calls_timestamp ON recent_calls(timestamp)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_caller_rules_phoneNumberPattern ON caller_rules(phoneNumberPattern)")
+                } catch (_: Throwable) {}
+            }
+        }
 
         private val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -61,7 +71,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "telecom_dialer_db"
                 )
-                .addMigrations(MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
+                .addMigrations(MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
                 .fallbackToDestructiveMigration(dropAllTables = false)
                 .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = false)
                 .addCallback(object : Callback() {

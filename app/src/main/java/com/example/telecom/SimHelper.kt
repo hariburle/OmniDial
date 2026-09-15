@@ -8,15 +8,19 @@ import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
+import androidx.compose.runtime.Immutable
 import androidx.core.content.ContextCompat
 
+@Immutable
 data class SimInfo(
     val slotIndex: Int,          // 0-based: 0 for SIM 1, 1 for SIM 2
     val subscriptionId: Int,
     val displayName: String,     // e.g. "Spectrum Mobile", "Verizon", "T-Mobile", "Jio"
     val carrierName: String,     // e.g. "Spectrum", "Verizon"
     val number: String? = null,
-    val isDefault: Boolean = false
+    val isDefault: Boolean = false,
+    val isRoaming: Boolean = false
 )
 
 object SimHelper {
@@ -37,6 +41,7 @@ object SimHelper {
 
         try {
             val subscriptionManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+            val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
             val activeList: List<SubscriptionInfo>? = subscriptionManager?.activeSubscriptionInfoList
 
             if (!activeList.isNullOrEmpty()) {
@@ -55,6 +60,17 @@ object SimHelper {
                         !carrier.isNullOrBlank() -> carrier
                         else -> "SIM ${slot + 1}"
                     }
+
+                    val isRoaming = try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            telephonyManager?.createForSubscriptionId(info.subscriptionId)?.isNetworkRoaming == true
+                        } else {
+                            telephonyManager?.isNetworkRoaming == true
+                        }
+                    } catch (_: Exception) {
+                        false
+                    }
+
                     simList.add(
                         SimInfo(
                             slotIndex = slot,
@@ -62,7 +78,8 @@ object SimHelper {
                             displayName = name,
                             carrierName = carrier ?: name,
                             number = info.number?.takeIf { it.isNotBlank() },
-                            isDefault = (info.subscriptionId == defaultSubId)
+                            isDefault = (info.subscriptionId == defaultSubId),
+                            isRoaming = isRoaming
                         )
                     )
                 }

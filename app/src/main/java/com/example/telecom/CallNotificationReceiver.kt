@@ -36,8 +36,9 @@ class CallNotificationReceiver : BroadcastReceiver() {
                 if (cleanDigits.isNotBlank()) currentWl.add(cleanDigits)
                 prefs.edit().putStringSet("not_spam_whitelist", currentWl).apply()
 
-                // Remove from database spam table and update call log in background
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                // Remove from database spam table and update call log in background with structured concurrency
+                val pendingResult = goAsync()
+                com.example.util.AppCoroutineScope.launch {
                     try {
                         val dao = com.example.data.AppDatabase.getInstance(context).appDao()
                         dao.deleteSpamByNumber(number)
@@ -60,6 +61,8 @@ class CallNotificationReceiver : BroadcastReceiver() {
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("CallNotificationReceiver", "Error unmarking spam", e)
+                    } finally {
+                        pendingResult.finish()
                     }
                 }
 

@@ -75,6 +75,43 @@ Items currently pending verification or undergoing testing. Verified items are a
   - File is safely parsed, validated, and copied into OmniDial's managed backup storage.
   - OmniDial restores rules, favorites, and speed dial settings from the external file.
 
+### 8. Task 10.1 (Phase 10): Roaming-Aware & DAG Conflict-Resolved SIM Routing
+- [ ] **To Test**
+- **Test Steps**:
+  1. Insert two active SIM cards (or configure dual-SIM state where SIM 1 is roaming and SIM 2 is local non-roaming).
+  2. In **Rules** (Tab 4), create two overlapping rules:
+     - Broad rule: Prefix `+1*` (Weight ~501) targeting SIM 1.
+     - Specific rule: Exact number `+14155550199` (Weight ~1012) targeting SIM 2.
+  3. Dial `+14155550199` from the keypad.
+  4. Test roaming protection by placing an outgoing call to a non-rule number while SIM 1 has roaming enabled.
+- **Expected Result**:
+  - DAG weighted resolver selects the exact-match rule over the prefix rule.
+  - Roaming detection identifies roaming status in real-time. If roaming is active on the default SIM, OmniDial routes or prompts with `[Roaming Protected]` on the local non-roaming SIM to prevent bill shock.
+
+### 9. Task 10.2 (Phase 10): Tiered Caller ID & Trust Badges
+- [ ] **To Test**
+- **Test Steps**:
+  1. Simulate or receive an incoming call from a suspected spam number (e.g. `+18005550199`).
+  2. Simulate or receive an incoming call from a verified delivery service (e.g. `+18003662255` Amazon Logistics).
+  3. Simulate or receive an incoming call from a verified financial/business institution (e.g. `+18009359935` Chase Bank) or a saved contact.
+  4. Observe the in-call screen and call history log list.
+- **Expected Result**:
+  - High-risk spam callers display a red **Spam Risk** badge.
+  - Delivery and logistics callers display an amber **Priority Delivery** badge.
+  - Verified businesses and saved contacts display a green **Verified Caller** badge.
+  - Badges render with high-contrast Material 3 containers on both the In-Call screen and Call Log items.
+
+### 10. Task 10.3 (Phase 10): Android 14+ Telecom VoIP Continuity
+- [ ] **To Test**
+- **Test Steps**:
+  1. Initiate an outgoing or incoming simulated/WhatsApp VoIP call on an Android 14+ device.
+  2. Connect a Bluetooth headset or car audio system while call is active.
+  3. Toggle call mute, place call on hold (inactive), and resume.
+  4. Hang up the call from the in-call screen.
+- **Expected Result**:
+  - `TelecomManager.addCall()` cleanly integrates into the system-level audio endpoint router without dropping audio channels.
+  - Bluetooth device transitions, mute state, and disconnect actions execute reliably and release system audio locks.
+
 ---
 
 ## 🔍 Open Issues & Feedback Items Under Investigation

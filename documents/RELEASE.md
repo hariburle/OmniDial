@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.2.0` | `8` | Sep 2026 | Architecture modularization, faster call history search, and tamper-proof verified backups. |
 | `1.1.5` | `7` | Sep 2026 | Instant, lag-free switching to the Keypad panel and fluid tab transitions. |
 | `1.1.4` | `6` | Sep 2026 | Simplified automatic backup saving and one-tap restore without confusing file prompts. |
 | `1.1.3` | `5` | Sep 2026 | Added crisp vibration feedback when typing on the dial pad and smoother in-call controls. |
@@ -18,7 +19,20 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.1.5 (Latest) — Performance & Instant Switching</h3></summary>
+<summary><h3>🚀 Release 1.2.0 (Latest) — Core Architecture & Data Integrity</h3></summary>
+
+### What's New & Improvements:
+- **Snappier Call History & Search**: Faster indexing for recent calls and rules ensures searching through thousands of past calls and predictive contacts remains smooth and responsive.
+- **Tamper-Proof Secure Backups**: Backups now include automated cryptographic integrity verification, safeguarding your rules, speed dials, and favorite contacts against corruption during device transfers.
+- **Enhanced Calling Stability**: Upgraded calling subsystem with automatic fallbacks for custom Android devices ensures uninterrupted voice connection across different phone manufacturers.
+- **Rock-Solid Background Tasks**: Background tasks, notification dismissals, and call actions now run on isolated, crash-resilient lifecycles for smoother daily operation.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.1.5 — Performance & Instant Switching</h3></summary>
 
 ### What's New & Improvements:
 - **Instant Keypad Switching**: Tapping or swiping to the Keypad from Contacts, Rules, or Favorites is now immediate with zero delay or freeze, even when carrying hundreds of contacts.

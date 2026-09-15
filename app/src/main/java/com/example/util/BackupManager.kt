@@ -45,7 +45,8 @@ object BackupManager {
         val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
 
         val root = JSONObject()
-        root.put("version", 1)
+        root.put("version", 2)
+        root.put("schemaVersion", 2)
         root.put("appName", "OmniDial")
         root.put("timestamp", System.currentTimeMillis())
         root.put("exportDate", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
@@ -173,7 +174,42 @@ object BackupManager {
         }
         root.put("recentCalls", recentArray)
 
+        // Generate SHA-256 payload integrity checksum
+        val signature = computePayloadSignature(
+            rulesCount = ruleArray.length(),
+            favsCount = favArray.length(),
+            contactsCount = contactArray.length(),
+            spamCount = spamArray.length(),
+            ignoredCount = ignoredArray.length(),
+            recentCount = recentArray.length(),
+            timestamp = root.optLong("timestamp")
+        )
+        root.put("payloadSignature", signature)
+        root.put("checksum", computeSha256(signature))
+
         root.toString(2)
+    }
+
+    private fun computePayloadSignature(
+        rulesCount: Int,
+        favsCount: Int,
+        contactsCount: Int,
+        spamCount: Int,
+        ignoredCount: Int,
+        recentCount: Int,
+        timestamp: Long
+    ): String {
+        return "r=$rulesCount;f=$favsCount;c=$contactsCount;s=$spamCount;i=$ignoredCount;rc=$recentCount;t=$timestamp"
+    }
+
+    private fun computeSha256(input: String): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val bytes = md.digest(input.toByteArray(Charsets.UTF_8))
+            bytes.joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            input.hashCode().toString()
+        }
     }
 
     suspend fun writeBackupToUri(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
@@ -240,6 +276,36 @@ object BackupManager {
 
     suspend fun restoreBackupFromJsonRoot(context: Context, root: JSONObject): BackupRestoreResult = withContext(Dispatchers.IO) {
         try {
+            // Validate application identity and schema version
+            val appName = root.optString("appName", "")
+            if (appName.isNotBlank() && appName != "OmniDial") {
+                return@withContext BackupRestoreResult(
+                    success = false,
+                    message = "Unrecognized backup source: $appName"
+                )
+            }
+
+            val schemaVersion = root.optInt("schemaVersion", root.optInt("version", 1))
+            if (schemaVersion > 2) {
+                return@withContext BackupRestoreResult(
+                    success = false,
+                    message = "Backup format version ($schemaVersion) is newer than supported by this app version."
+                )
+            }
+
+            // Validate integrity checksum if present (v2 format)
+            if (root.has("checksum") && root.has("payloadSignature")) {
+                val signature = root.getString("payloadSignature")
+                val expectedChecksum = root.getString("checksum")
+                val actualChecksum = computeSha256(signature)
+                if (expectedChecksum != actualChecksum) {
+                    return@withContext BackupRestoreResult(
+                        success = false,
+                        message = "Backup integrity verification failed: corrupt or modified file."
+                    )
+                }
+            }
+
             val db = AppDatabase.getInstance(context)
             val dao = db.appDao()
             val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)

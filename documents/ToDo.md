@@ -48,15 +48,15 @@
 
 ### 🌐 Phase 10 (Minor Release — v1.3.0): Deep Telecom & Calling Intelligence
 *Advanced multi-SIM automation, trust badges, and Android 14 Telecom VoIP.*
-- [ ] **Task 10.1: Roaming-Aware & DAG Conflict-Resolved SIM Routing**
+- [x] **Task 10.1: Roaming-Aware & DAG Conflict-Resolved SIM Routing**
   - *Goal*: Enhance multi-SIM automation for international travelers and complex rule setups.
   - *Deliverable*: Real-time `isNetworkRoaming()` checks and DAG-based weighted rule conflict resolution.
-- [ ] **Task 10.2: Tiered Caller ID & Trust Badges**
+- [x] **Task 10.2: Tiered Caller ID & Trust Badges**
   - *Goal*: Give upfront trust clarity to inbound callers.
   - *Deliverable*: Visual badges for Verified Business (Green), Emergency/Delivery (Amber), and High-Risk Spam (Red).
-- [ ] **Task 10.3: Android 14+ Telecom VoIP Continuity**
+- [x] **Task 10.3: Android 14+ Telecom VoIP Continuity**
   - *Goal*: Integrate VoIP endpoints directly into system-level in-call handling.
-  - *Deliverable*: Implement `TelecomManager.addCall()` using `CallAttributesCompat`.
+  - *Deliverable*: Implement `TelecomManager.addCall()` using `CallAttributesCompat` / `CallAttributes`.
 
 ---
 

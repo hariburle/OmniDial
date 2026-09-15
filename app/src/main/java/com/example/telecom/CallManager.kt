@@ -20,9 +20,11 @@ import com.example.data.CallerRule
 import com.example.data.RecentCall
 import com.example.util.ContactHelper
 import com.example.util.PhoneNumberNormalizer
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
+@Immutable
 data class ActiveCallInfo(
     val id: String,
     val phoneNumber: String,
@@ -42,9 +45,12 @@ data class ActiveCallInfo(
     val callReason: String? = null,
     val communityInfo: com.example.util.CommunityCallerInfo? = null,
     val nickname: String? = null,
-    val numberLabel: String? = null
+    val numberLabel: String? = null,
+    val trustTier: com.example.domain.usecase.TrustTier = com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
+    val trustBadgeLabel: String? = null
 )
 
+@Immutable
 data class AutomationStep(
     val ruleName: String,
     val stepDescription: String,
@@ -53,6 +59,7 @@ data class AutomationStep(
     val error: String? = null
 )
 
+@Immutable
 data class BluetoothDeviceItem(
     val name: String,
     val address: String,
@@ -63,7 +70,7 @@ data class BluetoothDeviceItem(
 object CallManager {
     private const val TAG = "CallManager"
 
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var automationJob: Job? = null
 
     // Native Telecom Call instance if real call is active
@@ -226,6 +233,14 @@ object CallManager {
             return
         }
 
+        val trustBadge = resolveTrustBadge(
+            isVoicemail = isVoicemail,
+            hasContact = lookedUp != null,
+            hasFav = favContact != null,
+            isSpam = isDatabaseSpam || isCarrierSpamThreat,
+            communityInfo = communityInfo
+        )
+
         val callInfo = ActiveCallInfo(
             id = call.hashCode().toString(),
             phoneNumber = number,
@@ -237,7 +252,9 @@ object CallManager {
             photoUri = photoUri,
             communityInfo = communityInfo,
             nickname = resolvedNickname,
-            numberLabel = resolvedLabel
+            numberLabel = resolvedLabel,
+            trustTier = trustBadge.first,
+            trustBadgeLabel = trustBadge.second
         )
         _activeCall.value = callInfo
 
@@ -297,6 +314,7 @@ object CallManager {
     }
 
     private fun handleCallEnded(context: Context, callInfo: ActiveCallInfo?) {
+        TelecomVoipHelper.endVoipCall()
         automationJob?.cancel()
         automationJob = null
         simulatedTimerJob?.cancel()
@@ -690,6 +708,7 @@ object CallManager {
     }
 
     fun disconnectCall() {
+        TelecomVoipHelper.endVoipCall()
         val current = _activeCall.value ?: return
         if (current.isSimulated) {
             appContext?.let { handleCallEnded(it, current) } ?: run {
@@ -945,6 +964,13 @@ object CallManager {
         val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
         val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
         val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
+        val trustBadge = resolveTrustBadge(
+            isVoicemail = ContactHelper.isVoicemailNumber(context, number),
+            hasContact = lookedUp != null,
+            hasFav = favContact != null,
+            isSpam = communityInfo?.verificationType?.contains("Spam", ignoreCase = true) == true || (communityInfo?.spamScore ?: 0) >= 50,
+            communityInfo = communityInfo
+        )
         val callInfo = ActiveCallInfo(
             id = "sim_${System.currentTimeMillis()}",
             phoneNumber = number,
@@ -957,9 +983,12 @@ object CallManager {
             callReason = reason ?: communityInfo?.defaultCallReason,
             communityInfo = communityInfo,
             nickname = resolvedNickname,
-            numberLabel = resolvedLabel
+            numberLabel = resolvedLabel,
+            trustTier = trustBadge.first,
+            trustBadgeLabel = trustBadge.second
         )
         _activeCall.value = callInfo
+        TelecomVoipHelper.startVoipCall(context, number, resolvedName, isIncoming = true)
         CallForegroundService.start(context)
         OngoingCallNotificationHelper.showCallNotification(context, callInfo)
         checkAndExecuteAutomation(context, number, true)
@@ -991,6 +1020,13 @@ object CallManager {
         val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
         val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
         val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
+        val trustBadge = resolveTrustBadge(
+            isVoicemail = isVoicemail,
+            hasContact = lookedUp != null,
+            hasFav = favContact != null,
+            isSpam = communityInfo?.verificationType?.contains("Spam", ignoreCase = true) == true || (communityInfo?.spamScore ?: 0) >= 50,
+            communityInfo = communityInfo
+        )
         val callInfo = ActiveCallInfo(
             id = "sim_out_${System.currentTimeMillis()}",
             phoneNumber = number,
@@ -1003,9 +1039,12 @@ object CallManager {
             callReason = reason,
             communityInfo = communityInfo,
             nickname = resolvedNickname,
-            numberLabel = resolvedLabel
+            numberLabel = resolvedLabel,
+            trustTier = trustBadge.first,
+            trustBadgeLabel = trustBadge.second
         )
         _activeCall.value = callInfo
+        TelecomVoipHelper.startVoipCall(context, number, resolvedName, isIncoming = false)
         CallForegroundService.start(context)
         OngoingCallNotificationHelper.showCallNotification(context, callInfo)
 
@@ -1109,6 +1148,33 @@ object CallManager {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update bluetooth devices from system", e)
+        }
+    }
+
+    fun resolveTrustBadge(
+        isVoicemail: Boolean,
+        hasContact: Boolean,
+        hasFav: Boolean,
+        isSpam: Boolean,
+        communityInfo: com.example.util.CommunityCallerInfo?
+    ): Pair<com.example.domain.usecase.TrustTier, String?> {
+        return when {
+            isSpam -> Pair(com.example.domain.usecase.TrustTier.HIGH_RISK_SPAM, "High Spam Risk")
+            isVoicemail -> Pair(com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS, "System Voicemail")
+            hasContact -> Pair(com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS, "Saved Contact")
+            hasFav -> Pair(com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS, "Favorite")
+            communityInfo != null && (communityInfo.category.contains("Delivery", ignoreCase = true) ||
+                communityInfo.category.contains("Logistics", ignoreCase = true) ||
+                communityInfo.verificationType.contains("Delivery", ignoreCase = true) ||
+                communityInfo.name.contains("Delivery", ignoreCase = true) ||
+                communityInfo.defaultCallReason?.contains("Buzzer", ignoreCase = true) == true) ->
+                Pair(com.example.domain.usecase.TrustTier.PRIORITY_LOGISTICS, "Priority Delivery")
+            communityInfo != null && (communityInfo.isVerified ||
+                communityInfo.verificationType.contains("Verified", ignoreCase = true) ||
+                communityInfo.verificationType.contains("Financial", ignoreCase = true)) ->
+                Pair(com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS, communityInfo.verificationType)
+            communityInfo != null -> Pair(com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN, "Community Identified")
+            else -> Pair(com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN, null)
         }
     }
 

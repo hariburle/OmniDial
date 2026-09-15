@@ -7,13 +7,16 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.CallLog
 import android.provider.ContactsContract
+import androidx.compose.runtime.Immutable
 import com.example.data.RecentCall
 
+@Immutable
 data class ContactPhoneNumber(
     val number: String,
     val label: String = "Mobile"
 )
 
+@Immutable
 data class DeviceContact(
     val name: String,
     val phoneNumber: String,

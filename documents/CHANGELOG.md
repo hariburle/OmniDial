@@ -4,7 +4,20 @@
 
 ---
 
-## 🛠️ [Unreleased]
+## 🚀 [v1.2.0] — Build 8 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **High-Performance History & Fast Search**: Room database indices on recent calls and caller rules significantly accelerate query response times across large histories.
+- **Tamper-Proof Automated Backups**: Backups now include cryptographic payload checksums (SHA-256) and schema versioning, protecting against corrupted or malformed imports.
+- **Enhanced Dialing & Telecom Stability**: Safe registration checks and fallback mechanisms for self-managed PhoneAccount handles on custom OEM skins (e.g. Samsung OneUI, Xiaomi MIUI).
+- **Crash-Resilient Background Operations**: Notification actions and background workers use dedicated application coroutine scopes with `SupervisorJob` to avoid cancellation cascading.
+
+### 🔧 Technical / Architecture Notes
+- **Sub-ViewModel Modularization**: Extracted specialized sub-ViewModels (`DialerViewModel`, `CallLogViewModel`, `FavoritesViewModel`, `RulesViewModel`, `ContactsViewModel`) backed by domain use cases and `AppRepository`.
+- **Database Schema Migration**: Bumped Room database version to 12 with migration `MIGRATION_11_12` introducing database indices (`index_recent_calls_phoneNumber`, `index_recent_calls_timestamp`, `index_caller_rules_phoneNumberPattern`).
+- **Compose Stability**: Applied `@Immutable` annotations to UI and telecom state data models (`ContactPhoneNumber`, `DeviceContact`, `ActiveCallInfo`, `AutomationStep`, `BluetoothDeviceItem`, `SimInfo`) to skip redundant Compose recompositions.
+- **Structured Concurrency**: Created `AppCoroutineScope` with `SupervisorJob` and `CoroutineExceptionHandler`, integrated `goAsync()` with structured coroutine launching in `CallNotificationReceiver`, and added lifecycle cancellation cleanup in `CallForegroundService`.
+- Incremented `versionCode` to 8 and `versionName` to `"1.2.0"` in `app/build.gradle.kts`.
 
 ---
 

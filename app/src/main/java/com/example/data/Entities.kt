@@ -1,12 +1,17 @@
 package com.example.data
 
+import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.util.PhoneNumberNormalizer
 
-@Entity(tableName = "caller_rules")
+@Immutable
+@Entity(
+    tableName = "caller_rules",
+    indices = [Index(value = ["phoneNumberPattern"])]
+)
 data class CallerRule(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -22,6 +27,7 @@ data class CallerRule(
     val hangupDelaySec: Int = 2
 )
 
+@Immutable
 @Entity(tableName = "automation_logs")
 data class AutomationLog(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -32,9 +38,14 @@ data class AutomationLog(
     val status: String // "SUCCESS", "EXECUTING", "FAILED"
 )
 
+@Immutable
 @Entity(
     tableName = "recent_calls",
-    indices = [Index(value = ["normalized_number"])]
+    indices = [
+        Index(value = ["normalized_number"]),
+        Index(value = ["phoneNumber"]),
+        Index(value = ["timestamp"])
+    ]
 )
 data class RecentCall(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -55,6 +66,7 @@ data class RecentCall(
     val normalizedNumber: String = PhoneNumberNormalizer.toE164(phoneNumber)
 )
 
+@Immutable
 @Entity(
     tableName = "favorite_contacts",
     indices = [Index(value = ["normalized_number"])]
@@ -73,6 +85,7 @@ data class FavoriteContact(
     val normalizedNumber: String = PhoneNumberNormalizer.toE164(phoneNumber)
 )
 
+@Immutable
 @Entity(
     tableName = "offline_spam_numbers",
     indices = [Index(value = ["normalized_number"])]
@@ -86,6 +99,7 @@ data class SpamNumber(
     val normalizedNumber: String = PhoneNumberNormalizer.toE164(phoneNumber)
 )
 
+@Immutable
 @Entity(tableName = "ignored_contacts")
 data class IgnoredContact(
     @PrimaryKey val phoneNumber: String,
@@ -95,6 +109,7 @@ data class IgnoredContact(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+@Immutable
 @Entity(tableName = "local_contacts")
 data class LocalContact(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

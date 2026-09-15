@@ -12,6 +12,8 @@ import androidx.core.app.ServiceCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -56,7 +58,7 @@ class CallForegroundService : Service() {
         }
     }
 
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var tickerJob: Job? = null
     private var collectorJob: Job? = null
 
@@ -160,6 +162,7 @@ class CallForegroundService : Service() {
         super.onDestroy()
         tickerJob?.cancel()
         collectorJob?.cancel()
+        serviceScope.cancel()
         OngoingCallNotificationHelper.cancelCallNotification(this)
     }
 }
