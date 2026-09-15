@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmniDial — Interactive UX/UI Redesign Mockups</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #12100f;
+      --surface-dark: #1c1817;
+      --card-dark: #262120;
+      --card-highlight-dark: #352d2b;
+      --border-dark: #3e3532;
+      --text-dark: #ede0dd;
+      --text-muted-dark: #a89a96;
+      --primary-dark: #f09a85;
+      --primary-container-dark: #58322a;
+      --wa-green: #25d366;
+      --wa-bg-dark: rgba(37, 211, 102, 0.15);
+
+      --bg-light: #fff8f6;
+      --surface-light: #fbeee9;
+      --card-light: #f5dfd9;
+      --card-highlight-light: #edd1c9;
+      --border-light: #e6c5bc;
+      --text-light: #2c1d19;
+      --text-muted-light: #7c6863;
+      --primary-light: #8f4c3e;
+      --primary-container-light: #ffdcd4;
+      --wa-bg-light: #e3f8ec;
+      --wa-text-light: #0d8a43;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body {
+      background: #09090b;
+      color: #f4f4f5;
+      min-height: 100vh;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .header-bar {
+      max-width: 1200px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #27272a;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .title-group h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      background: #f09a8525;
+      color: #f09a85;
+      border: 1px solid #f09a8550;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      color: #f4f4f5;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .theme-toggle-btn:hover { background: #27272a; }
+
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      background: #18181b;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid #27272a;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      padding: 8px 18px;
+      background: transparent;
+      border: none;
+      color: #a1a1aa;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .tab-btn.active {
+      background: #27272a;
+      color: #fafafa;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
+    /* Comparison Container */
+    .showcase-stage {
+      max-width: 1200px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+
+    .comparison-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .col-header {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-transform: uppercase;
+    }
+    .col-header.before { color: #f87171; }
+    .col-header.after { color: #34d399; }
+
+    /* Realistic Phone Mockup */
+    .device-canvas {
+      width: 330px;
+      height: 700px;
+      border-radius: 42px;
+      padding: 10px;
+      background: #000;
+      box-shadow: 0 25px 60px -10px rgba(0,0,0,0.85), 0 0 0 2px rgba(255,255,255,0.1);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .device-screen {
+      width: 100%;
+      height: 100%;
+      border-radius: 34px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 28px;
+      padding: 6px 18px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      height: 58px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 4px 8px;
+      margin-top: auto;
+    }
+    .nav-icon-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 38px;
+      border-radius: 16px;
+      cursor: pointer;
+    }
+    .nav-icon-btn.active {
+      background: var(--nav-active-pill, #58322a);
+    }
+    .nav-icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+    /* Critique Annotation Cards */
+    .annotation-box {
+      max-width: 330px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .annotation-box h4 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .annotation-box ul {
+      padding-left: 18px;
+      color: #d4d4d8;
+    }
+    .annotation-box li { margin-bottom: 4px; }
+
+    /* Screen Specific UI Modules */
+    /* Search Bar */
+    .mock-search-bar {
+      margin: 8px 14px;
+      height: 42px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    /* Contacts Screen Components */
+    .filter-chip-row {
+      display: flex;
+      gap: 6px;
+      padding: 4px 14px;
+      overflow-x: hidden;
+    }
+    .filter-chip {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .contact-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 14px;
+      gap: 12px;
+      transition: background 0.15s ease;
+    }
+    .avatar-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .contact-meta { flex: 1; min-width: 0; }
+    .contact-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .contact-phone { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .contact-actions { display: flex; align-items: center; gap: 8px; }
+    .action-icon-touch {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    /* Keypad Components */
+    .keypad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 8px 20px 4px;
+    }
+    .keypad-btn {
+      height: 52px;
+      border-radius: 26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .key-num { font-size: 19px; font-weight: 700; line-height: 1.1; }
+    .key-sub { font-size: 8px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; }
+    .key-speed { font-size: 8px; font-weight: 700; color: #f09a85; }
+
+    /* Recents / Call Log */
+    .call-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .call-pill-single {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+
+    /* Favorites Grid */
+    .fav-bento-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 10px 14px;
+    }
+    .fav-card {
+      border-radius: 18px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+    .fav-badge-corner {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    /* Mode Styling: Dark (Default) */
+    .theme-dark .device-screen {
+      background: var(--bg-dark);
+      color: var(--text-dark);
+    }
+    .theme-dark .mock-search-bar {
+      background: var(--surface-dark);
+      color: var(--text-muted-dark);
+      border: 1px solid var(--border-dark);
+    }
+    .theme-dark .filter-chip.active {
+      background: var(--primary-container-dark);
+      color: var(--primary-dark);
+    }
+    .theme-dark .filter-chip.inactive {
+      background: var(--surface-dark);
+      color: var(--text-muted-dark);
+      border-color: var(--border-dark);
+    }
+    .theme-dark .avatar-circle {
+      background: var(--card-highlight-dark);
+      color: var(--primary-dark);
+    }
+    .theme-dark .contact-phone { color: var(--text-muted-dark); }
+    .theme-dark .keypad-btn {
+      background: var(--card-dark);
+      color: var(--text-dark);
+    }
+    .theme-dark .key-sub { color: var(--text-muted-dark); }
+    .theme-dark .fav-card {
+      background: var(--card-dark);
+      border: 1px solid var(--border-dark);
+    }
+    .theme-dark .call-pill-single {
+      background: var(--primary-container-dark);
+      color: var(--primary-dark);
+    }
+
+    /* Mode Styling: Light */
+    .theme-light .device-screen {
+      background: var(--bg-light);
+      color: var(--text-light);
+    }
+    .theme-light .mock-search-bar {
+      background: #f7e6e0;
+      color: var(--text-muted-light);
+      border: 1px solid var(--border-light);
+    }
+    .theme-light .filter-chip.active {
+      background: var(--primary-container-light);
+      color: var(--primary-light);
+    }
+    .theme-light .filter-chip.inactive {
+      background: var(--surface-light);
+      color: var(--text-muted-light);
+      border-color: var(--border-light);
+    }
+    .theme-light .avatar-circle {
+      background: #f0cdc4;
+      color: var(--primary-light);
+    }
+    .theme-light .contact-phone { color: var(--text-muted-light); }
+    .theme-light .keypad-btn {
+      background: #f7e6e0;
+      color: var(--text-light);
+    }
+    .theme-light .key-sub { color: var(--text-muted-light); }
+    .theme-light .fav-card {
+      background: #faeae4;
+      border: 1px solid var(--border-light);
+    }
+    .theme-light .call-pill-single {
+      background: var(--primary-container-light);
+      color: var(--primary-light);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Controls -->
+  <header class="header-bar">
+    <div class="title-group">
+      <h1>OmniDial Redesign Mockups</h1>
+      <span class="badge">UX/UI Improvement v1.3</span>
+    </div>
+    <div class="controls-row">
+      <button id="themeToggleBtn" class="theme-toggle-btn" onclick="toggleTheme()">
+        <span id="themeIcon">☀️</span> Switch to Light Mode
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs for the 4 Redesigned Screens -->
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchScreen('contacts')">👥 Contacts Screen</button>
+    <button class="tab-btn" onclick="switchScreen('dialer')">🔢 Keypad & Dialer</button>
+    <button class="tab-btn" onclick="switchScreen('recents')">📞 Recents & Spam</button>
+    <button class="tab-btn" onclick="switchScreen('favorites')">⭐ Favorites & Bento</button>
+  </div>
+
+  <!-- STAGE: Comparison Columns -->
+  <div class="showcase-stage" id="showcaseStage">
+    <!-- Populated by JavaScript -->
+  </div>
+
+  <script>
+    let currentTheme = 'theme-dark';
+    let currentScreen = 'contacts';
+
+    function toggleTheme() {
+      const stage = document.getElementById('showcaseStage');
+      if (currentTheme === 'theme-dark') {
+        currentTheme = 'theme-light';
+        document.getElementById('themeToggleBtn').innerHTML = '🌙 Switch to Dark Mode';
+      } else {
+        currentTheme = 'theme-dark';
+        document.getElementById('themeToggleBtn').innerHTML = '☀️ Switch to Light Mode';
+      }
+      renderScreen();
+    }
+
+    function switchScreen(screen) {
+      currentScreen = screen;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.toLowerCase().includes(screen));
+      });
+      renderScreen();
+    }
+
+    function renderScreen() {
+      const stage = document.getElementById('showcaseStage');
+      stage.className = `showcase-stage ${currentTheme}`;
+
+      if (currentScreen === 'contacts') {
+        stage.innerHTML = `
+          <!-- BEFORE: Contacts -->
+          <div class="comparison-col">
+            <div class="col-header before">⚠️ Current (Before)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:56</span><span>📶 76%</span></div>
+                <div class="mock-search-bar">🔍 Search by name or number</div>
+                
+                <!-- Row 1 chips -->
+                <div class="filter-chip-row">
+                  <span class="filter-chip active">abc All (A-Z)</span>
+                  <span class="filter-chip inactive">🕒 Recent</span>
+                  <span class="filter-chip inactive">🔥 Frequent</span>
+                </div>
+                <!-- Row 2 chips -->
+                <div class="filter-chip-row" style="margin-top:2px;">
+                  <span class="filter-chip active">All (940)</span>
+                  <span class="filter-chip inactive">App Only (0)</span>
+                  <span class="filter-chip inactive">Phone (940)</span>
+                </div>
+                <!-- Row 3 chips -->
+                <div style="display:flex; justify-content:space-between; padding:4px 14px; font-size:10px; color:#888;">
+                  <span>940 contacts</span>
+                  <span style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:6px;">= Sort: First Name</span>
+                </div>
+
+                <div style="flex:1; overflow-y:hidden; padding:2px 0;">
+                  <div class="contact-item">
+                    <div class="avatar-circle">A</div>
+                    <div class="contact-meta">
+                      <div class="contact-name">Aakarsh Padmanabh...</div>
+                      <div class="contact-phone">+1 (989) 971-4500</div>
+                    </div>
+                    <div class="contact-actions">
+                      <span style="color:#25d366; font-size:12px;">💬</span>
+                      <span style="color:#25d366; font-size:12px;">📞</span>
+                      <span style="font-size:10px;">⌄</span>
+                    </div>
+                  </div>
+                  <div class="contact-item">
+                    <div class="avatar-circle">A</div>
+                    <div class="contact-meta">
+                      <div class="contact-name">Abhey Sharma</div>
+                      <div class="contact-phone">+1 347-863-4330</div>
+                    </div>
+                    <div class="contact-actions">
+                      <span style="color:#25d366; font-size:12px;">💬</span>
+                      <span style="color:#25d366; font-size:12px;">📞</span>
+                      <span style="font-size:10px;">⌄</span>
+                    </div>
+                  </div>
+                  <div class="contact-item">
+                    <div class="avatar-circle">A</div>
+                    <div class="contact-meta">
+                      <div class="contact-name">Abhijit Hardikar</div>
+                      <div class="contact-phone">+919945280928</div>
+                    </div>
+                    <div class="contact-actions">
+                      <span style="color:#25d366; font-size:12px;">💬</span>
+                      <span style="color:#25d366; font-size:12px;">📞</span>
+                      <span style="font-size:10px;">⌄</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn">⭐</div>
+                  <div class="nav-icon-btn">🕒</div>
+                  <div class="nav-icon-btn">🔢</div>
+                  <div class="nav-icon-btn active">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>⚠️ Usability Issues</h4>
+              <ul>
+                <li><strong>3 Stacked Control Rows:</strong> Consumes ~28% of screen height before contacts appear.</li>
+                <li><strong>Cramped Quick Actions:</strong> Tiny chat, call, and expand chevron buttons clustered together.</li>
+                <li><strong>Index Collision:</strong> Fast-scroll alphabet bar crowds the action icons.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- AFTER: Contacts -->
+          <div class="comparison-col">
+            <div class="col-header after">✨ Redesigned (Recommended)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:56</span><span>📶 76%</span></div>
+                
+                <!-- Redesigned Search & Sort Bar -->
+                <div class="mock-search-bar" style="display:flex; justify-content:space-between;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span>🔍</span>
+                    <span>Search 940 contacts...</span>
+                  </div>
+                  <span style="background:rgba(255,255,255,0.1); padding:4px 8px; border-radius:12px; font-size:10px; font-weight:700;">⚙️ Sort</span>
+                </div>
+
+                <!-- Single Consolidated Filter Strip -->
+                <div class="filter-chip-row" style="padding-bottom:8px;">
+                  <span class="filter-chip active">All Contacts</span>
+                  <span class="filter-chip inactive">Frequent</span>
+                  <span class="filter-chip inactive">Recent</span>
+                  <span class="filter-chip inactive">App Only</span>
+                </div>
+
+                <div style="flex:1; overflow-y:hidden; padding-right:16px;">
+                  <div class="contact-item" style="padding:10px 14px;">
+                    <div class="avatar-circle" style="width:44px; height:44px; font-size:16px;">A</div>
+                    <div class="contact-meta">
+                      <div class="contact-name" style="font-size:14px;">Aakarsh Padmanabh...</div>
+                      <div class="contact-phone" style="font-size:12px;">+1 (989) 971-4500 • Mobile</div>
+                    </div>
+                    <div class="contact-actions" style="gap:10px;">
+                      <div class="action-icon-touch" style="background:#25d36620; color:#25d366;">💬</div>
+                      <div class="action-icon-touch" style="background:rgba(240,154,133,0.18); color:#f09a85;">📞</div>
+                    </div>
+                  </div>
+
+                  <div class="contact-item" style="padding:10px 14px;">
+                    <div class="avatar-circle" style="width:44px; height:44px; font-size:16px;">A</div>
+                    <div class="contact-meta">
+                      <div class="contact-name" style="font-size:14px;">Abhey Sharma</div>
+                      <div class="contact-phone" style="font-size:12px;">+1 347-863-4330 • Mobile</div>
+                    </div>
+                    <div class="contact-actions" style="gap:10px;">
+                      <div class="action-icon-touch" style="background:#25d36620; color:#25d366;">💬</div>
+                      <div class="action-icon-touch" style="background:rgba(240,154,133,0.18); color:#f09a85;">📞</div>
+                    </div>
+                  </div>
+
+                  <div class="contact-item" style="padding:10px 14px;">
+                    <div class="avatar-circle" style="width:44px; height:44px; font-size:16px;">A</div>
+                    <div class="contact-meta">
+                      <div class="contact-name" style="font-size:14px;">Abhijit Hardikar</div>
+                      <div class="contact-phone" style="font-size:12px;">+91 99452 80928 • Mobile</div>
+                    </div>
+                    <div class="contact-actions" style="gap:10px;">
+                      <div class="action-icon-touch" style="background:#25d36620; color:#25d366;">💬</div>
+                      <div class="action-icon-touch" style="background:rgba(240,154,133,0.18); color:#f09a85;">📞</div>
+                    </div>
+                  </div>
+
+                  <div class="contact-item" style="padding:10px 14px;">
+                    <div class="avatar-circle" style="width:44px; height:44px; font-size:16px;">A</div>
+                    <div class="contact-meta">
+                      <div class="contact-name" style="font-size:14px;">Abhinav Burla</div>
+                      <div class="contact-phone" style="font-size:12px;">+1 (347) 522-1809 • Mobile</div>
+                    </div>
+                    <div class="contact-actions" style="gap:10px;">
+                      <div class="action-icon-touch" style="background:#25d36620; color:#25d366;">💬</div>
+                      <div class="action-icon-touch" style="background:rgba(240,154,133,0.18); color:#f09a85;">📞</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn">⭐</div>
+                  <div class="nav-icon-btn">🕒</div>
+                  <div class="nav-icon-btn">🔢</div>
+                  <div class="nav-icon-btn active">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>✨ UX Improvements</h4>
+              <ul>
+                <li><strong>Consolidated Single Strip:</strong> Reclaims 120dp of vertical space, showing 2 additional contacts above the fold.</li>
+                <li><strong>48dp Accessibility Targets:</strong> Generous round touch targets for WhatsApp and cellular calls.</li>
+                <li><strong>Clean Secondary Details:</strong> Phone type tags (Mobile/Home) formatted clearly with subtle separation.</li>
+              </ul>
+            </div>
+          </div>
+        `;
+      } else if (currentScreen === 'dialer') {
+        stage.innerHTML = `
+          <!-- BEFORE: Keypad -->
+          <div class="comparison-col">
+            <div class="col-header before">⚠️ Current (Before)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:56</span><span>📶 76%</span></div>
+                
+                <!-- Tiny recents carousel -->
+                <div style="padding:6px 14px; font-size:11px; display:flex; flex-direction:column; gap:4px;">
+                  <div style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:8px; display:flex; justify-content:space-between;">
+                    <span>Ravi Kothuri</span><span>↗ +16032643684</span>
+                  </div>
+                  <div style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:8px; display:flex; justify-content:space-between;">
+                    <span>Airtel SPAM</span><span>↘ +919071478162</span>
+                  </div>
+                </div>
+
+                <div style="padding:4px 14px; font-size:12px; color:#888;">💬 Add Reason ⌄</div>
+                <div style="padding:8px 14px; text-align:center; font-size:14px; color:#aaa;">Enter number or pick contact</div>
+
+                <!-- Keypad -->
+                <div class="keypad-grid">
+                  <div class="keypad-btn"><span class="key-num">1</span><span class="key-speed">VM</span></div>
+                  <div class="keypad-btn"><span class="key-num">2</span><span class="key-speed">Akhil</span><span class="key-sub">ABC</span></div>
+                  <div class="keypad-btn"><span class="key-num">3</span><span class="key-speed">Saku</span><span class="key-sub">DEF</span></div>
+                  <div class="keypad-btn"><span class="key-num">4</span><span class="key-speed">Sai</span><span class="key-sub">GHI</span></div>
+                  <div class="keypad-btn"><span class="key-num">5</span><span class="key-speed">Amul</span><span class="key-sub">JKL</span></div>
+                  <div class="keypad-btn"><span class="key-num">6</span><span class="key-speed">Dad</span><span class="key-sub">MNO</span></div>
+                  <div class="keypad-btn"><span class="key-num">7</span><span class="key-speed">Sajju</span><span class="key-sub">PQRS</span></div>
+                  <div class="keypad-btn"><span class="key-num">8</span><span class="key-speed">Nagen</span><span class="key-sub">TUV</span></div>
+                  <div class="keypad-btn"><span class="key-num">9</span><span class="key-speed">Buddhi</span><span class="key-sub">WXYZ</span></div>
+                  <div class="keypad-btn"><span class="key-num">*</span><span class="key-sub">Pause</span></div>
+                  <div class="keypad-btn"><span class="key-num">0</span><span class="key-sub">+</span></div>
+                  <div class="keypad-btn"><span class="key-num">#</span><span class="key-sub">Wait</span></div>
+                </div>
+
+                <!-- Ambiguous Double WhatsApp Buttons -->
+                <div style="display:flex; justify-content:center; align-items:center; gap:8px; padding:6px 14px;">
+                  <button style="padding:6px 12px; border-radius:18px; border:none; background:#25d366; color:#fff; width:52px; height:52px; font-size:22px; cursor:pointer;">📞</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; gap:6px; padding:4px 14px;">
+                  <span style="flex:1; text-align:center; padding:6px; background:rgba(255,255,255,0.06); border-radius:8px; font-size:10px;">💬 SMS</span>
+                  <span style="flex:1; text-align:center; padding:6px; background:rgba(37,211,102,0.12); color:#25d366; border-radius:8px; font-size:10px;">💬 WA Chat</span>
+                  <span style="flex:1; text-align:center; padding:6px; background:rgba(37,211,102,0.12); color:#25d366; border-radius:8px; font-size:10px;">📞 WhatsApp</span>
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn">⭐</div>
+                  <div class="nav-icon-btn">🕒</div>
+                  <div class="nav-icon-btn active">🔢</div>
+                  <div class="nav-icon-btn">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>⚠️ Usability Issues</h4>
+              <ul>
+                <li><strong>Duplicate WhatsApp Buttons:</strong> Side-by-side 'WA Chat' and 'WhatsApp' causes decision paralysis.</li>
+                <li><strong>Cluttered Key Labels:</strong> Three distinct text levels crowded on small keypad chips.</li>
+                <li><strong>Vertical Squishing:</strong> Recents header + Reason + Input + Keypad + 2 action rows causes tight fit.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- AFTER: Keypad -->
+          <div class="comparison-col">
+            <div class="col-header after">✨ Redesigned (Recommended)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:56</span><span>📶 76%</span></div>
+                
+                <!-- Floating Recents Pill -->
+                <div style="padding:8px 16px;">
+                  <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:14px; display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(255,255,255,0.08);">
+                    <div style="font-size:12px; font-weight:700;">Ravi Kothuri</div>
+                    <span style="font-size:11px; opacity:0.7;">Tap to redial ↗</span>
+                  </div>
+                </div>
+
+                <!-- Sleek Number Display Area -->
+                <div style="padding:14px; text-align:center;">
+                  <div style="font-size:24px; font-weight:800; letter-spacing:1px;">+1 (214) 280-4133</div>
+                  <div style="font-size:12px; color:#f09a85; font-weight:600; margin-top:2px;">Mahesh • Speed Dial #4</div>
+                </div>
+
+                <!-- Standardized High-Contrast Keypad -->
+                <div class="keypad-grid" style="gap:10px;">
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">1</span><span class="key-sub" style="font-size:9px;">VOICEMAIL</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">2</span><span class="key-sub" style="font-size:9px;">ABC</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">3</span><span class="key-sub" style="font-size:9px;">DEF</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">4</span><span class="key-sub" style="font-size:9px;">GHI</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">5</span><span class="key-sub" style="font-size:9px;">JKL</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">6</span><span class="key-sub" style="font-size:9px;">MNO</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">7</span><span class="key-sub" style="font-size:9px;">PQRS</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">8</span><span class="key-sub" style="font-size:9px;">TUV</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">9</span><span class="key-sub" style="font-size:9px;">WXYZ</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">*</span><span class="key-sub" style="font-size:9px;">,</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">0</span><span class="key-sub" style="font-size:9px;">+</span></div>
+                  <div class="keypad-btn" style="height:56px;"><span class="key-num">#</span><span class="key-sub" style="font-size:9px;">;</span></div>
+                </div>
+
+                <!-- Streamlined Action Strip with Unified WhatsApp -->
+                <div style="display:flex; justify-content:center; align-items:center; gap:20px; padding:12px 14px;">
+                  <button style="width:48px; height:48px; border-radius:50%; border:none; background:rgba(255,255,255,0.08); color:inherit; font-size:18px; cursor:pointer;">💬</button>
+                  <button style="width:62px; height:62px; border-radius:50%; border:none; background:#2563eb; color:#fff; font-size:24px; cursor:pointer; box-shadow:0 8px 20px rgba(37,99,235,0.4);">📞</button>
+                  <button style="width:48px; height:48px; border-radius:50%; border:none; background:rgba(37,211,102,0.18); color:#25d366; font-size:18px; cursor:pointer;">🟢</button>
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn">⭐</div>
+                  <div class="nav-icon-btn">🕒</div>
+                  <div class="nav-icon-btn active">🔢</div>
+                  <div class="nav-icon-btn">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>✨ UX Improvements</h4>
+              <ul>
+                <li><strong>Unified WhatsApp Launcher:</strong> Single recognizable WhatsApp trigger instead of competing buttons.</li>
+                <li><strong>Typographic Hierarchy:</strong> High-legibility key numbers and letters with clear speed dial resolution.</li>
+                <li><strong>Clean Thumb Zone:</strong> 62dp primary call button flanked by SMS and WhatsApp quick triggers.</li>
+              </ul>
+            </div>
+          </div>
+        `;
+      } else if (currentScreen === 'recents') {
+        stage.innerHTML = `
+          <!-- BEFORE: Recents -->
+          <div class="comparison-col">
+            <div class="col-header before">⚠️ Current (Before)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:56</span><span>📶 76%</span></div>
+                <div class="mock-search-bar">🔍 Search by name or number</div>
+
+                <div class="filter-chip-row">
+                  <span class="filter-chip active">All</span>
+                  <span class="filter-chip inactive">Missed</span>
+                  <span class="filter-chip inactive">In</span>
+                  <span class="filter-chip inactive">Out</span>
+                  <span class="filter-chip inactive">WhatsApp</span>
+                  <span class="filter-chip inactive">Spam</span>
+                </div>
+
+                <div style="flex:1; overflow-y:hidden; padding:4px 0;">
+                  <div class="call-item">
+                    <div class="avatar-circle">R</div>
+                    <div class="contact-meta">
+                      <div class="contact-name">Ravi Kothuri</div>
+                      <div class="contact-phone">Sep 15, 10:19 AM • 1m 27s</div>
+                    </div>
+                    <div class="contact-actions">
+                      <span class="call-pill-single">📞</span>
+                      <span style="color:#eab308; font-size:14px;">★</span>
+                      <span style="font-size:14px;">⋮</span>
+                    </div>
+                  </div>
+
+                  <!-- Nested Box-in-Box Spam Item -->
+                  <div style="margin:4px 10px; padding:10px; background:rgba(239,68,68,0.1); border-radius:12px; border:1px solid rgba(239,68,68,0.2);">
+                    <div style="font-size:12px; font-weight:700; color:#f87171;">Airtel Warning: SPAM</div>
+                    <div style="font-size:10px; color:#888;">Sep 15, 5:08 AM</div>
+                    <div style="background:rgba(239,68,68,0.15); padding:6px; border-radius:8px; margin-top:4px; font-size:10px; color:#fca5a5;">
+                      Carrier Spam Filter auto-dropped
+                    </div>
+                  </div>
+
+                  <div class="call-item">
+                    <div class="avatar-circle">+</div>
+                    <div class="contact-meta">
+                      <div class="contact-name">+918762954343 (2)</div>
+                      <div class="contact-phone">Sep 15, 1:57 AM</div>
+                    </div>
+                    <div class="contact-actions">
+                      <span class="call-pill-single">📞</span>
+                      <span style="font-size:14px;">☆</span>
+                      <span style="font-size:14px;">⋮</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn">⭐</div>
+                  <div class="nav-icon-btn active">🕒</div>
+                  <div class="nav-icon-btn">🔢</div>
+                  <div class="nav-icon-btn">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>⚠️ Usability Issues</h4>
+              <ul>
+                <li><strong>Repetitive Row Chrome:</strong> Call + Star + 3-Dots on every single item creates visual noise.</li>
+                <li><strong>Double-Box Spam UI:</strong> Nested container inside a card repeats redundant 'Carrier Spam Filter' text.</li>
+                <li><strong>Hidden Scroll Affordance:</strong> Filter chips run off-screen without a fade indicator.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- AFTER: Recents -->
+          <div class="comparison-col">
+            <div class="col-header after">✨ Redesigned (Recommended)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:56</span><span>📶 76%</span></div>
+                <div class="mock-search-bar">🔍 Search call history...</div>
+
+                <div class="filter-chip-row" style="padding-bottom:6px;">
+                  <span class="filter-chip active">All Calls</span>
+                  <span class="filter-chip inactive">Missed</span>
+                  <span class="filter-chip inactive">Spam Blocked</span>
+                </div>
+
+                <div style="flex:1; overflow-y:hidden; padding:4px 0;">
+                  <div class="call-item" style="padding:12px 14px;">
+                    <div class="avatar-circle" style="width:44px; height:44px;">R</div>
+                    <div class="contact-meta">
+                      <div class="contact-name" style="font-size:14px;">Ravi Kothuri</div>
+                      <div class="contact-phone" style="font-size:12px;">↗ Outgoing • Today, 10:19 AM • 1m 27s</div>
+                    </div>
+                    <div class="action-icon-touch" style="background:rgba(240,154,133,0.18); color:#f09a85;">📞</div>
+                  </div>
+
+                  <!-- Flattened Clean Spam Warning Card -->
+                  <div style="margin:6px 14px; padding:10px 14px; background:rgba(239,68,68,0.12); border-radius:14px; border-left:4px solid #ef4444; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                      <div style="font-size:13px; font-weight:700; color:#f87171;">Airtel Spam Auto-Dropped</div>
+                      <div style="font-size:11px; opacity:0.7;">+91 90714 78162 • Sep 15, 5:08 AM</div>
+                    </div>
+                    <span style="font-size:10px; background:#ef444430; color:#fca5a5; padding:3px 8px; border-radius:999px; font-weight:700;">BLOCKED</span>
+                  </div>
+
+                  <div class="call-item" style="padding:12px 14px;">
+                    <div class="avatar-circle" style="width:44px; height:44px;">+</div>
+                    <div class="contact-meta">
+                      <div class="contact-name" style="font-size:14px;">+91 87629 54343 <span style="font-size:11px; opacity:0.7;">(2)</span></div>
+                      <div class="contact-phone" style="font-size:12px; color:#f87171;">↙ Missed • Sep 15, 1:57 AM</div>
+                    </div>
+                    <div class="action-icon-touch" style="background:rgba(240,154,133,0.18); color:#f09a85;">📞</div>
+                  </div>
+
+                  <div class="call-item" style="padding:12px 14px;">
+                    <div class="avatar-circle" style="width:44px; height:44px;">V</div>
+                    <div class="contact-meta">
+                      <div class="contact-name" style="font-size:14px;">Voicemail <span style="font-size:11px; opacity:0.7;">(3)</span></div>
+                      <div class="contact-phone" style="font-size:12px;">↗ Sep 14, 10:41 PM • 2s</div>
+                    </div>
+                    <div class="action-icon-touch" style="background:rgba(240,154,133,0.18); color:#f09a85;">📞</div>
+                  </div>
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn">⭐</div>
+                  <div class="nav-icon-btn active">🕒</div>
+                  <div class="nav-icon-btn">🔢</div>
+                  <div class="nav-icon-btn">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>✨ UX Improvements</h4>
+              <ul>
+                <li><strong>De-Cluttered List Rows:</strong> Removed repetitive stars & 3-dot buttons. Tap-to-call is prominent and mis-tap free.</li>
+                <li><strong>Flattened Spam Banner:</strong> Single surface with left status accent bar and 'BLOCKED' badge.</li>
+                <li><strong>Contextual Call Metrics:</strong> Duration and direction arrows clearly paired.</li>
+              </ul>
+            </div>
+          </div>
+        `;
+      } else if (currentScreen === 'favorites') {
+        stage.innerHTML = `
+          <!-- BEFORE: Favorites -->
+          <div class="comparison-col">
+            <div class="col-header before">⚠️ Current (Before)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:57</span><span>📶 77%</span></div>
+                <div class="mock-search-bar">🔍 Search by name or number</div>
+
+                <div class="fav-bento-grid">
+                  <div class="fav-card">
+                    <span class="fav-badge-corner" style="background:#ef444425; color:#f87171;">#2</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <div class="avatar-circle" style="width:34px; height:34px;">A</div>
+                      <div style="font-size:12px; font-weight:700;">Akhil</div>
+                    </div>
+                    <button style="padding:6px; border-radius:8px; border:none; background:#fca5a550; font-size:11px;">📞 Phone</button>
+                  </div>
+                  <div class="fav-card">
+                    <span class="fav-badge-corner" style="background:#ef444425; color:#f87171;">#3</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <div class="avatar-circle" style="width:34px; height:34px;">S</div>
+                      <div style="font-size:12px; font-weight:700;">Saku</div>
+                    </div>
+                    <button style="padding:6px; border-radius:8px; border:none; background:#fca5a550; font-size:11px;">📞 Phone</button>
+                  </div>
+                  <div class="fav-card">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <div class="avatar-circle" style="width:34px; height:34px;">M</div>
+                      <div style="font-size:12px; font-weight:700;">Mahesh</div>
+                    </div>
+                    <button style="padding:6px; border-radius:8px; border:none; background:#25d36630; color:#25d366; font-size:11px;">💬 WhatsApp</button>
+                  </div>
+                  <div class="fav-card">
+                    <span class="fav-badge-corner" style="background:#ef444425; color:#f87171;">#6</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <div class="avatar-circle" style="width:34px; height:34px;">D</div>
+                      <div style="font-size:12px; font-weight:700;">Dad</div>
+                    </div>
+                    <button style="padding:6px; border-radius:8px; border:none; background:#25d36630; color:#25d366; font-size:11px;">💬 WhatsApp</button>
+                  </div>
+                </div>
+
+                <div style="padding:6px 14px; font-size:12px; font-weight:700; display:flex; justify-content:space-between;">
+                  <span>📈 Popular • Frequently Contacted</span>
+                  <span style="background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:99px; font-size:10px;">4</span>
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn active">⭐</div>
+                  <div class="nav-icon-btn">🕒</div>
+                  <div class="nav-icon-btn">🔢</div>
+                  <div class="nav-icon-btn">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>⚠️ Usability Issues</h4>
+              <ul>
+                <li><strong>Bulky Action Pills:</strong> Text buttons ('Phone', 'WhatsApp') consume disproportionate card height.</li>
+                <li><strong>High Speed Dial Visual Weight:</strong> Red `#` badges distract from contact photos.</li>
+                <li><strong>Ambiguous Section Counter:</strong> Detached number '4' provides unclear context.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- AFTER: Favorites -->
+          <div class="comparison-col">
+            <div class="col-header after">✨ Redesigned (Recommended)</div>
+            <div class="device-canvas">
+              <div class="device-screen">
+                <div class="status-bar"><span>1:57</span><span>📶 77%</span></div>
+                <div class="mock-search-bar">🔍 Search favorites or dial...</div>
+
+                <div class="fav-bento-grid">
+                  <div class="fav-card" style="padding:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                      <div class="avatar-circle" style="width:42px; height:42px; border-radius:14px; font-size:16px;">A</div>
+                      <span style="font-size:11px; font-weight:800; background:rgba(240,154,133,0.2); color:#f09a85; padding:2px 6px; border-radius:6px;">#2</span>
+                    </div>
+                    <div>
+                      <div style="font-size:13px; font-weight:700;">Akhil</div>
+                      <div style="font-size:10px; opacity:0.7;">Mobile</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                      <button style="flex:1; padding:6px; border-radius:10px; border:none; background:rgba(240,154,133,0.25); color:#f09a85; font-size:11px; font-weight:700; cursor:pointer;">📞 Call</button>
+                      <button style="width:30px; border-radius:10px; border:none; background:rgba(37,211,102,0.15); color:#25d366; font-size:11px; cursor:pointer;">💬</button>
+                    </div>
+                  </div>
+
+                  <div class="fav-card" style="padding:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                      <div class="avatar-circle" style="width:42px; height:42px; border-radius:14px; font-size:16px;">S</div>
+                      <span style="font-size:11px; font-weight:800; background:rgba(240,154,133,0.2); color:#f09a85; padding:2px 6px; border-radius:6px;">#3</span>
+                    </div>
+                    <div>
+                      <div style="font-size:13px; font-weight:700;">Saku</div>
+                      <div style="font-size:10px; opacity:0.7;">Mobile</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                      <button style="flex:1; padding:6px; border-radius:10px; border:none; background:rgba(240,154,133,0.25); color:#f09a85; font-size:11px; font-weight:700; cursor:pointer;">📞 Call</button>
+                      <button style="width:30px; border-radius:10px; border:none; background:rgba(37,211,102,0.15); color:#25d366; font-size:11px; cursor:pointer;">💬</button>
+                    </div>
+                  </div>
+
+                  <div class="fav-card" style="padding:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                      <div class="avatar-circle" style="width:42px; height:42px; border-radius:14px; font-size:16px;">M</div>
+                      <span style="font-size:11px; font-weight:800; background:rgba(37,211,102,0.2); color:#25d366; padding:2px 6px; border-radius:6px;">#4</span>
+                    </div>
+                    <div>
+                      <div style="font-size:13px; font-weight:700;">Mahesh</div>
+                      <div style="font-size:10px; opacity:0.7;">WhatsApp Priority</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                      <button style="flex:1; padding:6px; border-radius:10px; border:none; background:rgba(37,211,102,0.25); color:#25d366; font-size:11px; font-weight:700; cursor:pointer;">🟢 WhatsApp</button>
+                      <button style="width:30px; border-radius:10px; border:none; background:rgba(240,154,133,0.15); color:#f09a85; font-size:11px; cursor:pointer;">📞</button>
+                    </div>
+                  </div>
+
+                  <div class="fav-card" style="padding:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                      <div class="avatar-circle" style="width:42px; height:42px; border-radius:14px; font-size:16px;">D</div>
+                      <span style="font-size:11px; font-weight:800; background:rgba(37,211,102,0.2); color:#25d366; padding:2px 6px; border-radius:6px;">#6</span>
+                    </div>
+                    <div>
+                      <div style="font-size:13px; font-weight:700;">Dad</div>
+                      <div style="font-size:10px; opacity:0.7;">WhatsApp Priority</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                      <button style="flex:1; padding:6px; border-radius:10px; border:none; background:rgba(37,211,102,0.25); color:#25d366; font-size:11px; font-weight:700; cursor:pointer;">🟢 WhatsApp</button>
+                      <button style="width:30px; border-radius:10px; border:none; background:rgba(240,154,133,0.15); color:#f09a85; font-size:11px; cursor:pointer;">📞</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="padding:10px 14px; font-size:12px; font-weight:700;">
+                  📈 Frequently Contacted (Top 4)
+                </div>
+
+                <div class="bottom-nav">
+                  <div class="nav-icon-btn active">⭐</div>
+                  <div class="nav-icon-btn">🕒</div>
+                  <div class="nav-icon-btn">🔢</div>
+                  <div class="nav-icon-btn">👥</div>
+                  <div class="nav-icon-btn">⚙️</div>
+                </div>
+              </div>
+            </div>
+            <div class="annotation-box">
+              <h4>✨ UX Improvements</h4>
+              <ul>
+                <li><strong>Dual Micro-Action Strips:</strong> Shows primary action (Call/WhatsApp) while still offering 1-tap alternative channel.</li>
+                <li><strong>Harmonious Speed Dial Badges:</strong> Integrated pill badges matching communication channel accents.</li>
+                <li><strong>Modern Squircle Bento Avatars:</strong> Enhanced visual weight and balanced negative space.</li>
+              </ul>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Initialize
+    renderScreen();
+  </script>
+</body>
+</html>
