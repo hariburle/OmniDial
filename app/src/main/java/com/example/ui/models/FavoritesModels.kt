@@ -8,7 +8,8 @@ data class PopularContactItem(
     val label: String,
     val photoUri: String?,
     val callCount: Int,
-    val deviceContact: DeviceContact?
+    val deviceContact: DeviceContact?,
+    val nickname: String? = deviceContact?.nickname
 )
 
 enum class FavCardDesign(val label: String, val styleKey: String) {

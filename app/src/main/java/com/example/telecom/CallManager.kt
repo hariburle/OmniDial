@@ -223,6 +223,7 @@ object CallManager {
                 val current = _activeCall.value
                 if (current != null) {
                     val connectTime = if (state == Call.STATE_ACTIVE && current.connectTimeMillis == 0L) {
+                        com.example.util.HapticFeedbackHelper.performCallConnected(context)
                         System.currentTimeMillis()
                     } else current.connectTimeMillis
 

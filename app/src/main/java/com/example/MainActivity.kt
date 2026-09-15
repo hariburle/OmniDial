@@ -1,13 +1,16 @@
 package com.example
 
 import android.Manifest
+import android.app.NotificationManager
 import android.app.PictureInPictureParams
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.telecom.Call
 import android.util.Log
 import android.util.Rational
@@ -18,6 +21,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -482,6 +487,52 @@ fun MainAppContent(
     }
 
     var showDefaultAppPrompt by remember { mutableStateOf(true) }
+
+    var hasOverlayPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Settings.canDrawOverlays(context)
+            } else true
+        )
+    }
+    var showOverlayPrompt by remember { mutableStateOf(true) }
+
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else true
+    }
+
+    var hasFullScreenPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                nm?.canUseFullScreenIntent() ?: true
+            } else true
+        )
+    }
+    var showFullScreenPrompt by remember { mutableStateOf(true) }
+
+    val fullScreenPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        hasFullScreenPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.canUseFullScreenIntent() ?: true
+        } else true
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else true
+        hasFullScreenPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.canUseFullScreenIntent() ?: true
+        } else true
+    }
 
     val defaultDialerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -1209,6 +1260,138 @@ fun MainAppContent(
                     TextButton(
                         onClick = {
                             showDefaultAppPrompt = false
+                        }
+                    ) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
+
+        // Check Display Over Other Apps permission on startup for car & bluetooth call redirection
+        if (!hasOverlayPermission && showOverlayPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+            AlertDialog(
+                onDismissRequest = {
+                    showOverlayPrompt = false
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.SmartToy,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Display Over Other Apps",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                },
+                text = {
+                    Text(
+                        text = "OmniDial requires 'Display over other apps' permission to redirect car and Bluetooth calls to WhatsApp in the background.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                try {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                    overlayPermissionLauncher.launch(intent)
+                                } catch (_: Exception) {
+                                    try {
+                                        val fallback = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                                        overlayPermissionLauncher.launch(fallback)
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                            showOverlayPrompt = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Allow")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showOverlayPrompt = false
+                        }
+                    ) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
+
+        // Check Full Screen Intent permission (Android 14+ / API 34+) to wake screen for background calls
+        if (hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+            AlertDialog(
+                onDismissRequest = {
+                    showFullScreenPrompt = false
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Phone,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Full Screen Wake Permission",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                },
+                text = {
+                    Text(
+                        text = "OmniDial requires full-screen intent permission to wake the screen and display incoming calls and background call redirection alerts on Android 14+.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                try {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                    fullScreenPermissionLauncher.launch(intent)
+                                } catch (_: Exception) {
+                                    try {
+                                        val fallback = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                                        fullScreenPermissionLauncher.launch(fallback)
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                            showFullScreenPrompt = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Allow")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showFullScreenPrompt = false
                         }
                     ) {
                         Text("Later")

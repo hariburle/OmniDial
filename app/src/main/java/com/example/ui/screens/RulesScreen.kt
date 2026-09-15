@@ -107,15 +107,19 @@ fun RulesScreen(
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(1) }
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<CallerRule?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
 
+    val subPagerState = rememberPagerState(initialPage = 1) { 2 }
+
     LaunchedEffect(initiallyShowAddRuleWithNumber) {
         if (!initiallyShowAddRuleWithNumber.isNullOrBlank()) {
+            selectedTab = 0
+            subPagerState.scrollToPage(0)
             editingRule = CallerRule(
                 name = "Custom Rule",
                 phoneNumberPattern = initiallyShowAddRuleWithNumber,
@@ -133,8 +137,6 @@ fun RulesScreen(
             onConsumeAddRuleNumber()
         }
     }
-
-    val subPagerState = rememberPagerState(initialPage = selectedTab.coerceIn(0, 1)) { 2 }
 
     LaunchedEffect(subPagerState.currentPage) {
         if (selectedTab != subPagerState.currentPage) {

@@ -271,20 +271,29 @@ fun FavoritesScreen(
 
         // 1. Device contacts that have call counts
         effectiveDeviceContacts.forEach { dc ->
-            val norm = dc.phoneNumber.filter { it.isDigit() }.takeLast(10)
+            val allDcNorms = (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
+                .map { it.filter { c -> c.isDigit() }.takeLast(10) }
+                .filter { it.isNotBlank() }
+                .toSet()
             val nameLower = dc.name.trim().lowercase()
             val isExcluded = excludedNames.any { nameLower.contains(it) }
-            if (norm.isNotBlank() && !favNumbers.contains(norm) && !favNames.contains(nameLower) && !isExcluded && !isIgnored(norm, dc.name)) {
-                val count = callCounts[norm] ?: 0
-                if (count > 0 && seenNorms.add(norm)) {
+            val isIgnoredContact = allDcNorms.any { ignoredNorms.contains(it) } || isIgnored(dc.phoneNumber.filter { it.isDigit() }.takeLast(10), dc.name)
+
+            if (allDcNorms.isNotEmpty() && allDcNorms.none { favNumbers.contains(it) } && !favNames.contains(nameLower) && !isExcluded && !isIgnoredContact) {
+                // Sum call counts across all phone numbers of this contact
+                val totalCount = allDcNorms.sumOf { callCounts[it] ?: 0 }
+                val primaryNorm = dc.phoneNumber.filter { it.isDigit() }.takeLast(10).ifBlank { allDcNorms.first() }
+                if (totalCount > 0 && allDcNorms.any { seenNorms.add(it) }) {
+                    allDcNorms.forEach { seenNorms.add(it) }
                     list.add(
                         PopularContactItem(
                             name = dc.name,
-                            phoneNumber = dc.phoneNumber,
+                            phoneNumber = dc.phoneNumber.ifBlank { dc.phoneNumbers.firstOrNull()?.number ?: "" },
                             label = dc.label,
                             photoUri = dc.photoUri,
-                            callCount = count,
-                            deviceContact = dc
+                            callCount = totalCount,
+                            deviceContact = dc,
+                            nickname = dc.nickname
                         )
                     )
                 }
@@ -297,18 +306,41 @@ fun FavoritesScreen(
             val callerNameStr = rc.callerName ?: ""
             val nameLower = callerNameStr.trim().lowercase()
             val isExcluded = excludedNames.any { nameLower.contains(it) }
-            if (norm.isNotBlank() && !favNumbers.contains(norm) && !favNames.contains(nameLower) && !isExcluded && !isIgnored(norm, callerNameStr) && seenNorms.add(norm)) {
-                val count = callCounts[norm] ?: 1
-                list.add(
-                    PopularContactItem(
-                        name = callerNameStr.ifBlank { rc.phoneNumber },
-                        phoneNumber = rc.phoneNumber,
-                        label = "Frequent",
-                        photoUri = rc.photoUri,
-                        callCount = count,
-                        deviceContact = null
+            if (norm.isNotBlank() && !favNumbers.contains(norm) && !favNames.contains(nameLower) && !isExcluded && !isIgnored(norm, callerNameStr) && !seenNorms.contains(norm)) {
+                val matchingDc = effectiveDeviceContacts.firstOrNull { dc ->
+                    ContactHelper.isSamePhoneNumber(dc.phoneNumber, rc.phoneNumber) ||
+                    dc.phoneNumbers.any { ContactHelper.isSamePhoneNumber(it.number, rc.phoneNumber) } ||
+                    (norm.length >= 7 && dc.phoneNumber.filter { it.isDigit() }.takeLast(10) == norm) ||
+                    (norm.length >= 7 && dc.phoneNumbers.any { it.number.filter { c -> c.isDigit() }.takeLast(10) == norm })
+                }
+                val allMatchedNorms = matchingDc?.let { dc ->
+                    (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
+                        .map { it.filter { c -> c.isDigit() }.takeLast(10) }
+                        .filter { it.isNotBlank() }
+                        .toSet()
+                } ?: setOf(norm)
+
+                if (allMatchedNorms.none { seenNorms.contains(it) } && allMatchedNorms.none { favNumbers.contains(it) }) {
+                    allMatchedNorms.forEach { seenNorms.add(it) }
+                    val count = allMatchedNorms.sumOf { callCounts[it] ?: 0 }.coerceAtLeast(1)
+                    val isCallerNamePhoneNumber = callerNameStr.isBlank() || callerNameStr.all { it.isDigit() || it == '+' || it == ' ' || it == '-' || it == '(' || it == ')' }
+                    val resolvedName = when {
+                        matchingDc != null && matchingDc.name.isNotBlank() -> matchingDc.name
+                        !isCallerNamePhoneNumber -> callerNameStr
+                        else -> rc.phoneNumber
+                    }
+                    list.add(
+                        PopularContactItem(
+                            name = resolvedName,
+                            phoneNumber = matchingDc?.phoneNumber?.ifBlank { rc.phoneNumber } ?: rc.phoneNumber,
+                            label = matchingDc?.label ?: "Frequent",
+                            photoUri = rc.photoUri ?: matchingDc?.photoUri,
+                            callCount = count,
+                            deviceContact = matchingDc,
+                            nickname = matchingDc?.nickname
+                        )
                     )
-                )
+                }
             }
         }
 

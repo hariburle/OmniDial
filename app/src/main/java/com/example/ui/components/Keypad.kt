@@ -39,6 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.ui.platform.LocalContext
+import com.example.util.HapticFeedbackHelper
+
 data class KeypadKey(val digit: Char, val subText: String = "")
 
 val standardDialpadKeys = listOf(
@@ -59,6 +62,7 @@ fun Keypad(
     onDigitLongPress: ((Char) -> Unit)? = null
 ) {
     val view = LocalView.current
+    val context = LocalContext.current
 
     Column(
         modifier = modifier
@@ -85,7 +89,7 @@ fun Keypad(
                         speedDialLabel = speedDialMap[key.digit],
                         speedDialDisplayMode = speedDialDisplayMode,
                         onPress = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            HapticFeedbackHelper.performKeypadTap(context, key.digit, view)
                             onDigitPress(key.digit)
                         },
                         onRelease = {
@@ -93,7 +97,7 @@ fun Keypad(
                         },
                         onLongPress = onDigitLongPress?.let { callback ->
                             {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                HapticFeedbackHelper.performLongPress(context, view)
                                 callback(key.digit)
                             }
                         }

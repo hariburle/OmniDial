@@ -383,12 +383,36 @@ object BackupManager {
         return dir
     }
 
+    fun getExternalBackupsDir(context: Context): File? {
+        val extDir = context.getExternalFilesDir(null) ?: return null
+        val dir = File(extDir, "backups")
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
+    }
+
     suspend fun saveLocalBackup(context: Context): Boolean = withContext(Dispatchers.IO) {
         try {
             val json = createBackupJson(context)
-            val dir = getLocalBackupsDir(context)
-            val file = File(dir, generateBackupFileName())
-            file.writeText(json)
+            val fileName = generateBackupFileName()
+            
+            // 1. Save to private internal storage
+            val internalDir = getLocalBackupsDir(context)
+            val internalFile = File(internalDir, fileName)
+            internalFile.writeText(json)
+
+            // 2. Automatically sync to external app directory (Android/data/<package>/files/backups)
+            try {
+                val externalDir = getExternalBackupsDir(context)
+                if (externalDir != null) {
+                    val externalFile = File(externalDir, fileName)
+                    externalFile.writeText(json)
+                }
+            } catch (e: Exception) {
+                // Secondary external write is best-effort
+            }
+
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -397,9 +421,18 @@ object BackupManager {
     }
 
     fun listLocalBackups(context: Context): List<File> {
-        val dir = getLocalBackupsDir(context)
-        return (dir.listFiles() ?: emptyArray())
+        val internalDir = getLocalBackupsDir(context)
+        val internalFiles = (internalDir.listFiles() ?: emptyArray())
             .filter { it.isFile && (it.name.endsWith(".bak") || it.name.endsWith(".json")) }
+
+        val externalDir = getExternalBackupsDir(context)
+        val externalFiles = (externalDir?.listFiles() ?: emptyArray())
+            .filter { it.isFile && (it.name.endsWith(".bak") || it.name.endsWith(".json")) }
+
+        // Combine and deduplicate by filename
+        return (internalFiles + externalFiles)
+            .groupBy { it.name }
+            .map { entry -> entry.value.maxByOrNull { it.lastModified() } ?: entry.value.first() }
             .sortedByDescending { it.lastModified() }
     }
 

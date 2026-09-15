@@ -4,6 +4,34 @@
 
 ---
 
+## 🚀 [v1.1.4] — Build 6 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Direct Automatic Backups**: Replaced confusing manual file export prompts with a single-tap "Backup Now" action that automatically saves all rules, speed dials, favorites, and settings directly to internal and external device storage.
+- **One-Tap Restore & Backup Manager**: Saved backups are automatically scanned and listed with their timestamp and file size, featuring instant one-tap Restore and Delete actions with safety confirmation dialogs.
+- **File Import & Cross-Device Transfer**: Added a dedicated "Browse Files" option to easily import and restore backups transferred from other devices, cloud drives, or previous installations.
+
+### 🔧 Technical / Architecture Notes
+- **Multi-Location Storage Sync**: Updated `BackupManager.kt` to mirror backups to `context.getExternalFilesDir(null)/backups` as well as private internal storage, ensuring persistence and ease of access without requiring raw storage permissions.
+- **Settings & Dialer Modularization**: Extracted speed dial dialogs (`SpeedDialDialogs.kt`), dialer suggestions (`DialerSuggestionsList.kt`), backup management (`BackupManagementCard.kt`), and call redirection (`CallRedirectionCard.kt`) out of bloated screens to enforce <500 line modularity guidelines.
+- Incremented `versionCode` to 6 and `versionName` to `"1.1.4"` in `app/build.gradle.kts`.
+
+---
+
+## 🚀 [v1.1.3] — Build 5 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Pixel-Grade Sensory Haptics**: Implemented modern Android 13+ tactile vibration feedback (`EFFECT_CLICK`, `EFFECT_HEAVY_CLICK`, `EFFECT_TICK`) for crisp dial pad keystrokes, speed-dial long presses, and call connection confirmation.
+- **Smoother In-Call Performance**: The active in-call screen duration timer is isolated from the main layout tree, preventing 1Hz frame drops and keeping controls fluid.
+
+### 🔧 Technical / Architecture Notes
+- **Domain Use-Case Extraction**: Modularized business logic into dedicated domain use cases (`EvaluateSimRuleUseCase`, `ResolveCallerIdentityUseCase`, `SearchT9ContactsUseCase`, `ManageFavoritesUseCase`).
+- **State Isolation**: Extracted `CallDurationStatusChip` to handle high-frequency timer recompositions independently of parent UI.
+- **Haptic Helper**: Created `HapticFeedbackHelper` managing API 33+ predefined `VibrationEffect` primitives with backwards compatibility to API 24.
+- Incremented `versionCode` to 5 and `versionName` to `"1.1.3"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.1.2] — Build 4 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

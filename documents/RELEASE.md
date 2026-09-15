@@ -7,10 +7,31 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.1.4` | `6` | Sep 2026 | Simplified automatic backup saving and one-tap restore without confusing file prompts. |
+| `1.1.3` | `5` | Sep 2026 | Added crisp vibration feedback when typing on the dial pad and smoother in-call controls. |
 | `1.1.2` | `4` | Sep 2026 | Fixes an issue where messaging or calling an international contact from the dial pad could fail if typed without their country code. |
 | `1.1.1` | `3` | Sep 2026 | Search contacts by nickname, combined speed dial and letters keypad, steady dial pad layout, and clean voicemail button. |
 | `1.1.0` | `2` | Sep 2026 | Keypad 2x2 action buttons, adaptive channel highlights, WhatsApp dark-mode icon contrast, Bluetooth/car call redirection, Favorites per-number selection, and Nickname sync. |
 | `1.0.0` | `1` | Sep 2026 | Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh. |
+
+---
+
+## Release 1.1.4 Change Log
+
+### What's New & Improvements:
+- **One-Tap Automatic Backups**: Backing up your settings, caller rules, speed dials, and favorites is now as easy as tapping a single "Backup Now" button. No more navigating confusing file export screens or picking folder paths.
+- **Instant Restore List**: The app automatically detects all your saved backups and displays them in a clean list with their date and file size. Restoring or removing an old backup takes only one tap.
+- **Simple Cross-Device Transfer**: A "Browse Files" button allows you to effortlessly restore backup files copied from another phone or downloaded from cloud storage.
+
+---
+
+## Release 1.1.3 Change Log
+
+### What's New & Improvements:
+- **Tactile Haptic Keystrokes**: Feel subtle, satisfying vibrations when dialing numbers, long-pressing speed dials, or connecting a call.
+- **Smoother In-Call Screen**: Call timer updates no longer cause visual hiccups, keeping call controls responsive and fluid.
+
+---
 
 ---
 

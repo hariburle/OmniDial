@@ -11,15 +11,15 @@
 
 ### 🛠️ Phase 8 (Patch Release — v1.1.3): Architecture Modernization & Sensory Haptics
 *Refactoring, state isolation, and tactile polish without changing the fundamental feature surface.*
-- [ ] **Task 8.1: Decompose `MainViewModel` into Domain Use Cases**
+- [x] **Task 8.1: Decompose `MainViewModel` into Domain Use Cases**
   - *Goal*: Break up 1,900+ line ViewModel into focused, single-responsibility domain use cases to avoid recomposition bottlenecks.
-  - *Deliverable*: Extract `EvaluateSimRuleUseCase`, `ResolveCallerIdentityUseCase`, `FormatT9QueryUseCase`, and `ManageFavoritesUseCase`.
-- [ ] **Task 8.2: Volatile In-Call Timer State Isolation**
+  - *Deliverable*: Extract `EvaluateSimRuleUseCase`, `ResolveCallerIdentityUseCase`, `SearchT9ContactsUseCase`, and `ManageFavoritesUseCase`.
+- [x] **Task 8.2: Volatile In-Call Timer State Isolation**
   - *Goal*: Prevent full-screen recompositions on high-frequency 1Hz updates.
-  - *Deliverable*: Separate call duration timers and sensor states into dedicated isolated `StateFlow` primitives with `@Immutable` data classes.
-- [ ] **Task 8.3: Rich Sensory Haptics (Android 13+ Primitives)**
+  - *Deliverable*: Isolated `CallDurationStatusChip` composable separating high-frequency duration counter from in-call parent view tree.
+- [x] **Task 8.3: Rich Sensory Haptics (Android 13+ Primitives)**
   - *Goal*: Provide tactile feedback matching Google Pixel and Material 3 standards.
-  - *Deliverable*: Replace generic haptics with `VibrationEffect.createPredefined(EFFECT_CLICK / EFFECT_TICK / EFFECT_HEAVY_CLICK)` for keypad taps, call connects, and rule triggers.
+  - *Deliverable*: Integrated `HapticFeedbackHelper` utilizing Android 13+ `VibrationEffect.createPredefined(EFFECT_CLICK / EFFECT_HEAVY_CLICK / EFFECT_TICK)` across keypad tapping, long presses, and call connection events.
 
 ---
 

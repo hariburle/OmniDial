@@ -60,132 +60,144 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .phone-frame:hover {
-      transform: translateY(-8px) scale(1.02);
-      box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(37, 99, 235, 0.3);
     }
     .phone-notch {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
       width: 80px;
       height: 18px;
-      background: #000;
-      border-radius: 20px;
-      z-index: 20;
+      background: #1e293b;
+      margin: 0 auto;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      z-index: 10;
     }
     .phone-screen {
       flex: 1;
-      padding: 34px 14px 14px;
-      background: #090d16;
-      color: #fff;
+      padding: 14px;
       display: flex;
       flex-direction: column;
+      background: #0b1120;
+      color: #fff;
+      font-size: 12px;
+      overflow: hidden;
+    }
+    .mock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .mock-title { font-size: 15px; font-weight: 800; }
+    .mock-search {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #94a3b8;
       font-size: 11px;
-      user-select: none;
+      margin-bottom: 12px;
     }
-    .phone-title {
-      text-align: center;
-      margin-top: 14px;
+    .mock-contact-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(30, 41, 59, 0.6);
+      padding: 8px 10px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+    }
+    .mock-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #3b82f6;
+      display: grid;
+      place-items: center;
       font-weight: 700;
-      font-size: 1rem;
-      color: var(--text);
+      font-size: 11px;
     }
-    .phone-subtitle {
-      text-align: center;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 2px;
+    .mock-contact-info { flex: 1; }
+    .mock-contact-name { font-weight: 700; font-size: 12px; }
+    .mock-contact-sub { font-size: 10px; color: #94a3b8; }
+    .mock-actions { display: flex; gap: 6px; }
+    .mock-icon-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
     }
+    .mock-icon-btn.wa { background: #25D366; color: #fff; }
+    .mock-icon-btn.phone { background: #3b82f6; color: #fff; }
 
-    /* Screen Elements */
-    .mock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .mock-title { font-weight: 800; font-size: 14px; letter-spacing: -0.01em; }
-    .mock-search { background: #1e293b; border-radius: 20px; padding: 7px 12px; display: flex; align-items: center; gap: 8px; color: #94a3b8; font-size: 10px; margin-bottom: 12px; border: 1px solid #334155; }
-    
-    /* Dialer Keypad Mock */
-    .mock-number-display { font-size: 18px; font-weight: 800; text-align: center; letter-spacing: 2px; height: 26px; color: #60a5fa; margin-bottom: 8px; }
-    .mock-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; padding: 0 10px 10px; }
-    .mock-key { aspect-ratio: 1; border-radius: 50%; background: #1e293b; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #e2e8f0; border: 1px solid #334155; }
-    .mock-key span { font-size: 7px; color: #94a3b8; font-weight: 500; letter-spacing: 1px; }
-    .mock-call-actions { display: flex; justify-content: center; gap: 14px; margin-top: 6px; }
-    .mock-call-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-    .mock-call-cellular { background: #2563eb; }
-    .mock-call-wa { background: #25D366; }
-
-    /* Contacts & Recents Mock */
-    .mock-contact-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; background: rgba(30, 41, 59, 0.7); border-radius: 10px; margin-bottom: 6px; border: 1px solid rgba(51, 65, 85, 0.4); }
-    .mock-avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0; }
-    .mock-contact-info { flex: 1; min-width: 0; }
-    .mock-contact-name { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .mock-contact-sub { font-size: 9px; color: #94a3b8; }
-    .mock-actions { display: flex; gap: 4px; }
-    .mock-icon-btn { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; background: #334155; color: #cbd5e1; }
-    .mock-icon-btn.wa { background: rgba(37, 211, 102, 0.2); color: #25D366; }
-    .mock-icon-btn.phone { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-
-    /* Incoming Call Screen Mock */
-    .mock-incall { display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 100%; padding: 20px 10px; }
-    .mock-caller-avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: grid; place-items: center; font-size: 26px; font-weight: 800; margin-top: 16px; border: 3px solid rgba(255,255,255,0.15); box-shadow: 0 0 25px rgba(59, 130, 246, 0.4); }
-    .mock-caller-name { font-size: 17px; font-weight: 800; margin-top: 12px; }
-    .mock-caller-num { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-    .mock-caller-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(37, 211, 102, 0.15); color: #25D366; padding: 2px 8px; border-radius: 9999px; font-size: 8px; font-weight: 700; margin-top: 6px; }
-    .mock-slider-track { width: 100%; height: 46px; background: rgba(30, 41, 59, 0.9); border-radius: 26px; border: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; position: relative; margin-top: auto; }
-    .mock-slider-pill { width: 34px; height: 34px; border-radius: 50%; background: #25D366; display: grid; place-items: center; font-size: 14px; box-shadow: 0 0 12px rgba(37, 211, 102, 0.6); }
-    .mock-slider-text { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-
-    /* Rules Screen Mock */
-    .mock-rule-card { background: #1e293b; border-radius: 10px; padding: 10px; margin-bottom: 8px; border-left: 3px solid #3b82f6; }
-    .mock-rule-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .mock-rule-title { font-weight: 700; font-size: 11px; }
-    .mock-badge { background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
-    .mock-rule-desc { font-size: 9px; color: #94a3b8; line-height: 1.3; }
+    .mock-keypad {
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .mock-key {
+      background: #1e293b;
+      border-radius: 12px;
+      height: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .mock-key span { font-size: 7px; color: #94a3b8; font-weight: 600; letter-spacing: 0.5px; }
 
     /* Features Grid */
-    .section-title { text-align: center; margin: 60px 0 36px; }
-    .section-title h2 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
-    .section-title p { color: var(--text-muted); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 60px; }
-    .card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; padding: 28px; transition: transform 0.2s ease; }
-    .card:hover { transform: translateY(-4px); border-color: #475569; }
-    .card-icon { width: 44px; height: 44px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); color: var(--primary-light); display: grid; place-items: center; font-size: 1.3rem; margin-bottom: 18px; }
-    .card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; }
+    .features { padding: 60px 0; }
+    .section-title { text-align: center; margin-bottom: 48px; }
+    .section-title h2 { font-size: 2.25rem; font-weight: 800; margin-bottom: 12px; }
+    .section-title p { color: var(--text-muted); font-size: 1.1rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+    .card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; padding: 28px; transition: transform 0.2s; }
+    .card:hover { transform: translateY(-4px); border-color: rgba(59, 130, 246, 0.4); }
+    .card-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 20px; font-size: 1.25rem; }
+    .card-icon.blue { background: rgba(59, 130, 246, 0.15); color: var(--primary-light); }
+    .card-icon.green { background: rgba(37, 211, 102, 0.15); color: var(--whatsapp); }
+    .card-icon.purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .card h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 10px; }
     .card p { color: var(--text-muted); font-size: 0.95rem; }
 
-    /* Installation Steps */
-    .setup-box { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 20px; padding: 36px; margin-bottom: 60px; }
-    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-top: 24px; }
-    .step-item { display: flex; gap: 14px; }
-    .step-number { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 700; flex-shrink: 0; }
-    .step-text h4 { font-size: 1rem; margin-bottom: 4px; }
-    .step-text p { font-size: 0.88rem; color: var(--text-muted); }
+    /* Release History */
+    .release-section { padding: 60px 0; border-top: 1px solid var(--surface-border); }
+    .release-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; padding: 28px; margin-bottom: 24px; position: relative; }
+    .release-card.latest { border-color: rgba(37, 211, 102, 0.5); background: linear-gradient(180deg, rgba(37, 211, 102, 0.03) 0%, var(--surface) 100%); }
+    .release-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .release-title-group { display: flex; align-items: center; gap: 12px; }
+    .release-version { font-size: 1.35rem; font-weight: 800; }
+    .release-badge { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .release-badge.latest { background: rgba(37, 211, 102, 0.2); color: var(--whatsapp); border: 1px solid rgba(37, 211, 102, 0.4); }
+    .release-badge.prior { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3); }
+    .release-date { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+    .release-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-weight: 700; font-size: 0.85rem; text-decoration: none; transition: all 0.2s; }
+    .release-btn.primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+    .release-btn.primary:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(37, 99, 235, 0.4); }
+    .release-btn.secondary { background: rgba(255, 255, 255, 0.05); color: var(--text); border: 1px solid var(--surface-border); }
+    .release-btn.secondary:hover { background: rgba(255, 255, 255, 0.1); }
+    .release-notes-list { list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.95rem; }
+    .release-notes-list li { position: relative; padding-left: 22px; color: #cbd5e1; }
+    .release-notes-list li::before { content: "•"; position: absolute; left: 6px; color: var(--primary-light); font-weight: bold; font-size: 1.2rem; line-height: 1; top: 0; }
+    .release-notes-list strong { color: var(--text); }
 
-    /* Release Notes Section */
-    .release-section { margin-bottom: 60px; }
-    .release-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 20px; padding: 32px; margin-bottom: 24px; transition: border-color 0.2s ease; }
-    .release-card.latest { border-color: rgba(37, 211, 102, 0.4); box-shadow: 0 10px 30px -10px rgba(37, 211, 102, 0.15); }
-    .release-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; }
-    .release-title-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .release-version { font-size: 1.4rem; font-weight: 800; color: var(--text); }
-    .release-badge { font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .release-badge.latest { background: rgba(37, 211, 102, 0.15); color: var(--whatsapp); border: 1px solid rgba(37, 211, 102, 0.35); }
-    .release-badge.prior { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.25); }
-    .release-date { font-size: 0.88rem; color: var(--text-muted); }
-    .release-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 10px; font-weight: 700; font-size: 0.9rem; text-decoration: none; transition: all 0.2s ease; }
-    .release-btn.primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; }
-    .release-btn.primary:hover { background: #1d4ed8; }
-    .release-btn.secondary { background: #0f172a; color: var(--text); border: 1px solid var(--surface-border); }
-    .release-btn.secondary:hover { background: #1e293b; border-color: #64748b; }
-    .release-notes-list { list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 12px; }
-    .release-notes-list li { position: relative; padding-left: 24px; font-size: 0.95rem; color: #cbd5e1; line-height: 1.5; }
-    .release-notes-list li::before { content: "•"; position: absolute; left: 8px; color: var(--primary-light); font-weight: bold; font-size: 1.2rem; line-height: 1; top: -1px; }
-    .release-notes-list strong { color: #fff; }
+    /* Installation Steps */
+    .setup-section { padding: 60px 0; border-top: 1px solid var(--surface-border); }
+    .steps-container { display: flex; flex-direction: column; gap: 18px; max-width: 800px; margin: 0 auto; }
+    .step-item { display: flex; gap: 20px; align-items: flex-start; background: var(--surface); border: 1px solid var(--surface-border); padding: 20px; border-radius: 14px; }
+    .step-num { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 1rem; flex-shrink: 0; }
+    .step-content h4 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+    .step-content p { color: var(--text-muted); font-size: 0.95rem; }
 
     /* Footer */
-    footer { border-top: 1px solid var(--surface-border); padding: 36px 0; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
+    footer { padding: 40px 0; border-top: 1px solid var(--surface-border); text-align: center; color: var(--text-muted); font-size: 0.9rem; }
     footer a { color: var(--primary-light); text-decoration: none; }
   </style>
 </head>
@@ -197,7 +209,7 @@
           <div class="logo-icon">📞</div>
           <span>OmniDial</span>
         </div>
-        <span class="version-tag">v1.1.2 Release</span>
+        <span class="version-tag">v1.1.4 Release</span>
       </div>
     </header>
 
@@ -206,9 +218,9 @@
       <h1>Unified Voice & Messaging<br><span>The OmniDial Experience</span></h1>
       <p>A fast, modern Android default phone dialer. Integrated dual-channel calling (Cellular & WhatsApp), caller automation rules, instant T9 keypad search, and speed dial.</p>
       <div class="cta-group">
-        <a href="apks/OmniDial-v1.1.2.apk" download="OmniDial-v1.1.2.apk" class="btn btn-primary">
+        <a href="apks/OmniDial-v1.1.4.apk" download="OmniDial-v1.1.4.apk" class="btn btn-primary">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          Download OmniDial v1.1.2 APK
+          Download OmniDial v1.1.4 APK
         </a>
         <a href="#releases" class="btn btn-secondary">Release Notes & Versions</a>
         <a href="#setup" class="btn btn-secondary">Installation Guide</a>
@@ -250,168 +262,99 @@
                 </div>
               </div>
 
-              <div class="mock-contact-item">
-                <div class="mock-avatar" style="background: #8b5cf6;">SM</div>
-                <div class="mock-contact-info">
-                  <div class="mock-contact-name">Sarah Miller</div>
-                  <div class="mock-contact-sub">Work • +1 (555) 438-1290</div>
-                </div>
-                <div class="mock-actions">
-                  <div class="mock-icon-btn wa">💬</div>
-                  <div class="mock-icon-btn phone">📞</div>
-                </div>
-              </div>
-
-              <div class="mock-number-display">5474</div>
-
               <!-- Keypad -->
               <div class="mock-keypad">
-                <div class="mock-key">1<span>&nbsp;</span></div>
-                <div class="mock-key" style="border-color: #3b82f6;">2<span>ABC</span></div>
+                <div class="mock-key">1<span>VM</span></div>
+                <div class="mock-key">2<span>ABC</span></div>
                 <div class="mock-key">3<span>DEF</span></div>
                 <div class="mock-key">4<span>GHI</span></div>
-                <div class="mock-key" style="border-color: #3b82f6; background: rgba(59, 130, 246, 0.2);">5<span>JKL</span></div>
+                <div class="mock-key">5<span>JKL</span></div>
                 <div class="mock-key">6<span>MNO</span></div>
-                <div class="mock-key" style="border-color: #3b82f6; background: rgba(59, 130, 246, 0.2);">7<span>PQRS</span></div>
+                <div class="mock-key">7<span>PQRS</span></div>
                 <div class="mock-key">8<span>TUV</span></div>
                 <div class="mock-key">9<span>WXYZ</span></div>
-                <div class="mock-key">*<span>&nbsp;</span></div>
+                <div class="mock-key">*<span></span></div>
                 <div class="mock-key">0<span>+</span></div>
-                <div class="mock-key">#<span>&nbsp;</span></div>
-              </div>
-
-              <!-- Dual Call Actions -->
-              <div class="mock-call-actions">
-                <div class="mock-call-btn mock-call-cellular" title="Cellular Call">📞</div>
-                <div class="mock-call-btn mock-call-wa" title="WhatsApp Call">💬</div>
+                <div class="mock-key">#<span></span></div>
               </div>
             </div>
           </div>
-          <div class="phone-title">Dual-Action Dialer</div>
-          <div class="phone-subtitle">Predictive T9 + Instant WhatsApp Button</div>
-        </div>
-
-        <!-- Mockup 2: Incoming Call Screen -->
-        <div>
-          <div class="phone-frame">
-            <div class="phone-notch"></div>
-            <div class="phone-screen" style="background: linear-gradient(180deg, #090d16 0%, #0f172a 100%);">
-              <div class="mock-incall">
-                <div style="text-align: center;">
-                  <span style="font-size: 10px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase;">Incoming Call</span>
-                  <div class="mock-caller-avatar">KB</div>
-                  <div class="mock-caller-name">Kishan Burle</div>
-                  <div class="mock-caller-num">+1 (555) 019-2834 • Mobile</div>
-                  <div class="mock-caller-tag">✓ Verified Contact</div>
-                </div>
-
-                <!-- Action chips -->
-                <div style="display: flex; gap: 8px; justify-content: center;">
-                  <div style="background: #1e293b; border: 1px solid #334155; padding: 6px 10px; border-radius: 20px; font-size: 9px; color: #cbd5e1;">💬 Quick SMS</div>
-                  <div style="background: #1e293b; border: 1px solid #334155; padding: 6px 10px; border-radius: 20px; font-size: 9px; color: #cbd5e1;">🔔 Remind Me</div>
-                </div>
-
-                <!-- Modern Slider -->
-                <div class="mock-slider-track">
-                  <div class="mock-slider-pill">📞</div>
-                  <span class="mock-slider-text">Swipe to Answer →</span>
-                  <div style="width: 34px; height: 34px; border-radius: 50%; background: #ef4444; display: grid; place-items: center; font-size: 12px;">✕</div>
-                </div>
-              </div>
-            </div>
+          <div style="text-align: center; margin-top: 14px; font-weight: 700; color: #94a3b8; font-size: 0.9rem;">
+            Unified T9 Search & Keypad
           </div>
-          <div class="phone-title">In-Call Experience</div>
-          <div class="phone-subtitle">Interactive Swipe Slider & Quick Actions</div>
         </div>
 
-        <!-- Mockup 3: Caller Automation & Rules -->
+        <!-- Mockup 2: Smart Intercom / Gate Automation Rule -->
         <div>
           <div class="phone-frame">
             <div class="phone-notch"></div>
             <div class="phone-screen">
               <div class="mock-header">
-                <span class="mock-title">Smart Rules & Backup</span>
-                <span class="mock-badge">Automations</span>
+                <span class="mock-title">Caller Rules</span>
+                <span style="background: rgba(37, 211, 102, 0.2); color: #25D366; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700;">Active</span>
+              </div>
+              
+              <div style="background: #1e293b; padding: 12px; border-radius: 12px; margin-bottom: 10px; border-left: 3px solid #25D366;">
+                <div style="font-weight: 800; font-size: 13px; color: #60a5fa;">🏢 Apartment Gate Buzzer</div>
+                <div style="color: #94a3b8; font-size: 10px; margin: 4px 0 8px;">Incoming Number: 555-0100</div>
+                <div style="display: flex; gap: 4px; flex-direction: column; font-size: 10px;">
+                  <span style="color: #38bdf8;">✔ Auto-Answer Call</span>
+                  <span style="color: #38bdf8;">✔ Send Keypad Digits: <strong>9 #</strong></span>
+                  <span style="color: #38bdf8;">✔ Auto-Disconnect after 3s</span>
+                </div>
               </div>
 
-              <!-- Rule item 1 -->
-              <div class="mock-rule-card">
-                <div class="mock-rule-head">
-                  <span class="mock-rule-title">VIP Client Auto-Answer</span>
-                  <span class="mock-badge" style="background: rgba(37, 211, 102, 0.2); color: #25D366;">Active</span>
-                </div>
-                <div class="mock-rule-desc">Pattern: +1 (555) 019*<br>Answers in 2s • Audio: Speakerphone</div>
-              </div>
-
-              <!-- Rule item 2 -->
-              <div class="mock-rule-card" style="border-left-color: #8b5cf6;">
-                <div class="mock-rule-head">
-                  <span class="mock-rule-title">Gate Intercom DTMF</span>
-                  <span class="mock-badge" style="background: rgba(139, 92, 246, 0.2); color: #a78bfa;">Active</span>
-                </div>
-                <div class="mock-rule-desc">Answers • Sends DTMF key '9' • Hangs up</div>
-              </div>
-
-              <!-- Rule item 3 -->
-              <div class="mock-rule-card" style="border-left-color: #f59e0b;">
-                <div class="mock-rule-head">
-                  <span class="mock-rule-title">Offline JSON Backup</span>
-                  <span class="mock-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">Export / Import</span>
-                </div>
-                <div class="mock-rule-desc">1-Click JSON backup of rules, favorites sort order, and custom preferences.</div>
-              </div>
-
-              <!-- Quick Stats -->
-              <div style="margin-top: auto; background: #1e293b; border-radius: 12px; padding: 10px; border: 1px solid #334155;">
-                <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 10px; margin-bottom: 6px;">
-                  <span>Default App Status</span>
-                  <span style="color: #25D366;">✓ Default Dialer</span>
-                </div>
-                <div style="font-size: 8.5px; color: #94a3b8;">
-                  Zero cloud telemetry • All rules stored locally on SQLite
+              <div style="background: #1e293b; padding: 12px; border-radius: 12px; border-left: 3px solid #3b82f6;">
+                <div style="font-weight: 800; font-size: 13px; color: #60a5fa;">💼 Client Preferred Line</div>
+                <div style="color: #94a3b8; font-size: 10px; margin: 4px 0 8px;">Contact: Acme Partner</div>
+                <div style="display: flex; gap: 4px; flex-direction: column; font-size: 10px;">
+                  <span style="color: #25D366;">✔ Always Route via WhatsApp</span>
+                  <span style="color: #94a3b8;">✔ High Priority Notification</span>
                 </div>
               </div>
             </div>
           </div>
-          <div class="phone-title">Caller Automation & Backup</div>
-          <div class="phone-subtitle">Auto-Answer, DTMF & JSON Data Export</div>
+          <div style="text-align: center; margin-top: 14px; font-weight: 700; color: #94a3b8; font-size: 0.9rem;">
+            Automated Caller Actions
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="features">
+    <!-- Features -->
+    <section class="features">
       <div class="section-title">
-        <h2>What Makes OmniDial Different</h2>
-        <p>No extra app switching — seamless phone and OTT messaging together.</p>
+        <h2>Engineered for Modern Calling</h2>
+        <p>Combining the reliability of standard Android telephony with instant WhatsApp integration.</p>
       </div>
       <div class="grid">
         <div class="card">
-          <div class="card-icon">💬</div>
-          <h3>Integrated WhatsApp Actions</h3>
-          <p>Initiate standard phone calls or direct WhatsApp voice and message chats directly from any contact row or recent log entry.</p>
+          <div class="card-icon green">⚡</div>
+          <h3>Dual-Channel Dialer</h3>
+          <p>Seamlessly initiate cellular calls or WhatsApp voice calls right from the dial pad without jumping through extra apps.</p>
         </div>
         <div class="card">
-          <div class="card-icon">⚡</div>
-          <h3>Caller Automation Rules</h3>
-          <p>Set custom automation triggers per caller or group — automatic actions, priority alerts, and flexible call management.</p>
+          <div class="card-icon blue">🤖</div>
+          <h3>Gate & Intercom Automation</h3>
+          <p>Set custom rules for apartment buzzers or office front desks. OmniDial answers, presses the unlock key, and hangs up.</p>
         </div>
         <div class="card">
-          <div class="card-icon">🔍</div>
-          <h3>Predictive T9 Search</h3>
-          <p>Instant predictive search across your contacts and recent call history right from the dial pad as you type.</p>
+          <div class="card-icon purple">🔍</div>
+          <h3>Blazing T9 Keypad Search</h3>
+          <p>Instantly match phone numbers, full names, or nicknames with intuitive single-hand dialing and real-time filtering.</p>
         </div>
         <div class="card">
-          <div class="card-icon">⭐</div>
-          <h3>Speed Dial & Favorites</h3>
-          <p>Customizable visual favorites grid and rapid long-press key shortcuts (2–9) for instant calling.</p>
+          <div class="card-icon blue">⭐</div>
+          <h3>Visual Speed Dial Grid</h3>
+          <p>Access your favorite contacts instantly with customizable grid styles, speed-dial slots, and personal contact nicknames.</p>
         </div>
         <div class="card">
-          <div class="card-icon">📱</div>
-          <h3>Native Default Dialer</h3>
-          <p>Handles incoming, outgoing, and ongoing calls with in-call controls and modern Material 3 Jetpack Compose UI.</p>
+          <div class="card-icon green">🛡️</div>
+          <h3>Spam & Telemarketer Filter</h3>
+          <p>Identify community-reported spam numbers and auto-block nuisance callers before your phone ever rings.</p>
         </div>
         <div class="card">
-          <div class="card-icon">🔒</div>
+          <div class="card-icon purple">🔒</div>
           <h3>Privacy-First & Ad-Free</h3>
           <p>Zero telemetry tracking and no advertising. Your contacts and logs remain private on your device.</p>
         </div>
@@ -424,19 +367,62 @@
         <p>Review change logs and download current or prior releases for your Android device.</p>
       </div>
 
-      <!-- Version 1.1.2 (Latest) -->
+      <!-- Version 1.1.4 (Latest) -->
       <div class="release-card latest">
         <div class="release-header">
           <div>
             <div class="release-title-group">
-              <span class="release-version">OmniDial v1.1.2</span>
+              <span class="release-version">OmniDial v1.1.4</span>
               <span class="release-badge latest">Latest Release</span>
+            </div>
+            <div class="release-date">Build 6 • Released September 2026</div>
+          </div>
+          <a href="apks/OmniDial-v1.1.4.apk" download="OmniDial-v1.1.4.apk" class="release-btn primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download APK (v1.1.4)
+          </a>
+        </div>
+        <ul class="release-notes-list">
+          <li><strong>One-Tap Automatic Backups:</strong> Save all your rules, contacts, and dialer preferences with a single tap of "Backup Now". No confusing file paths or folder selection.</li>
+          <li><strong>Instant Backup & Restore List:</strong> Automatically detects your saved backups and displays them clearly with timestamps and file sizes for immediate one-tap restore.</li>
+          <li><strong>Cross-Device File Transfer:</strong> Effortlessly import and restore backup files copied from another phone or cloud drive via the "Browse Files" picker.</li>
+        </ul>
+      </div>
+
+      <!-- Version 1.1.3 (Prior Release) -->
+      <div class="release-card">
+        <div class="release-header">
+          <div>
+            <div class="release-title-group">
+              <span class="release-version">OmniDial v1.1.3</span>
+              <span class="release-badge prior">Prior Release</span>
+            </div>
+            <div class="release-date">Build 5 • Released September 2026</div>
+          </div>
+          <a href="apks/OmniDial-v1.1.3.apk" download="OmniDial-v1.1.3.apk" class="release-btn secondary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download Prior APK (v1.1.3)
+          </a>
+        </div>
+        <ul class="release-notes-list">
+          <li><strong>Tactile Sensory Haptics:</strong> Feel crisp tactile feedback on key presses, speed-dial long presses, and call connection.</li>
+          <li><strong>Smoother In-Call Screen:</strong> Optimized active call timers to keep in-call buttons fast and fluid.</li>
+        </ul>
+      </div>
+
+      <!-- Version 1.1.2 (Prior Release) -->
+      <div class="release-card">
+        <div class="release-header">
+          <div>
+            <div class="release-title-group">
+              <span class="release-version">OmniDial v1.1.2</span>
+              <span class="release-badge prior">Prior Release</span>
             </div>
             <div class="release-date">Build 4 • Released September 2026</div>
           </div>
-          <a href="apks/OmniDial-v1.1.2.apk" download="OmniDial-v1.1.2.apk" class="release-btn primary">
+          <a href="apks/OmniDial-v1.1.2.apk" download="OmniDial-v1.1.2.apk" class="release-btn secondary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download APK (v1.1.2)
+            Download Prior APK (v1.1.2)
           </a>
         </div>
         <ul class="release-notes-list">
@@ -518,42 +504,44 @@
           <li><strong>Smart Gate & Intercom Buzzer:</strong> Auto-answers buzzer calls from your apartment building or front gate, keys in the door code, and hangs up automatically.</li>
           <li><strong>Instant T9 Keypad Search:</strong> Start typing letters or digits on the dial pad to instantly find contacts and recent calls.</li>
           <li><strong>Flip to Silence:</strong> Simply turn your phone face-down to immediately silence an incoming ring without rejecting the call.</li>
-          <li><strong>Customizable VIP Favorites Grid:</strong> Keep your top contacts within thumb's reach with customizable cards and 1-tap speed dial shortcuts.</li>
         </ul>
       </div>
     </section>
 
-    <section id="setup">
-      <div class="setup-box">
-        <h2>How to Install OmniDial on Android</h2>
-        <div class="steps">
-          <div class="step-item">
-            <div class="step-number">1</div>
-            <div class="step-text">
-              <h4>Download APK</h4>
-              <p>Tap the download button above on your Android device and confirm the browser download.</p>
-            </div>
+    <!-- Installation Steps -->
+    <section id="setup" class="setup-section">
+      <div class="section-title">
+        <h2>Quick Installation Guide</h2>
+        <p>Follow these 3 simple steps to set up OmniDial on your Android device.</p>
+      </div>
+
+      <div class="steps-container">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>Download & Install APK</h4>
+            <p>Download the APK file directly to your phone. Tap the downloaded file in your notifications or Downloads folder to begin installation. Allow "Install unknown apps" if prompted.</p>
           </div>
-          <div class="step-item">
-            <div class="step-number">2</div>
-            <div class="step-text">
-              <h4>Install App</h4>
-              <p>Open the downloaded APK from notification or Files app, allowing unknown sources if prompted.</p>
-            </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>Set as Default Phone App</h4>
+            <p>Open OmniDial. When prompted, tap "Set as Default" to enable complete call handling, spam call detection, and lock-screen incoming call controls.</p>
           </div>
-          <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-text">
-              <h4>Set as Default</h4>
-              <p>Launch OmniDial and approve the system dialog to set it as your Default Phone App.</p>
-            </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>Grant Telephony & Contacts Permissions</h4>
+            <p>Accept the requested Android permissions (Contacts, Phone Calls, Call Log) so OmniDial can display your contacts and manage calls seamlessly.</p>
           </div>
         </div>
       </div>
     </section>
 
     <footer>
-      <p>OmniDial • Built with Kotlin & Jetpack Compose • Send feedback to <a href="mailto:hariburle@gmail.com">hariburle@gmail.com</a></p>
+      <p>&copy; 2026 OmniDial Project. Designed for modern Android devices. Open-source release artifacts.</p>
     </footer>
   </div>
 </body>

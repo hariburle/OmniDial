@@ -37,8 +37,11 @@ class OmniCallRedirectionService : CallRedirectionService() {
             return
         }
 
-        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val globalMode = prefs.getString("whatsapp_call_mode", "ask_learn") ?: "ask_learn"
+        val prefs = getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+        val legacyPrefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val globalMode = prefs.getString("whatsapp_call_mode", null)
+            ?: legacyPrefs.getString("whatsapp_call_mode", "ask_learn")
+            ?: "ask_learn"
 
         // If user globally disabled WhatsApp calling, let cellular proceed unmodified
         if (globalMode == "never") {
@@ -46,9 +49,11 @@ class OmniCallRedirectionService : CallRedirectionService() {
             return
         }
 
-        // Check contact-specific learned calling channel from both preference keys
+        // Check contact-specific learned calling channel from all preference stores
         val rawLearned = (prefs.getStringSet("whatsapp_learned_choices", emptySet()) ?: emptySet()) +
-                         (prefs.getStringSet("learned_call_modes", emptySet()) ?: emptySet())
+                         (prefs.getStringSet("learned_call_modes", emptySet()) ?: emptySet()) +
+                         (legacyPrefs.getStringSet("whatsapp_learned_choices", emptySet()) ?: emptySet()) +
+                         (legacyPrefs.getStringSet("learned_call_modes", emptySet()) ?: emptySet())
         val suffix10 = if (digitsOnly.length >= 10) digitsOnly.takeLast(10) else digitsOnly
 
         var preferredMode: String? = null
@@ -57,9 +62,11 @@ class OmniCallRedirectionService : CallRedirectionService() {
             if (parts.size >= 2) {
                 val numKey = parts[0]
                 val mode = parts[1]
+                val numKeyDigits = numKey.filter { it.isDigit() }
+                val numKeySuffix10 = if (numKeyDigits.length >= 10) numKeyDigits.takeLast(10) else numKeyDigits
                 if (ContactHelper.isSamePhoneNumber(numKey, cleanNumber) ||
                     numKey == cleanNumber ||
-                    (suffix10.isNotEmpty() && numKey.endsWith(suffix10))) {
+                    (suffix10.isNotEmpty() && (numKey.endsWith(suffix10) || numKeySuffix10 == suffix10))) {
                     preferredMode = mode
                     break
                 }

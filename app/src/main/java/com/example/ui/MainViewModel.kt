@@ -82,6 +82,7 @@ class MainViewModel(
     fun setWhatsAppCallMode(mode: String) {
         _whatsAppCallMode.value = mode
         prefs.edit().putString("whatsapp_call_mode", mode).apply()
+        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit().putString("whatsapp_call_mode", mode).apply()
     }
 
     // Learned Calling Choices for Contacts (Map of normalized number -> "cellular" | "whatsapp")
@@ -122,11 +123,21 @@ class MainViewModel(
             .putStringSet("whatsapp_learned_choices", HashSet(set))
             .putStringSet("learned_call_modes", HashSet(set))
             .apply()
+        // Also mirror to app_prefs for cross-process / service consistency
+        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit()
+            .putStringSet("whatsapp_learned_choices", HashSet(set))
+            .putStringSet("learned_call_modes", HashSet(set))
+            .putString("whatsapp_call_mode", _whatsAppCallMode.value)
+            .apply()
     }
 
     fun resetWhatsAppChoices() {
         _learnedCallModes.value = emptyMap()
         prefs.edit()
+            .remove("whatsapp_learned_choices")
+            .remove("learned_call_modes")
+            .apply()
+        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit()
             .remove("whatsapp_learned_choices")
             .remove("learned_call_modes")
             .apply()
@@ -1120,27 +1131,42 @@ class MainViewModel(
 
     fun updateRecentCallNoteAndReminder(recentCall: RecentCall, note: String?, reminderTime: Long?) {
         viewModelScope.launch(Dispatchers.IO) {
-            val updated = recentCall.copy(
-                note = note?.trim()?.takeIf { it.isNotBlank() },
-                reminderTime = reminderTime
-            )
-            repository.updateRecentCall(updated)
+            val cleanNote = note?.trim()?.takeIf { it.isNotBlank() }
+            val callId: Long
+            if (recentCall.id <= 0L) {
+                // If the call was loaded from system CallLog, insert a new row in Room to persist the note & reminder
+                val newCall = recentCall.copy(
+                    id = 0L,
+                    note = cleanNote,
+                    reminderTime = reminderTime
+                )
+                callId = repository.insertRecentCall(newCall)
+            } else {
+                val updated = recentCall.copy(
+                    note = cleanNote,
+                    reminderTime = reminderTime
+                )
+                repository.updateRecentCall(updated)
+                callId = updated.id
+            }
+
             if (reminderTime != null && reminderTime > System.currentTimeMillis()) {
                 com.example.telecom.ReminderScheduler.scheduleReminder(
                     context = appContext,
-                    callId = updated.id,
-                    phoneNumber = updated.phoneNumber,
-                    callerName = updated.callerName,
-                    note = updated.note,
+                    callId = callId,
+                    phoneNumber = recentCall.phoneNumber,
+                    callerName = recentCall.callerName,
+                    note = cleanNote,
                     reminderEpoch = reminderTime
                 )
             } else {
                 com.example.telecom.ReminderScheduler.cancelReminder(
                     context = appContext,
-                    callId = updated.id,
-                    phoneNumber = updated.phoneNumber
+                    callId = callId,
+                    phoneNumber = recentCall.phoneNumber
                 )
             }
+            refreshRecentCalls()
         }
     }
 

@@ -1,4 +1,5 @@
 package com.example.ui.screens
+import com.example.ui.components.CallDurationStatusChip
 import com.example.ui.components.InCallControlButton
 import com.example.ui.components.SwipeUpAnswerView
 import com.example.ui.components.ButtonTapAnswerView
@@ -60,6 +61,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BluetoothAudio
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dialpad
@@ -128,6 +130,7 @@ import androidx.compose.ui.unit.sp
 import com.example.telecom.ActiveCallInfo
 import com.example.telecom.AutomationStep
 import com.example.ui.components.Keypad
+import com.example.ui.components.ReminderPresetChips
 import com.example.util.ContactHelper
 import kotlinx.coroutines.delay
 
@@ -171,7 +174,6 @@ fun InCallScreen(
         keyboardController?.hide()
         focusManager.clearFocus()
     }
-    var callSeconds by remember { mutableLongStateOf(0L) }
     var enteredDtmfHistory by remember { mutableStateOf("") }
     var postCallNote by remember { mutableStateOf("") }
     var postCallReminderMins by remember { mutableStateOf<Long?>(null) }
@@ -199,32 +201,6 @@ fun InCallScreen(
             delay(1000)
             onClosePostCall()
         }
-    }
-
-    LaunchedEffect(callInfo.state, callInfo.connectTimeMillis) {
-        if (callInfo.state == Call.STATE_ACTIVE) {
-            while (true) {
-                val start = callInfo.connectTimeMillis
-                if (start > 0) {
-                    callSeconds = (System.currentTimeMillis() - start) / 1000
-                }
-                delay(1000)
-            }
-        } else {
-            callSeconds = 0L
-        }
-    }
-
-    val stateLabel = when (callInfo.state) {
-        Call.STATE_RINGING -> "Incoming Call..."
-        Call.STATE_DIALING, Call.STATE_CONNECTING -> "Connecting..."
-        Call.STATE_ACTIVE -> {
-            val mins = callSeconds / 60
-            val secs = callSeconds % 60
-            String.format("%02d:%02d", mins, secs)
-        }
-        Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> "Call Ended"
-        else -> "In Call"
     }
 
     val isVoicemail = callInfo.displayName.equals("Voicemail", ignoreCase = true) ||
@@ -269,30 +245,12 @@ fun InCallScreen(
                         )
                     }
 
-                    // Status Chip
-                    AssistChip(
-                        onClick = onDismiss,
-                        label = {
-                            Text(
-                                text = stateLabel,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
-                            )
-                        },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (callInfo.state == Call.STATE_ACTIVE)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.secondaryContainer
-                        ),
-                        leadingIcon = {
-                            if (automationStep?.isRunning == true) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
+                    // Isolated Call Duration Status Chip (prevents whole-screen recomposition)
+                    CallDurationStatusChip(
+                        callState = callInfo.state,
+                        connectTimeMillis = callInfo.connectTimeMillis,
+                        isAutomationRunning = automationStep?.isRunning == true,
+                        onDismiss = onDismiss
                     )
 
                     Spacer(modifier = Modifier.size(48.dp))
@@ -799,6 +757,18 @@ fun InCallScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                         )
                                     },
+                                    trailingIcon = {
+                                        if (postCallNote.isNotEmpty()) {
+                                            IconButton(onClick = { postCallNote = "" }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Clear note text",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .onFocusChanged { focusState ->
@@ -819,54 +789,13 @@ fun InCallScreen(
                                 )
 
                                 // Reminder Chips Section
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        text = "Set Reminder:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        listOf(15L to "In 15m", 60L to "In 1h", 1440L to "Tomorrow 9am").forEach { (mins, label) ->
-                                            val isSelected = (postCallReminderMins == mins)
-                                            Surface(
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                                border = BorderStroke(
-                                                    1.dp,
-                                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                                ),
-                                                modifier = Modifier
-                                                    .clickable {
-                                                        postCallReminderMins = if (isSelected) null else mins
-                                                        isUserInteractingWithNote = true
-                                                    }
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.NotificationsActive,
-                                                        contentDescription = null,
-                                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                    Text(
-                                                        text = label,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                }
-                                            }
-                                        }
+                                ReminderPresetChips(
+                                    selectedMinutes = postCallReminderMins,
+                                    onSelectMinutes = { mins ->
+                                        postCallReminderMins = mins
+                                        isUserInteractingWithNote = true
                                     }
-                                }
+                                )
 
                                 // Action Buttons Row
                                 Row(

@@ -90,8 +90,9 @@ fun PopularGridCard(
                         )
                     } else {
                         Box(contentAlignment = Alignment.Center) {
+                            val initialChar = (item.nickname?.takeIf { it.isNotBlank() } ?: item.name).take(1).uppercase()
                             Text(
-                                text = item.name.take(1).uppercase(),
+                                text = initialChar,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -147,8 +148,10 @@ fun PopularGridCard(
             }
 
             Column {
+                val hasNickname = !item.nickname.isNullOrBlank()
+                val mainDisplayName = if (hasNickname) item.nickname!! else item.name
                 Text(
-                    text = item.name,
+                    text = mainDisplayName,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
