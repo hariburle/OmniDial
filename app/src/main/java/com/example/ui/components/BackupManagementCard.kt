@@ -259,7 +259,12 @@ fun BackupManagementCard(
 
                                 // Delete Button
                                 IconButton(
-                                    onClick = { backupToDelete = file },
+                                    onClick = {
+                                        if (onDeleteLocalBackup != null) {
+                                            onDeleteLocalBackup(file)
+                                            onStatusMessage("Backup deleted.")
+                                        }
+                                    },
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
@@ -315,48 +320,6 @@ fun BackupManagementCard(
             },
             dismissButton = {
                 TextButton(onClick = { backupToRestore = null }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Confirmation Dialog for Delete
-    if (backupToDelete != null) {
-        val targetFile = backupToDelete!!
-        AlertDialog(
-            onDismissRequest = { backupToDelete = null },
-            title = {
-                Text(
-                    text = "Delete Backup?",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-            },
-            text = {
-                Text(
-                    text = "Are you sure you want to delete this backup? This action cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val file = targetFile
-                        backupToDelete = null
-                        if (onDeleteLocalBackup != null) {
-                            onDeleteLocalBackup(file)
-                            onStatusMessage("Backup deleted.")
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { backupToDelete = null }) {
                     Text("Cancel")
                 }
             }

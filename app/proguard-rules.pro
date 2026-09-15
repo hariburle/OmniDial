@@ -22,3 +22,10 @@
 # Kotlin Coroutines
 -keepnames class kotlinx.coroutines.** { *; }
 -dontwarn kotlinx.coroutines.**
+
+# Google libphonenumber metadata and classes
+-keep class com.google.i18n.phonenumbers.** { *; }
+-keep class com.google.i18n.phonenumbers.data.** { *; }
+-dontwarn com.google.i18n.phonenumbers.**
+-dontwarn com.google.i18n.phonenumbers.data.**
+

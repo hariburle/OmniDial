@@ -49,8 +49,11 @@ interface AppDao {
     @Query("SELECT * FROM recent_calls WHERE phoneNumber IN (:numbers) OR callerName = :name ORDER BY timestamp DESC LIMIT 100")
     suspend fun getCallHistoryForContactList(numbers: List<String>, name: String): List<RecentCall>
 
-    @Query("SELECT * FROM recent_calls WHERE phoneNumber = :phoneNumber ORDER BY timestamp DESC LIMIT 1")
-    suspend fun getLatestRecentCallForNumber(phoneNumber: String): RecentCall?
+    @Query("SELECT * FROM recent_calls WHERE phoneNumber = :phoneNumber OR normalized_number = :normalizedNumber ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLatestRecentCallForNumber(phoneNumber: String, normalizedNumber: String = phoneNumber): RecentCall?
+
+    @Query("SELECT * FROM recent_calls WHERE normalized_number = :normalizedNumber ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLatestRecentCallByNormalizedNumber(normalizedNumber: String): RecentCall?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecentCall(call: RecentCall): Long
@@ -100,8 +103,11 @@ interface AppDao {
     @Query("SELECT * FROM offline_spam_numbers ORDER BY reportCount DESC")
     suspend fun getAllSpamNumbersList(): List<SpamNumber>
 
-    @Query("SELECT * FROM offline_spam_numbers WHERE phoneNumber = :number LIMIT 1")
-    suspend fun getSpamByNumber(number: String): SpamNumber?
+    @Query("SELECT * FROM offline_spam_numbers WHERE phoneNumber = :number OR normalized_number = :normalizedNumber LIMIT 1")
+    suspend fun getSpamByNumber(number: String, normalizedNumber: String = number): SpamNumber?
+
+    @Query("SELECT * FROM offline_spam_numbers WHERE normalized_number = :normalizedNumber LIMIT 1")
+    suspend fun getSpamByNormalizedNumber(normalizedNumber: String): SpamNumber?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSpamNumber(spam: SpamNumber): Long

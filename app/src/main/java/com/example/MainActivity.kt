@@ -1027,6 +1027,7 @@ fun MainAppContent(
                         viewModel.savePostCallNote(call.phoneNumber, note, reminderTime)
                     },
                     onMarkSpam = { num -> viewModel.markAsSpam(num) },
+                    onUnblockSpam = { num -> viewModel.removeSpam(num) },
                     onDismiss = { viewModel.minimizeCall() },
                     onClosePostCall = { viewModel.dismissCall() },
                     callAnswerStyle = callAnswerStyle

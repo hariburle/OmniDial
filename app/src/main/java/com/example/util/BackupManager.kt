@@ -7,6 +7,7 @@ import com.example.data.CallerRule
 import com.example.data.FavoriteContact
 import com.example.data.IgnoredContact
 import com.example.data.LocalContact
+import com.example.data.RecentCall
 import com.example.data.SpamNumber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,6 +28,7 @@ data class BackupRestoreResult(
     val contactsCount: Int = 0,
     val spamCount: Int = 0,
     val ignoredCount: Int = 0,
+    val recentCallsCount: Int = 0,
     val message: String = ""
 )
 
@@ -149,6 +151,27 @@ object BackupManager {
             ignoredArray.put(obj)
         }
         root.put("ignoredContacts", ignoredArray)
+
+        // 7. Recent Calls
+        val recentCalls = dao.getAllRecentCallsList()
+        val recentArray = JSONArray()
+        for (rc in recentCalls) {
+            val obj = JSONObject()
+            obj.put("callerName", rc.callerName ?: "")
+            obj.put("phoneNumber", rc.phoneNumber)
+            obj.put("callType", rc.callType)
+            obj.put("timestamp", rc.timestamp)
+            obj.put("durationSeconds", rc.durationSeconds)
+            obj.put("simSlot", rc.simSlot)
+            obj.put("note", rc.note ?: "")
+            obj.put("reminderTime", rc.reminderTime ?: 0L)
+            obj.put("ruleMatched", rc.ruleMatched ?: "")
+            obj.put("callReason", rc.callReason ?: "")
+            obj.put("communityTag", rc.communityTag ?: "")
+            obj.put("isSpam", rc.isSpam)
+            recentArray.put(obj)
+        }
+        root.put("recentCalls", recentArray)
 
         root.toString(2)
     }
@@ -357,6 +380,31 @@ object BackupManager {
                 }
             }
 
+            // 7. Restore Recent Calls if present
+            var restoredRecentCalls = 0
+            if (root.has("recentCalls")) {
+                val callArray = root.getJSONArray("recentCalls")
+                for (i in 0 until callArray.length()) {
+                    val obj = callArray.getJSONObject(i)
+                    val call = RecentCall(
+                        callerName = obj.optString("callerName").ifBlank { null },
+                        phoneNumber = obj.getString("phoneNumber"),
+                        callType = obj.optInt("callType", 1),
+                        timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                        durationSeconds = obj.optLong("durationSeconds", 0L),
+                        simSlot = obj.optInt("simSlot", obj.optInt("simSlotIndex", 1)),
+                        note = obj.optString("note").ifBlank { null },
+                        reminderTime = obj.optLong("reminderTime", 0L).let { if (it > 0L) it else null },
+                        ruleMatched = obj.optString("ruleMatched").ifBlank { null },
+                        callReason = obj.optString("callReason").ifBlank { null },
+                        communityTag = obj.optString("communityTag").ifBlank { null },
+                        isSpam = obj.optBoolean("isSpam", false)
+                    )
+                    dao.insertRecentCall(call)
+                    restoredRecentCalls++
+                }
+            }
+
             BackupRestoreResult(
                 success = true,
                 rulesCount = restoredRules,
@@ -364,7 +412,8 @@ object BackupManager {
                 contactsCount = restoredContacts,
                 spamCount = restoredSpam,
                 ignoredCount = restoredIgnored,
-                message = "Backup restored successfully ($restoredRules rules, $restoredFavs favorites, $restoredContacts contacts, and preferences restored)."
+                recentCallsCount = restoredRecentCalls,
+                message = "Backup restored successfully ($restoredRules rules, $restoredFavs favorites, $restoredContacts contacts, $restoredRecentCalls recent calls, and preferences restored)."
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -422,15 +471,62 @@ object BackupManager {
 
     fun listLocalBackups(context: Context): List<File> {
         val internalDir = getLocalBackupsDir(context)
-        val internalFiles = (internalDir.listFiles() ?: emptyArray())
-            .filter { it.isFile && (it.name.endsWith(".bak") || it.name.endsWith(".json")) }
+        val discoveredFiles = mutableListOf<File>()
 
-        val externalDir = getExternalBackupsDir(context)
-        val externalFiles = (externalDir?.listFiles() ?: emptyArray())
-            .filter { it.isFile && (it.name.endsWith(".bak") || it.name.endsWith(".json")) }
+        // Helper to check if file looks like a backup
+        fun isBackupFile(file: File): Boolean {
+            if (!file.isFile) return false
+            val name = file.name.lowercase()
+            return name.endsWith(".bak") || name.endsWith(".json") || name.contains("backup") || name.contains("omnidial")
+        }
 
-        // Combine and deduplicate by filename
-        return (internalFiles + externalFiles)
+        // List candidate directories across all potential storage locations
+        val candidateDirs = mutableListOf<File>()
+        candidateDirs.add(internalDir)
+        candidateDirs.add(context.filesDir)
+
+        getExternalBackupsDir(context)?.let { candidateDirs.add(it) }
+        context.getExternalFilesDir(null)?.let { candidateDirs.add(it) }
+        context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)?.let { candidateDirs.add(it) }
+        context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)?.let { candidateDirs.add(it) }
+
+        try {
+            val pubDocs = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS)
+            if (pubDocs != null && pubDocs.exists()) {
+                candidateDirs.add(pubDocs)
+                candidateDirs.add(File(pubDocs, "OmniDial"))
+            }
+            val pubDownloads = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            if (pubDownloads != null && pubDownloads.exists()) {
+                candidateDirs.add(pubDownloads)
+                candidateDirs.add(File(pubDownloads, "OmniDial"))
+            }
+        } catch (_: Throwable) {}
+
+        for (dir in candidateDirs) {
+            try {
+                if (dir.exists() && dir.isDirectory) {
+                    val files = dir.listFiles() ?: continue
+                    for (file in files) {
+                        if (isBackupFile(file)) {
+                            discoveredFiles.add(file)
+                            // If found in another location, mirror it into internalDir so it remains visible
+                            if (file.parentFile?.absolutePath != internalDir.absolutePath) {
+                                try {
+                                    val target = File(internalDir, file.name)
+                                    if (!target.exists() || target.lastModified() < file.lastModified()) {
+                                        file.copyTo(target, overwrite = true)
+                                    }
+                                } catch (_: Throwable) {}
+                            }
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+
+        // Return deduplicated by file name, newest first
+        return discoveredFiles
             .groupBy { it.name }
             .map { entry -> entry.value.maxByOrNull { it.lastModified() } ?: entry.value.first() }
             .sortedByDescending { it.lastModified() }

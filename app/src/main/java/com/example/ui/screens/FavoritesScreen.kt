@@ -244,12 +244,24 @@ fun FavoritesScreen(
         ignoredContacts.map { it.name.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
     }
 
-    val popularContacts = remember(effectiveDeviceContacts, favorites, recentCalls, ignoredContacts) {
-        val favNumbers = favorites.map { it.phoneNumber.filter { c -> c.isDigit() }.takeLast(10) }.filter { it.isNotBlank() }.toSet()
-        val favNames = favorites.map { it.name.trim().lowercase() }.toSet()
+    val deviceContactsByNorm = remember(effectiveDeviceContacts) {
+        val map = mutableMapOf<String, DeviceContact>()
+        effectiveDeviceContacts.forEach { dc ->
+            val primaryNorm = dc.phoneNumber.filter { it.isDigit() }.takeLast(10)
+            if (primaryNorm.isNotBlank()) {
+                map[primaryNorm] = dc
+            }
+            dc.phoneNumbers.forEach { pn ->
+                val norm = pn.number.filter { it.isDigit() }.takeLast(10)
+                if (norm.isNotBlank()) {
+                    map[norm] = dc
+                }
+            }
+        }
+        map
+    }
 
-        val excludedNames = setOf("voicemail", "spam", "gate", "intercom", "unknown")
-
+    val contactsWithCallCounts = remember(effectiveDeviceContacts, recentCalls) {
         val callCounts = mutableMapOf<String, Int>()
         recentCalls.forEach { call ->
             val norm = call.phoneNumber.filter { it.isDigit() }.takeLast(10)
@@ -258,32 +270,49 @@ fun FavoritesScreen(
             }
         }
 
-        val list = mutableListOf<PopularContactItem>()
-        val seenNorms = mutableSetOf<String>()
-
-        fun isIgnored(norm: String, name: String): Boolean {
-            val nameLower = name.trim().lowercase()
-            return ignoredNorms.contains(norm) || ignoredNames.any { nameLower.contains(it) } || ignoredContacts.any { ic ->
-                val icNorm = ic.phoneNumber.filter { c -> c.isDigit() }.takeLast(10)
-                icNorm == norm || (ic.tag.isNotBlank() && nameLower.contains(ic.tag.trim().lowercase()))
-            }
-        }
-
-        // 1. Device contacts that have call counts
+        val list = mutableListOf<Triple<DeviceContact, Set<String>, Int>>()
         effectiveDeviceContacts.forEach { dc ->
             val allDcNorms = (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
                 .map { it.filter { c -> c.isDigit() }.takeLast(10) }
                 .filter { it.isNotBlank() }
                 .toSet()
+            
+            val totalCount = allDcNorms.sumOf { callCounts[it] ?: 0 }
+            if (totalCount > 0) {
+                list.add(Triple(dc, allDcNorms, totalCount))
+            }
+        }
+        list
+    }
+
+    val popularContacts = remember(contactsWithCallCounts, deviceContactsByNorm, favorites, recentCalls, ignoredContacts, ignoredNorms, ignoredNames) {
+        val favNumbers = favorites.map { it.phoneNumber.filter { c -> c.isDigit() }.takeLast(10) }.filter { it.isNotBlank() }.toSet()
+        val favNames = favorites.map { it.name.trim().lowercase() }.toSet()
+
+        val excludedNames = setOf("voicemail", "spam", "gate", "intercom", "unknown")
+
+        val list = mutableListOf<PopularContactItem>()
+        val seenNorms = mutableSetOf<String>()
+
+        val ignoredContactNorms = ignoredContacts.map { it.phoneNumber.filter { c -> c.isDigit() }.takeLast(10) }.filter { it.isNotBlank() }.toSet()
+        val ignoredContactTags = ignoredContacts.map { it.tag.trim().lowercase() }.filter { it.isNotBlank() }.toSet()
+
+        fun isIgnored(norm: String, nameLower: String): Boolean {
+            if (ignoredNorms.contains(norm) || ignoredContactNorms.contains(norm)) return true
+            if (ignoredNames.contains(nameLower)) return true
+            if (ignoredContactTags.any { nameLower.contains(it) }) return true
+            return false
+        }
+
+        // 1. Device contacts that have call counts
+        contactsWithCallCounts.forEach { (dc, allDcNorms, totalCount) ->
             val nameLower = dc.name.trim().lowercase()
             val isExcluded = excludedNames.any { nameLower.contains(it) }
-            val isIgnoredContact = allDcNorms.any { ignoredNorms.contains(it) } || isIgnored(dc.phoneNumber.filter { it.isDigit() }.takeLast(10), dc.name)
+            val primaryNorm = dc.phoneNumber.filter { it.isDigit() }.takeLast(10)
+            val isIgnoredContact = allDcNorms.any { ignoredNorms.contains(it) } || isIgnored(primaryNorm, nameLower)
 
             if (allDcNorms.isNotEmpty() && allDcNorms.none { favNumbers.contains(it) } && !favNames.contains(nameLower) && !isExcluded && !isIgnoredContact) {
-                // Sum call counts across all phone numbers of this contact
-                val totalCount = allDcNorms.sumOf { callCounts[it] ?: 0 }
-                val primaryNorm = dc.phoneNumber.filter { it.isDigit() }.takeLast(10).ifBlank { allDcNorms.first() }
-                if (totalCount > 0 && allDcNorms.any { seenNorms.add(it) }) {
+                if (allDcNorms.any { seenNorms.add(it) }) {
                     allDcNorms.forEach { seenNorms.add(it) }
                     list.add(
                         PopularContactItem(
@@ -301,18 +330,21 @@ fun FavoritesScreen(
         }
 
         // 2. Recent calls not in favorites or already added
+        val callCounts = mutableMapOf<String, Int>()
+        recentCalls.forEach { call ->
+            val norm = call.phoneNumber.filter { it.isDigit() }.takeLast(10)
+            if (norm.isNotBlank()) {
+                callCounts[norm] = (callCounts[norm] ?: 0) + 1
+            }
+        }
+
         recentCalls.forEach { rc ->
             val norm = rc.phoneNumber.filter { it.isDigit() }.takeLast(10)
             val callerNameStr = rc.callerName ?: ""
             val nameLower = callerNameStr.trim().lowercase()
             val isExcluded = excludedNames.any { nameLower.contains(it) }
-            if (norm.isNotBlank() && !favNumbers.contains(norm) && !favNames.contains(nameLower) && !isExcluded && !isIgnored(norm, callerNameStr) && !seenNorms.contains(norm)) {
-                val matchingDc = effectiveDeviceContacts.firstOrNull { dc ->
-                    ContactHelper.isSamePhoneNumber(dc.phoneNumber, rc.phoneNumber) ||
-                    dc.phoneNumbers.any { ContactHelper.isSamePhoneNumber(it.number, rc.phoneNumber) } ||
-                    (norm.length >= 7 && dc.phoneNumber.filter { it.isDigit() }.takeLast(10) == norm) ||
-                    (norm.length >= 7 && dc.phoneNumbers.any { it.number.filter { c -> c.isDigit() }.takeLast(10) == norm })
-                }
+            if (norm.isNotBlank() && !favNumbers.contains(norm) && !favNames.contains(nameLower) && !isExcluded && !isIgnored(norm, nameLower) && !seenNorms.contains(norm)) {
+                val matchingDc = deviceContactsByNorm[norm]
                 val allMatchedNorms = matchingDc?.let { dc ->
                     (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
                         .map { it.filter { c -> c.isDigit() }.takeLast(10) }
@@ -343,8 +375,6 @@ fun FavoritesScreen(
                 }
             }
         }
-
-        // 3. (Removed random fallback to contacts never called)
 
         list.sortedByDescending { it.callCount }.take(4)
     }

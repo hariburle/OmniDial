@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +40,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -66,6 +66,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -89,9 +90,11 @@ import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -160,6 +163,7 @@ fun InCallScreen(
     onDeclineWithSms: (String) -> Unit = {},
     onSavePostCallNote: ((note: String?, reminderMinutes: Long?) -> Unit)? = null,
     onMarkSpam: ((String) -> Unit)? = null,
+    onUnblockSpam: ((String) -> Unit)? = null,
     onDismiss: () -> Unit = {},
     onClosePostCall: () -> Unit = onDismiss,
     callAnswerStyle: String = "swipe_slider",
@@ -179,18 +183,21 @@ fun InCallScreen(
     var postCallReminderMins by remember { mutableStateOf<Long?>(null) }
     var noteSaved by remember { mutableStateOf(false) }
     var isUserInteractingWithNote by remember { mutableStateOf(false) }
-    var autoCloseRemainingSeconds by remember { mutableIntStateOf(3) }
+    var autoCloseRemainingSeconds by remember { mutableIntStateOf(5) }
+    var autoCloseTimerActive by remember { mutableStateOf(true) }
+    var spamActionConfirmed by remember { mutableStateOf(false) }
+    var showReportSpamDialog by remember { mutableStateOf(false) }
     var showAudioRouteSelector by remember { mutableStateOf(false) }
 
-    LaunchedEffect(callInfo.state, isUserInteractingWithNote, noteSaved) {
-        if (callInfo.state == Call.STATE_DISCONNECTED && !isUserInteractingWithNote && !noteSaved) {
-            autoCloseRemainingSeconds = 3
+    LaunchedEffect(callInfo.state, isUserInteractingWithNote, noteSaved, autoCloseTimerActive) {
+        if (callInfo.state == Call.STATE_DISCONNECTED && !isUserInteractingWithNote && !noteSaved && autoCloseTimerActive) {
+            autoCloseRemainingSeconds = 5
             while (autoCloseRemainingSeconds > 0) {
                 delay(1000)
-                if (isUserInteractingWithNote || noteSaved) break
+                if (isUserInteractingWithNote || noteSaved || !autoCloseTimerActive) break
                 autoCloseRemainingSeconds--
             }
-            if (!isUserInteractingWithNote && !noteSaved) {
+            if (!isUserInteractingWithNote && !noteSaved && autoCloseTimerActive) {
                 onClosePostCall()
             }
         }
@@ -209,7 +216,20 @@ fun InCallScreen(
     Surface(
         modifier = modifier
             .fillMaxSize()
-            .testTag("in_call_screen"),
+            .testTag("in_call_screen")
+            .let { baseModifier ->
+                if (callInfo.state == Call.STATE_DISCONNECTED) {
+                    baseModifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = {
+                                onClosePostCall()
+                            }
+                        )
+                    }
+                } else {
+                    baseModifier
+                }
+            },
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
@@ -661,6 +681,11 @@ fun InCallScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures {
+                                    // Consume tap inside the card
+                                }
+                            }
                             .testTag("post_call_card"),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
@@ -743,12 +768,84 @@ fun InCallScreen(
                             }
 
                             if (!noteSaved) {
+                                // Smart After-Call Quick Actions (Spam Defense & Quick Response)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Block & Report Spam Action
+                                    OutlinedButton(
+                                        onClick = {
+                                            autoCloseTimerActive = false
+                                            if (callInfo.phoneNumber.isNotBlank()) {
+                                                if (spamActionConfirmed) {
+                                                    onUnblockSpam?.invoke(callInfo.phoneNumber)
+                                                    spamActionConfirmed = false
+                                                } else {
+                                                    onMarkSpam?.invoke(callInfo.phoneNumber)
+                                                    spamActionConfirmed = true
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = if (spamActionConfirmed) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                                        ),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (spamActionConfirmed) Color(0xFF16A34A).copy(alpha = 0.5f) else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                                        ),
+                                        modifier = Modifier.weight(1f).testTag("post_call_spam_block_btn")
+                                    ) {
+                                        Icon(
+                                            imageVector = if (spamActionConfirmed) Icons.Default.Check else Icons.Default.Block,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (spamActionConfirmed) "Blocked (Unblock)" else "Block Spam",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1
+                                        )
+                                    }
+
+                                    // Detailed Report Tag Option
+                                    OutlinedButton(
+                                        onClick = {
+                                            autoCloseTimerActive = false
+                                            showReportSpamDialog = true
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier.weight(1f).testTag("post_call_report_tag_btn")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Flag,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Tag / Report",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+
                                 // Text Input Field
                                 OutlinedTextField(
                                     value = postCallNote,
                                     onValueChange = {
                                         postCallNote = it
                                         isUserInteractingWithNote = true
+                                        autoCloseTimerActive = false
                                     },
                                     placeholder = {
                                         Text(
@@ -774,6 +871,7 @@ fun InCallScreen(
                                         .onFocusChanged { focusState ->
                                             if (focusState.isFocused) {
                                                 isUserInteractingWithNote = true
+                                                autoCloseTimerActive = false
                                             }
                                         }
                                         .testTag("post_call_note_input"),
@@ -794,6 +892,7 @@ fun InCallScreen(
                                     onSelectMinutes = { mins ->
                                         postCallReminderMins = mins
                                         isUserInteractingWithNote = true
+                                        autoCloseTimerActive = false
                                     }
                                 )
 
@@ -908,6 +1007,58 @@ fun InCallScreen(
                     }
                 }
             }
+        }
+
+        if (showReportSpamDialog) {
+            AlertDialog(
+                onDismissRequest = { showReportSpamDialog = false },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Report & Block Number",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Add ${callInfo.phoneNumber.ifBlank { "this number" }} to spam database and block future calls?",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "This will immediately silence and block incoming calls from this caller using E.164 smart matching.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showReportSpamDialog = false
+                            spamActionConfirmed = true
+                            if (callInfo.phoneNumber.isNotBlank()) {
+                                onMarkSpam?.invoke(callInfo.phoneNumber)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Block & Report")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showReportSpamDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

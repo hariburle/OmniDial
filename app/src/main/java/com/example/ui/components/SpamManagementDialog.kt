@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,13 +60,23 @@ fun SpamManagementDialog(
     onRemoveSpam: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+
     var searchQuery by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
     var newNumber by remember { mutableStateOf("") }
     var newTag by remember { mutableStateOf("Manual Block") }
 
-    var autoBlockCarrierSpam by remember { mutableStateOf(true) }
-    var silenceUnknownPrivate by remember { mutableStateOf(false) }
+    var autoBlockCarrierSpam by remember {
+        mutableStateOf(prefs.getBoolean("auto_block_carrier_spam", true))
+    }
+    var silenceUnknownPrivate by remember {
+        mutableStateOf(prefs.getBoolean("silence_unknown_private", false))
+    }
+    var blockTelemarketersRobocalls by remember {
+        mutableStateOf(prefs.getBoolean("block_telemarketers_robocalls", true))
+    }
 
     val filteredSpam = remember(spamNumbers, searchQuery) {
         if (searchQuery.isBlank()) spamNumbers
@@ -185,8 +196,9 @@ fun SpamManagementDialog(
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // 1. Auto-Block Carrier Spam
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -206,7 +218,64 @@ fun SpamManagementDialog(
                             }
                             Switch(
                                 checked = autoBlockCarrierSpam,
-                                onCheckedChange = { autoBlockCarrierSpam = it }
+                                onCheckedChange = {
+                                    autoBlockCarrierSpam = it
+                                    prefs.edit().putBoolean("auto_block_carrier_spam", it).apply()
+                                }
+                            )
+                        }
+
+                        // 2. Block Telemarketers & Robocalls Preset
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Auto-Block Telemarketers & Robocalls",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Screen and silence numbers tagged with spam reports",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = blockTelemarketersRobocalls,
+                                onCheckedChange = {
+                                    blockTelemarketersRobocalls = it
+                                    prefs.edit().putBoolean("block_telemarketers_robocalls", it).apply()
+                                }
+                            )
+                        }
+
+                        // 3. Silence Unknown & Private Callers Preset
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Silence Unknown & Private Numbers",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Mute ringtone for callers not in your contacts or favorites",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = silenceUnknownPrivate,
+                                onCheckedChange = {
+                                    silenceUnknownPrivate = it
+                                    prefs.edit().putBoolean("silence_unknown_private", it).apply()
+                                }
                             )
                         }
                     }

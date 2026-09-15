@@ -463,6 +463,10 @@ class MainViewModel(
     val automationLogs: StateFlow<List<AutomationLog>> = repository.recentLogs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val isRefreshingRecents = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val isRefreshingContacts = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var hasSeededInitialCalls = false
+
     init {
         refreshContacts()
         refreshRecentCalls()
@@ -470,16 +474,6 @@ class MainViewModel(
         refreshLocalBackups()
         registerContactsObserver()
         registerCallLogObserver()
-        viewModelScope.launch {
-            repository.localContacts.collect {
-                refreshContacts()
-            }
-        }
-        viewModelScope.launch {
-            repository.recentCalls.collect {
-                refreshRecentCalls()
-            }
-        }
         viewModelScope.launch(Dispatchers.IO) {
             removeSpam("+1 469-731-3343")
             removeSpam("4697313343")
@@ -487,6 +481,7 @@ class MainViewModel(
     }
 
     fun refreshRecentCalls() {
+        if (!isRefreshingRecents.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
@@ -564,23 +559,28 @@ class MainViewModel(
                     }
                 }
 
-                // Fresh install seed: if Room database was empty, seed Room with system call history
-                if (roomCalls.isEmpty() && systemCalls.isNotEmpty()) {
-                    systemCalls.take(50).forEach { sysCall ->
+                // Immediate UI update so user never experiences an empty recents screen
+                _combinedRecentCalls.value = deduplicated
+
+                // Fresh install seed: if Room database was empty, seed Room with system call history once in background
+                if (roomCalls.isEmpty() && systemCalls.isNotEmpty() && !hasSeededInitialCalls) {
+                    hasSeededInitialCalls = true
+                    systemCalls.take(30).forEach { sysCall ->
                         try {
                             repository.insertRecentCall(sysCall.copy(id = 0L))
-                        } catch (_: Exception) {}
+                        } catch (_: Throwable) {}
                     }
                 }
-
-                _combinedRecentCalls.value = deduplicated
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                isRefreshingRecents.set(false)
             }
         }
     }
 
     fun refreshContacts() {
+        if (!isRefreshingContacts.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
@@ -635,6 +635,8 @@ class MainViewModel(
                 syncWithDeviceContacts()
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                isRefreshingContacts.set(false)
             }
         }
     }

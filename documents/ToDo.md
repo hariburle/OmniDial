@@ -31,16 +31,16 @@
 
 ### 🚀 Phase 9 (Minor Release — v1.2.0): E.164 Number Intelligence & Truecaller-Grade Spam Defense
 *Core parsing upgrade, automated blocking presets, and after-call quick action card.*
-- [ ] **Task 9.1: Google `libphonenumber` E.164 Normalization Engine**
+- [x] **Task 9.1: Google `libphonenumber` E.164 Normalization Engine**
   - *Goal*: Replace ad-hoc string sanitization with strict E.164 parsing, international dialing code detection, and national format handling.
   - *Deliverable*: Integrate `com.googlecode.libphonenumber:libphonenumber` across T9 search, contact matching, WhatsApp dispatch, and call redirection.
-- [ ] **Task 9.2: Indexed `normalized_number` Database Columns**
+- [x] **Task 9.2: Indexed `normalized_number` Database Columns**
   - *Goal*: Guarantee $O(1)$ sub-millisecond lookup latency during incoming call broadcasts.
   - *Deliverable*: Add indexed `normalized_number` columns across `recent_calls`, `favorite_contacts`, and `offline_spam_numbers` tables in Room DB.
-- [ ] **Task 9.3: Automated Spam Auto-Block Presets**
+- [x] **Task 9.3: Automated Spam Auto-Block Presets**
   - *Goal*: Provide one-tap defense presets in Spam Management.
   - *Deliverable*: Auto-block top spammers (score > threshold), private/restricted numbers, and foreign prefix wildcards before phone rings.
-- [ ] **Task 9.4: Smart After-Call Quick Action Card**
+- [x] **Task 9.4: Smart After-Call Quick Action Card**
   - *Goal*: Provide immediate post-call utility upon call termination.
   - *Deliverable*: 4-second bottom sheet offering 1-tap "Save Contact", "Block & Report Spam", "WhatsApp Message", and "Set Reminder".
 

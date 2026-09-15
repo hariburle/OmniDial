@@ -19,6 +19,7 @@ import com.example.data.AutomationLog
 import com.example.data.CallerRule
 import com.example.data.RecentCall
 import com.example.util.ContactHelper
+import com.example.util.PhoneNumberNormalizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -158,9 +159,32 @@ object CallManager {
         val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
 
         val isWhitelisted = isWhitelistedOrRuleMatched(context, number)
-        val isCarrierSpamThreat = isIncoming && !isWhitelisted && isCarrierSpam(call, number, name)
-        if (isCarrierSpamThreat) {
-            Log.w(TAG, "Carrier-level spam detected for incoming call from $number. Auto-rejecting before ringing.")
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val autoBlockCarrier = prefs.getBoolean("auto_block_carrier_spam", true)
+        val blockSpamPreset = prefs.getBoolean("block_telemarketers_robocalls", true)
+        val silenceUnknownPrivate = prefs.getBoolean("silence_unknown_private", false)
+
+        val normalizedNumber = PhoneNumberNormalizer.toE164(number)
+        val matchedSpamNumber = if (isIncoming && !isWhitelisted) {
+            try {
+                runBlocking {
+                    val dao = AppDatabase.getInstance(context).appDao()
+                    dao.getSpamByNormalizedNumber(normalizedNumber) ?: dao.getSpamByNumber(number, normalizedNumber)
+                }
+            } catch (_: Exception) { null }
+        } else null
+
+        val isDatabaseSpam = matchedSpamNumber != null
+        val isCarrierSpamThreat = isIncoming && !isWhitelisted && autoBlockCarrier && isCarrierSpam(call, number, name)
+        val shouldAutoDeclineSpam = (isCarrierSpamThreat || (isDatabaseSpam && blockSpamPreset))
+
+        if (shouldAutoDeclineSpam) {
+            val spamReason = when {
+                matchedSpamNumber != null -> matchedSpamNumber.label.ifBlank { "Known Spam Number" }
+                isCarrierSpamThreat -> "Carrier Spam Filter"
+                else -> "Spam Block Preset"
+            }
+            Log.w(TAG, "Spam blocked ($spamReason) for incoming call from $number. Auto-rejecting before ringing.")
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     call.reject(Call.REJECT_REASON_DECLINED)
@@ -177,8 +201,8 @@ object CallManager {
                     dao.insertAutomationLog(
                         AutomationLog(
                             phoneNumber = number,
-                            ruleName = "Carrier Spam Filter",
-                            actionsSummary = "Auto-rejected inbound carrier-flagged spam call before ringing device",
+                            ruleName = spamReason,
+                            actionsSummary = "Auto-rejected incoming spam call ($spamReason) before ringing device",
                             status = "BLOCKED"
                         )
                     )
@@ -189,13 +213,13 @@ object CallManager {
                             callType = 3,
                             timestamp = System.currentTimeMillis(),
                             durationSeconds = 0,
-                            ruleMatched = "Carrier Spam Filter",
+                            ruleMatched = spamReason,
                             isSpam = true,
-                            note = "Carrier-level spam threat auto-dropped"
+                            note = "$spamReason auto-dropped"
                         )
                     )
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error writing carrier spam log", e)
+                    Log.e(TAG, "Error writing spam log", e)
                 }
             }
             SpamNotificationHelper.showBlockedSpamNotification(context, number, name)
@@ -241,18 +265,24 @@ object CallManager {
         CallForegroundService.start(context)
         OngoingCallNotificationHelper.showCallNotification(context, callInfo)
 
-        // Check Do Not Disturb (DND) status
+        // Check Do Not Disturb (DND) or Silence Unknown/Private status
         try {
-            val isFavoriteCaller = lookedUp?.isStarred == true
-            if (FlipToShhhManager.isDndActive(context)) {
-                val allowed = FlipToShhhManager.isCallerAllowedUnderCurrentDnd(context, isFavoriteCaller)
-                if (!allowed) {
-                    Log.d(TAG, "Incoming call from $number silenced by Do Not Disturb")
-                    FlipToShhhManager.silenceIncomingCallIfRinging(context)
+            val isKnownCaller = (lookedUp != null || favContact != null)
+            if (isIncoming && silenceUnknownPrivate && !isKnownCaller && !isWhitelisted) {
+                Log.d(TAG, "Incoming call from unknown caller $number silenced by Silence Unknown/Private preset")
+                FlipToShhhManager.silenceIncomingCallIfRinging(context)
+            } else {
+                val isFavoriteCaller = lookedUp?.isStarred == true
+                if (FlipToShhhManager.isDndActive(context)) {
+                    val allowed = FlipToShhhManager.isCallerAllowedUnderCurrentDnd(context, isFavoriteCaller)
+                    if (!allowed) {
+                        Log.d(TAG, "Incoming call from $number silenced by Do Not Disturb")
+                        FlipToShhhManager.silenceIncomingCallIfRinging(context)
+                    }
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Error checking DND policy for caller", e)
+            Log.w(TAG, "Error checking DND / silence policy for caller", e)
         }
 
         // Check if selective automation rule matches

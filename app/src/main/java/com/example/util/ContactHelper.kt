@@ -784,6 +784,11 @@ object ContactHelper {
         val s2 = num2.trim()
         if (s1.equals(s2, ignoreCase = true)) return true
 
+        // Libphonenumber Match Check
+        if (PhoneNumberNormalizer.isSamePhoneNumber(s1, s2, context)) {
+            return true
+        }
+
         val clean1 = s1.replace(Regex("[^0-9+]"), "")
         val clean2 = s2.replace(Regex("[^0-9+]"), "")
         if (clean1.isEmpty() || clean2.isEmpty()) return false

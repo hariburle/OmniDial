@@ -18,8 +18,8 @@ android {
     applicationId = "com.aistudio.telecomdialer.hdyzif"
     minSdk = 24
     targetSdk = 36
-    versionCode = 7
-    versionName = "1.1.5"
+    versionCode = 8
+    versionName = "1.2.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -61,9 +61,8 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      isMinifyEnabled = true
-      isShrinkResources = true
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      isMinifyEnabled = false
+      isShrinkResources = false
       signingConfig = signingConfigs.getByName("debug")
     }
   }
@@ -128,6 +127,7 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
+  implementation(libs.libphonenumber)
   // implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   // Uncomment to use Firestore:

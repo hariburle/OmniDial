@@ -1,7 +1,10 @@
 package com.example.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.example.util.PhoneNumberNormalizer
 
 @Entity(tableName = "caller_rules")
 data class CallerRule(
@@ -29,7 +32,10 @@ data class AutomationLog(
     val status: String // "SUCCESS", "EXECUTING", "FAILED"
 )
 
-@Entity(tableName = "recent_calls")
+@Entity(
+    tableName = "recent_calls",
+    indices = [Index(value = ["normalized_number"])]
+)
 data class RecentCall(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val phoneNumber: String,
@@ -44,10 +50,15 @@ data class RecentCall(
     val note: String? = null,
     val reminderTime: Long? = null,
     val callReason: String? = null,
-    val communityTag: String? = null
+    val communityTag: String? = null,
+    @ColumnInfo(name = "normalized_number")
+    val normalizedNumber: String = PhoneNumberNormalizer.toE164(phoneNumber)
 )
 
-@Entity(tableName = "favorite_contacts")
+@Entity(
+    tableName = "favorite_contacts",
+    indices = [Index(value = ["normalized_number"])]
+)
 data class FavoriteContact(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -57,15 +68,22 @@ data class FavoriteContact(
     val avatarColor: Long = 0xFF2563EB,
     val photoUri: String? = null,
     val speedDialSlot: Int? = null, // 1 to 9
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    @ColumnInfo(name = "normalized_number")
+    val normalizedNumber: String = PhoneNumberNormalizer.toE164(phoneNumber)
 )
 
-@Entity(tableName = "offline_spam_numbers")
+@Entity(
+    tableName = "offline_spam_numbers",
+    indices = [Index(value = ["normalized_number"])]
+)
 data class SpamNumber(
     @PrimaryKey val phoneNumber: String,
     val label: String = "Suspected Spam",
     val reportCount: Int = 1,
-    val isBlocked: Boolean = true
+    val isBlocked: Boolean = true,
+    @ColumnInfo(name = "normalized_number")
+    val normalizedNumber: String = PhoneNumberNormalizer.toE164(phoneNumber)
 )
 
 @Entity(tableName = "ignored_contacts")

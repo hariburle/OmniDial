@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +12,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,44 +22,57 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE recent_calls ADD COLUMN normalized_number TEXT NOT NULL DEFAULT ''")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_recent_calls_normalized_number ON recent_calls(normalized_number)")
+                } catch (_: Throwable) {}
+                try {
+                    db.execSQL("ALTER TABLE favorite_contacts ADD COLUMN normalized_number TEXT NOT NULL DEFAULT ''")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_favorite_contacts_normalized_number ON favorite_contacts(normalized_number)")
+                } catch (_: Throwable) {}
+                try {
+                    db.execSQL("ALTER TABLE offline_spam_numbers ADD COLUMN isBlocked INTEGER NOT NULL DEFAULT 1")
+                } catch (_: Throwable) {}
+                try {
+                    db.execSQL("ALTER TABLE offline_spam_numbers ADD COLUMN normalized_number TEXT NOT NULL DEFAULT ''")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_offline_spam_numbers_normalized_number ON offline_spam_numbers(normalized_number)")
+                } catch (_: Throwable) {}
+            }
+        }
+
+        private val MIGRATION_9_11 = object : Migration(9, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
+        private val MIGRATION_8_11 = object : Migration(8, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "telecom_dialer_db"
-                ).fallbackToDestructiveMigration(dropAllTables = true)
+                )
+                .addMigrations(MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
+                .fallbackToDestructiveMigration(dropAllTables = false)
+                .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = false)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
-                        CoroutineScope(Dispatchers.IO).launch {
-                            val dao = getInstance(context).appDao()
-                            // Seed Offline Spam Database
-                            dao.insertSpamNumber(
-                                SpamNumber(
-                                    phoneNumber = "+18005550199",
-                                    label = "Robocall / Auto-dialer",
-                                    reportCount = 428,
-                                    isBlocked = true
-                                )
-                            )
-                            dao.insertSpamNumber(
-                                SpamNumber(
-                                    phoneNumber = "+18885550144",
-                                    label = "Suspected Fraud / IRS Scam",
-                                    reportCount = 890,
-                                    isBlocked = true
-                                )
-                            )
-                            dao.insertSpamNumber(
-                                SpamNumber(
-                                    phoneNumber = "+19005550123",
-                                    label = "High Risk Telemarketer",
-                                    reportCount = 312,
-                                    isBlocked = true
-                                )
-                            )
-                        }
+                        // Seed default offline spam numbers safely directly via SQLite without triggering recursive DAO instantiation
+                        try {
+                            db.execSQL("INSERT OR IGNORE INTO offline_spam_numbers (phoneNumber, label, reportCount, isBlocked, normalized_number) VALUES ('+18005550199', 'Robocall / Auto-dialer', 428, 1, '+18005550199')")
+                            db.execSQL("INSERT OR IGNORE INTO offline_spam_numbers (phoneNumber, label, reportCount, isBlocked, normalized_number) VALUES ('+18885550144', 'Suspected Fraud / IRS Scam', 890, 1, '+18885550144')")
+                            db.execSQL("INSERT OR IGNORE INTO offline_spam_numbers (phoneNumber, label, reportCount, isBlocked, normalized_number) VALUES ('+19005550123', 'High Risk Telemarketer', 312, 1, '+19005550123')")
+                        } catch (_: Throwable) {}
                     }
                 }).build()
                 INSTANCE = instance
