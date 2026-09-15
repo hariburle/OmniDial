@@ -6,9 +6,18 @@
 
 ## 🛠️ [Unreleased]
 
-### ⚡ Performance & Polish
-- **Instant Keypad & Tab Switching**: Eliminated the tab switching delay when navigating to the Keypad panel from Contacts or Rules by offloading contact normalization, favorite cross-referencing, and T9 candidate matching to background worker threads via `searchContacts` StateFlow.
-- **Pre-Warmed Viewport Retention**: Configured `HorizontalPager` with `beyondViewportPageCount = 4` so all 5 panels remain pre-warmed in memory, delivering zero-lag swipe and bottom tab transitions.
+---
+
+## 🚀 [v1.1.5] — Build 7 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Instant Keypad & Screen Switching**: Switching to the Keypad tab from Contacts, Rules, or Favorites is now completely instantaneous with zero lag or frame stutter, even with massive contact books.
+- **Pre-Warmed Navigation**: Smooth swiping across all five core panels with zero hesitation or blank loading flickers.
+
+### 🔧 Technical / Architecture Notes
+- **Background Contact Ingestion**: Offloaded contact deduplication, favorite mapping, and nickname resolution from the UI composition thread to a background coroutine flow (`searchContacts` on `Dispatchers.Default`) in `MainViewModel`.
+- **Pre-Warmed Viewport Retention**: Configured `HorizontalPager` with `beyondViewportPageCount = 4` so all 5 panels remain pre-warmed in memory.
+- Incremented `versionCode` to 7 and `versionName` to `"1.1.5"` in `app/build.gradle.kts`.
 
 ---
 

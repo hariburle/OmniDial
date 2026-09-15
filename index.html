@@ -165,20 +165,26 @@
 
     /* Release Notes Section */
     .release-section { margin-bottom: 60px; }
-    .release-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 20px; padding: 32px; margin-bottom: 24px; transition: border-color 0.2s ease; }
-    .release-card.latest { border-color: rgba(37, 211, 102, 0.4); box-shadow: 0 10px 30px -10px rgba(37, 211, 102, 0.15); }
-    .release-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; }
+    details.release-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 20px; padding: 24px 28px; margin-bottom: 18px; transition: all 0.2s ease; display: block; }
+    details.release-card[open] { padding-bottom: 28px; }
+    details.release-card.latest { border-color: rgba(37, 211, 102, 0.4); box-shadow: 0 10px 30px -10px rgba(37, 211, 102, 0.15); }
+    summary.release-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; cursor: pointer; list-style: none; user-select: none; }
+    summary.release-header::-webkit-details-marker { display: none; }
     .release-title-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .release-version { font-size: 1.4rem; font-weight: 800; color: var(--text); }
+    .release-toggle-indicator { font-size: 0.85rem; color: var(--text-muted); margin-left: 8px; transition: transform 0.2s ease; display: inline-block; }
+    details[open] .release-toggle-indicator { transform: rotate(180deg); }
     .release-badge { font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px; }
     .release-badge.latest { background: rgba(37, 211, 102, 0.15); color: var(--whatsapp); border: 1px solid rgba(37, 211, 102, 0.35); }
     .release-badge.prior { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.25); }
     .release-date { font-size: 0.88rem; color: var(--text-muted); }
+    .release-actions { display: flex; align-items: center; gap: 12px; }
     .release-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 10px; font-weight: 700; font-size: 0.9rem; text-decoration: none; transition: all 0.2s ease; }
     .release-btn.primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; }
     .release-btn.primary:hover { background: #1d4ed8; }
     .release-btn.secondary { background: #0f172a; color: var(--text); border: 1px solid var(--surface-border); }
     .release-btn.secondary:hover { background: #1e293b; border-color: #64748b; }
+    .release-content { margin-top: 20px; padding-top: 18px; border-top: 1px solid rgba(51, 65, 85, 0.6); }
     .release-notes-list { list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 12px; }
     .release-notes-list li { position: relative; padding-left: 24px; font-size: 0.95rem; color: #cbd5e1; line-height: 1.5; }
     .release-notes-list li::before { content: "•"; position: absolute; left: 8px; color: var(--primary-light); font-weight: bold; font-size: 1.2rem; line-height: 1; top: -1px; }
@@ -197,7 +203,7 @@
           <div class="logo-icon">📞</div>
           <span>OmniDial</span>
         </div>
-        <span class="version-tag">v1.1.4 Release</span>
+        <span class="version-tag">v1.1.5 Release</span>
       </div>
     </header>
 
@@ -206,9 +212,9 @@
       <h1>Unified Voice & Messaging<br><span>The OmniDial Experience</span></h1>
       <p>A fast, modern Android default phone dialer. Integrated dual-channel calling (Cellular & WhatsApp), caller automation rules, instant T9 keypad search, and speed dial.</p>
       <div class="cta-group">
-        <a href="docs/apks/OmniDial-v1.1.4.apk" download="OmniDial-v1.1.4.apk" class="btn btn-primary">
+        <a href="apks/OmniDial-v1.1.5.apk" download="OmniDial-v1.1.5.apk" class="btn btn-primary">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          Download OmniDial v1.1.4 APK
+          Download OmniDial v1.1.5 APK
         </a>
         <a href="#releases" class="btn btn-secondary">Release Notes & Versions</a>
         <a href="#setup" class="btn btn-secondary">Installation Guide</a>
@@ -424,146 +430,202 @@
         <p>Review change logs and download current or prior releases for your Android device.</p>
       </div>
 
-      <!-- Version 1.1.4 (Latest) -->
-      <div class="release-card latest">
-        <div class="release-header">
+      <!-- Version 1.1.5 (Latest) -->
+      <details class="release-card latest" open>
+        <summary class="release-header">
+          <div>
+            <div class="release-title-group">
+              <span class="release-version">OmniDial v1.1.5</span>
+              <span class="release-badge latest">Latest Release</span>
+              <span class="release-toggle-indicator">▼</span>
+            </div>
+            <div class="release-date">Build 7 • Released September 2026</div>
+          </div>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.1.5.apk" download="OmniDial-v1.1.5.apk" class="release-btn primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download APK (v1.1.5)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>Instant Keypad & Screen Switching:</strong> Navigating to the Keypad tab from Contacts, Rules, or Favorites is now immediate with zero delay or freeze, even with hundreds of contacts.</li>
+            <li><strong>Fluid Screen Transitions:</strong> All five main panels stay pre-warmed in memory, giving you smooth, buttery swipes with zero pause.</li>
+          </ul>
+        </div>
+      </details>
+
+      <!-- Version 1.1.4 (Prior Release) -->
+      <details class="release-card">
+        <summary class="release-header">
           <div>
             <div class="release-title-group">
               <span class="release-version">OmniDial v1.1.4</span>
-              <span class="release-badge latest">Latest Release</span>
+              <span class="release-badge prior">Prior Release</span>
+              <span class="release-toggle-indicator">▼</span>
             </div>
             <div class="release-date">Build 6 • Released September 2026</div>
           </div>
-          <a href="docs/apks/OmniDial-v1.1.4.apk" download="OmniDial-v1.1.4.apk" class="release-btn primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download APK (v1.1.4)
-          </a>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.1.4.apk" download="OmniDial-v1.1.4.apk" class="release-btn secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Prior APK (v1.1.4)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>One-Tap Automatic Backups:</strong> Save all your rules, contacts, and dialer preferences with a single tap of "Backup Now". No confusing file paths or folder selection.</li>
+            <li><strong>Instant Backup & Restore List:</strong> Automatically detects your saved backups and displays them clearly with timestamps and file sizes for immediate one-tap restore.</li>
+            <li><strong>Cross-Device File Transfer:</strong> Effortlessly import and restore backup files copied from another phone or cloud drive via the "Browse Files" picker.</li>
+          </ul>
         </div>
-        <ul class="release-notes-list">
-          <li><strong>One-Tap Automatic Backups:</strong> Save all your rules, contacts, and dialer preferences with a single tap of "Backup Now". No confusing file paths or folder selection.</li>
-          <li><strong>Instant Backup & Restore List:</strong> Automatically detects your saved backups and displays them clearly with timestamps and file sizes for immediate one-tap restore.</li>
-          <li><strong>Cross-Device File Transfer:</strong> Effortlessly import and restore backup files copied from another phone or cloud drive via the "Browse Files" picker.</li>
-        </ul>
-      </div>
+      </details>
 
       <!-- Version 1.1.3 (Prior Release) -->
-      <div class="release-card">
-        <div class="release-header">
+      <details class="release-card">
+        <summary class="release-header">
           <div>
             <div class="release-title-group">
               <span class="release-version">OmniDial v1.1.3</span>
               <span class="release-badge prior">Prior Release</span>
+              <span class="release-toggle-indicator">▼</span>
             </div>
             <div class="release-date">Build 5 • Released September 2026</div>
           </div>
-          <a href="docs/apks/OmniDial-v1.1.3.apk" download="OmniDial-v1.1.3.apk" class="release-btn secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Prior APK (v1.1.3)
-          </a>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.1.3.apk" download="OmniDial-v1.1.3.apk" class="release-btn secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Prior APK (v1.1.3)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>Tactile Sensory Haptics:</strong> Feel crisp tactile feedback on key presses, speed-dial long presses, and call connection.</li>
+            <li><strong>Smoother In-Call Screen:</strong> Optimized active call timers to keep in-call buttons fast and fluid.</li>
+          </ul>
         </div>
-        <ul class="release-notes-list">
-          <li><strong>Tactile Sensory Haptics:</strong> Feel crisp tactile feedback on key presses, speed-dial long presses, and call connection.</li>
-          <li><strong>Smoother In-Call Screen:</strong> Optimized active call timers to keep in-call buttons fast and fluid.</li>
-        </ul>
-      </div>
+      </details>
 
       <!-- Version 1.1.2 (Prior Release) -->
-      <div class="release-card">
-        <div class="release-header">
+      <details class="release-card">
+        <summary class="release-header">
           <div>
             <div class="release-title-group">
               <span class="release-version">OmniDial v1.1.2</span>
               <span class="release-badge prior">Prior Release</span>
+              <span class="release-toggle-indicator">▼</span>
             </div>
             <div class="release-date">Build 4 • Released September 2026</div>
           </div>
-          <a href="docs/apks/OmniDial-v1.1.2.apk" download="OmniDial-v1.1.2.apk" class="release-btn secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Prior APK (v1.1.2)
-          </a>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.1.2.apk" download="OmniDial-v1.1.2.apk" class="release-btn secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Prior APK (v1.1.2)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>Instant International WhatsApp & Texting:</strong> When you type a contact's number on the dial pad, WhatsApp and text messages open directly to that person even if you typed their number without the country code.</li>
+            <li><strong>Fixed WhatsApp "Contact Not Found" Errors:</strong> Solved an issue where messaging an overseas contact could fail with an invalid number error when dialed without a country prefix.</li>
+            <li><strong>Accurate One-Tap Calling & Messaging:</strong> Action buttons on the dial pad always connect using your contact's full, saved international number.</li>
+          </ul>
         </div>
-        <ul class="release-notes-list">
-          <li><strong>Instant International WhatsApp & Texting:</strong> When you type a contact's number on the dial pad, WhatsApp and text messages open directly to that person even if you typed their number without the country code.</li>
-          <li><strong>Fixed WhatsApp "Contact Not Found" Errors:</strong> Solved an issue where messaging an overseas contact could fail with an invalid number error when dialed without a country prefix.</li>
-          <li><strong>Accurate One-Tap Calling & Messaging:</strong> Action buttons on the dial pad always connect using your contact's full, saved international number.</li>
-        </ul>
-      </div>
+      </details>
 
       <!-- Version 1.1.1 (Prior Release) -->
-      <div class="release-card">
-        <div class="release-header">
+      <details class="release-card">
+        <summary class="release-header">
           <div>
             <div class="release-title-group">
               <span class="release-version">OmniDial v1.1.1</span>
               <span class="release-badge prior">Prior Release</span>
+              <span class="release-toggle-indicator">▼</span>
             </div>
             <div class="release-date">Build 3 • Released September 2026</div>
           </div>
-          <a href="docs/apks/OmniDial-v1.1.1.apk" download="OmniDial-v1.1.1.apk" class="release-btn secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Prior APK (v1.1.1)
-          </a>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.1.1.apk" download="OmniDial-v1.1.1.apk" class="release-btn secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Prior APK (v1.1.1)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>Search by Nicknames:</strong> Find anyone quickly by typing their nickname directly on the dial pad.</li>
+            <li><strong>Speed Dial & Letters Together:</strong> Favorite speed dial names appear on top of each number key and classic letters below by default.</li>
+            <li><strong>Steady, Non-Jumping Keypad:</strong> Dial pad action buttons stay fixed in place with zero screen jumping while typing numbers.</li>
+            <li><strong>Smart Country Code Support for WhatsApp & SMS:</strong> Automatically attaches country codes so messaging and calling always work seamlessly without typing prefixes manually.</li>
+            <li><strong>Cleaner Voicemail Key:</strong> Simplified the number 1 key with a clean, single Voicemail button.</li>
+            <li><strong>Faster Speed Dialing:</strong> Long-pressing speed dial keys offers a large, instant call button, and unassigned keys prompt to add new shortcuts.</li>
+            <li><strong>Instant Contact Names in History:</strong> Call logs immediately update names, nicknames, and photos whenever contacts are created or changed.</li>
+            <li><strong>Instant Favorite Updates:</strong> Starring contacts updates immediately across your entire phone app.</li>
+          </ul>
         </div>
-        <ul class="release-notes-list">
-          <li><strong>Search by Nicknames:</strong> Find anyone quickly by typing their nickname directly on the dial pad.</li>
-          <li><strong>Speed Dial & Letters Together:</strong> Favorite speed dial names appear on top of each number key and classic letters below by default.</li>
-          <li><strong>Steady, Non-Jumping Keypad:</strong> Dial pad action buttons stay fixed in place with zero screen jumping while typing numbers.</li>
-          <li><strong>Smart Country Code Support for WhatsApp & SMS:</strong> Automatically attaches country codes so messaging and calling always work seamlessly without typing prefixes manually.</li>
-          <li><strong>Cleaner Voicemail Key:</strong> Simplified the number 1 key with a clean, single Voicemail button.</li>
-          <li><strong>Faster Speed Dialing:</strong> Long-pressing speed dial keys offers a large, instant call button, and unassigned keys prompt to add new shortcuts.</li>
-          <li><strong>Instant Contact Names in History:</strong> Call logs immediately update names, nicknames, and photos whenever contacts are created or changed.</li>
-          <li><strong>Instant Favorite Updates:</strong> Starring contacts updates immediately across your entire phone app.</li>
-        </ul>
-      </div>
+      </details>
 
       <!-- Version 1.1.0 (Prior Release) -->
-      <div class="release-card">
-        <div class="release-header">
+      <details class="release-card">
+        <summary class="release-header">
           <div>
             <div class="release-title-group">
               <span class="release-version">OmniDial v1.1.0</span>
               <span class="release-badge prior">Prior Release</span>
+              <span class="release-toggle-indicator">▼</span>
             </div>
             <div class="release-date">Build 2 • Released September 2026</div>
           </div>
-          <a href="docs/apks/OmniDial-v1.1.0.apk" download="OmniDial-v1.1.0.apk" class="release-btn secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Prior APK (v1.1.0)
-          </a>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.1.0.apk" download="OmniDial-v1.1.0.apk" class="release-btn secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Prior APK (v1.1.0)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>Cleaner, 4-Button Keypad:</strong> Reach anyone faster with 4 organized buttons on your dial pad: Send Text, Regular Phone Call, WhatsApp Message, or WhatsApp Voice Call.</li>
+            <li><strong>Smart Call Suggestions:</strong> OmniDial gently highlights how you usually contact each person, so you never have to pause and remember whether to call on WhatsApp or regular mobile.</li>
+            <li><strong>Car Bluetooth & Hands-Free Calling:</strong> When making calls from your car dashboard, smartwatch, or Bluetooth headset, OmniDial automatically connects over WhatsApp if that's your preferred way to speak with that contact.</li>
+            <li><strong>Pick Default Phone Numbers:</strong> When adding a favorite contact who has multiple numbers (like home, work, and mobile), you can now choose the exact number to dial by default.</li>
+            <li><strong>Easier to See in Dark Mode:</strong> WhatsApp buttons and symbols now have clean, high-contrast outlines so they stand out crisply against dark backgrounds and bright sunlight.</li>
+            <li><strong>Friendlier Contact Nicknames:</strong> Add and edit personal nicknames that appear front-and-center on your favorites grid, with official names neatly subtitled below.</li>
+          </ul>
         </div>
-        <ul class="release-notes-list">
-          <li><strong>Cleaner, 4-Button Keypad:</strong> Reach anyone faster with 4 organized buttons on your dial pad: Send Text, Regular Phone Call, WhatsApp Message, or WhatsApp Voice Call.</li>
-          <li><strong>Smart Call Suggestions:</strong> OmniDial gently highlights how you usually contact each person, so you never have to pause and remember whether to call on WhatsApp or regular mobile.</li>
-          <li><strong>Car Bluetooth & Hands-Free Calling:</strong> When making calls from your car dashboard, smartwatch, or Bluetooth headset, OmniDial automatically connects over WhatsApp if that's your preferred way to speak with that contact.</li>
-          <li><strong>Pick Default Phone Numbers:</strong> When adding a favorite contact who has multiple numbers (like home, work, and mobile), you can now choose the exact number to dial by default.</li>
-          <li><strong>Easier to See in Dark Mode:</strong> WhatsApp buttons and symbols now have clean, high-contrast outlines so they stand out crisply against dark backgrounds and bright sunlight.</li>
-          <li><strong>Friendlier Contact Nicknames:</strong> Add and edit personal nicknames that appear front-and-center on your favorites grid, with official names neatly subtitled below.</li>
-        </ul>
-      </div>
+      </details>
 
       <!-- Version 1.0.0 (Prior Release) -->
-      <div class="release-card">
-        <div class="release-header">
+      <details class="release-card">
+        <summary class="release-header">
           <div>
             <div class="release-title-group">
               <span class="release-version">OmniDial v1.0.0</span>
               <span class="release-badge prior">Prior Release</span>
+              <span class="release-toggle-indicator">▼</span>
             </div>
             <div class="release-date">Build 1 • Released September 2026</div>
           </div>
-          <a href="docs/apks/OmniDial-v1.0.0.apk" download="OmniDial-v1.0.0.apk" class="release-btn secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Prior APK (v1.0.0)
-          </a>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.0.0.apk" download="OmniDial-v1.0.0.apk" class="release-btn secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Prior APK (v1.0.0)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>Two Ways to Call in One App:</strong> Seamlessly make regular carrier phone calls or WhatsApp voice calls without switching back and forth between different apps.</li>
+            <li><strong>Smart Gate & Intercom Buzzer:</strong> Auto-answers buzzer calls from your apartment building or front gate, keys in the door code, and hangs up automatically.</li>
+            <li><strong>Instant T9 Keypad Search:</strong> Start typing letters or digits on the dial pad to instantly find contacts and recent calls.</li>
+            <li><strong>Flip to Silence:</strong> Simply turn your phone face-down to immediately silence an incoming ring without rejecting the call.</li>
+            <li><strong>Customizable VIP Favorites Grid:</strong> Keep your top contacts within thumb's reach with customizable cards and 1-tap speed dial shortcuts.</li>
+          </ul>
         </div>
-        <ul class="release-notes-list">
-          <li><strong>Two Ways to Call in One App:</strong> Seamlessly make regular carrier phone calls or WhatsApp voice calls without switching back and forth between different apps.</li>
-          <li><strong>Smart Gate & Intercom Buzzer:</strong> Auto-answers buzzer calls from your apartment building or front gate, keys in the door code, and hangs up automatically.</li>
-          <li><strong>Instant T9 Keypad Search:</strong> Start typing letters or digits on the dial pad to instantly find contacts and recent calls.</li>
-          <li><strong>Flip to Silence:</strong> Simply turn your phone face-down to immediately silence an incoming ring without rejecting the call.</li>
-          <li><strong>Customizable VIP Favorites Grid:</strong> Keep your top contacts within thumb's reach with customizable cards and 1-tap speed dial shortcuts.</li>
-        </ul>
-      </div>
+      </details>
     </section>
 
     <section id="setup">

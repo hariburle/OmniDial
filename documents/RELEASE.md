@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.1.5` | `7` | Sep 2026 | Instant, lag-free switching to the Keypad panel and fluid tab transitions. |
 | `1.1.4` | `6` | Sep 2026 | Simplified automatic backup saving and one-tap restore without confusing file prompts. |
 | `1.1.3` | `5` | Sep 2026 | Added crisp vibration feedback when typing on the dial pad and smoother in-call controls. |
 | `1.1.2` | `4` | Sep 2026 | Fixes an issue where messaging or calling an international contact from the dial pad could fail if typed without their country code. |
@@ -16,37 +17,54 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ---
 
-## Release 1.1.4 Change Log
+<details open>
+<summary><h3>🚀 Release 1.1.5 (Latest) — Performance & Instant Switching</h3></summary>
+
+### What's New & Improvements:
+- **Instant Keypad Switching**: Tapping or swiping to the Keypad from Contacts, Rules, or Favorites is now immediate with zero delay or freeze, even when carrying hundreds of contacts.
+- **Fluid Screen Transitions**: All five main app screens stay pre-warmed in memory, giving you smooth, buttery swipes with zero pause.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.1.4 — Automatic Backups & File Manager</h3></summary>
 
 ### What's New & Improvements:
 - **One-Tap Automatic Backups**: Backing up your settings, caller rules, speed dials, and favorites is now as easy as tapping a single "Backup Now" button. No more navigating confusing file export screens or picking folder paths.
 - **Instant Restore List**: The app automatically detects all your saved backups and displays them in a clean list with their date and file size. Restoring or removing an old backup takes only one tap.
 - **Simple Cross-Device Transfer**: A "Browse Files" button allows you to effortlessly restore backup files copied from another phone or downloaded from cloud storage.
 
----
+</details>
 
-## Release 1.1.3 Change Log
+<br>
+
+<details>
+<summary><h3>📦 Release 1.1.3 — Tactile Haptics & Fluid In-Call UI</h3></summary>
 
 ### What's New & Improvements:
 - **Tactile Haptic Keystrokes**: Feel subtle, satisfying vibrations when dialing numbers, long-pressing speed dials, or connecting a call.
 - **Smoother In-Call Screen**: Call timer updates no longer cause visual hiccups, keeping call controls responsive and fluid.
 
----
+</details>
 
----
+<br>
 
-## Release 1.1.2 Change Log
+<details>
+<summary><h3>📦 Release 1.1.2 — International WhatsApp & Texting</h3></summary>
 
 ### What's New & Improvements:
 - **Instant International WhatsApp & Texting**: When you type a contact's number on the dial pad, WhatsApp and text messages now open directly to that person, even if you typed their number without the country code.
 - **Fixed WhatsApp "Contact Not Found" Errors**: Fixed an issue where sending a WhatsApp message to an overseas contact could fail with an "invalid number" error when dialed without a country prefix.
 - **Accurate One-Tap Calling & Messaging**: Tapping WhatsApp Chat, WhatsApp Call, Text, or Phone Call from the dial pad always connects using your contact's complete, saved international number.
 
----
+</details>
 
----
+<br>
 
-## Release 1.1.1 Change Log
+<details>
+<summary><h3>📦 Release 1.1.1 — Nicknames & Speed Dial Keypad</h3></summary>
 
 ### What's New & Improvements:
 - **Search by Nickname**: You can now search for contacts on the dial pad using their nicknames in addition to their full names and phone numbers.
@@ -58,9 +76,12 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 - **Live Contact Names in Call History**: Your recent call history now updates contact names, nicknames, and photos immediately as you save or edit contacts.
 - **Instant Favorite Updates**: Starring or unstarring a contact updates immediately throughout the app without needing a refresh.
 
----
+</details>
 
-## Release 1.1.0 Change Log
+<br>
+
+<details>
+<summary><h3>📦 Release 1.1.0 — 4-Button Dial Pad & Car Redirection</h3></summary>
 
 ### What's New:
 - **Cleaner 4-Button Dial Pad**: Quickly reach anyone with 4 organized buttons on your dial pad: Send Text, Regular Phone Call, WhatsApp Message, or WhatsApp Voice Call.
@@ -74,13 +95,15 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 - **Reliable WhatsApp Call Confirmations**: Fixed an issue where tapping WhatsApp call on favorite cards could accidentally place a regular cellular call or skip confirmation.
 - **Smoother Navigation**: Pressing the Android back button when searching favorites or contacts now cleanly dismisses the search bar rather than exiting the app.
 
+</details>
+
 ---
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v1.1.0.apk` (and alias `OmniDial.apk`)
-- Prior Release: `OmniDial-v1.0.0.apk`
-Hosted directly on GitHub Pages under the `/docs` directory.
+- Latest Version: `OmniDial-v1.1.5.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v1.1.4.apk`, `OmniDial-v1.1.3.apk`, `OmniDial-v1.1.2.apk`, `OmniDial-v1.1.1.apk`, `OmniDial-v1.1.0.apk`
+Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---
 
@@ -88,7 +111,7 @@ Hosted directly on GitHub Pages under the `/docs` directory.
 1. Push repository changes to GitHub (`git push origin main`).
 2. On GitHub, navigate to **Settings > Pages**.
 3. Under **Build and deployment > Source**, select **Deploy from a branch**.
-4. Set branch to `main` and folder to `/docs`, then click **Save**.
+4. Set branch to `main` and folder to `/ (root)`, then click **Save**.
 5. Your download webpage will be live at: `https://<username>.github.io/<repo-name>/`
 
 ---
@@ -100,11 +123,9 @@ Hosted directly on GitHub Pages under the `/docs` directory.
    ```bash
    gradle :app:assembleRelease
    ```
-4. Copy the output APK to versioned files in root and `/docs`:
+4. Copy the output APK to versioned files in `/apks`:
    ```bash
-   cp app/build/outputs/apk/release/app-release-unsigned.apk OmniDial-v<version>.apk
-   cp OmniDial-v<version>.apk docs/OmniDial-v<version>.apk
-   cp OmniDial-v<version>.apk OmniDial.apk
-   cp OmniDial.apk docs/OmniDial.apk
+   cp app/build/outputs/apk/release/app-release-unsigned.apk apks/OmniDial-v<version>.apk
+   cp apks/OmniDial-v<version>.apk apks/OmniDial.apk
    ```
-5. Move `[Unreleased]` in `CHANGELOG.md` to the new version header, update `docs/index.html` & `index.html` release notes, and push to GitHub.
+5. Move `[Unreleased]` in `CHANGELOG.md` to the new version header, update `index.html` release notes, and push to GitHub.
