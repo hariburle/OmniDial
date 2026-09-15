@@ -215,7 +215,7 @@ This document archives all verified and tested test scripts, features, and regre
 ### 23. Task 33 (Phase 7): Multi-Version APK Downloads on Website
 - [x] **Verified** TESTED
 - **Test Steps**:
-  1. Open `docs/index.html` in browser.
+  1. Open `index.html` in browser.
   2. Scroll down to the **Release Notes & Version History** section.
   3. Verify download links for **v1.1.0** (`OmniDial-v1.1.0.apk`) and **v1.0.0** (`OmniDial-v1.0.0.apk`).
 - **Expected Result**:

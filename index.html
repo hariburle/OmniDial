@@ -44,17 +44,16 @@
     .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--surface-border); }
     .btn-secondary:hover { background: #273549; border-color: #475569; }
 
-    /* Mockup Showcase Carousel / Grid */
+    /* Screenshot Showcase Carousel / Grid */
     .showcase-section { margin: 60px 0; }
-    .mockup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 28px; justify-items: center; }
+    .mockup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 28px; justify-items: center; }
     
-    /* Realistic Android Device Frame */
+    /* Realistic Android Device Frame for Screenshots */
     .phone-frame {
-      width: 290px;
-      height: 590px;
+      width: 280px;
       background: #020617;
-      border: 10px solid #1e293b;
-      border-radius: 42px;
+      border: 8px solid #1e293b;
+      border-radius: 36px;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 0 30px rgba(37, 99, 235, 0.15);
       position: relative;
       overflow: hidden;
@@ -66,26 +65,11 @@
       transform: translateY(-8px) scale(1.02);
       box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(37, 99, 235, 0.3);
     }
-    .phone-notch {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 80px;
-      height: 18px;
-      background: #000;
-      border-radius: 20px;
-      z-index: 20;
-    }
-    .phone-screen {
-      flex: 1;
-      padding: 34px 14px 14px;
-      background: #090d16;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      font-size: 11px;
-      user-select: none;
+    .phone-frame img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 28px;
     }
     .phone-title {
       text-align: center;
@@ -229,158 +213,40 @@
       </div>
 
       <div class="mockup-grid">
-        <!-- Mockup 1: Smart T9 Keypad -->
+        <!-- Panel 1: Favorites -->
         <div>
           <div class="phone-frame">
-            <div class="phone-notch"></div>
-            <div class="phone-screen">
-              <div class="mock-header">
-                <span class="mock-title">OmniDial</span>
-                <span style="color: #60a5fa; font-weight: 700; font-size: 10px;">• Active</span>
-              </div>
-              <div class="mock-search">
-                <span>🔍</span>
-                <span>Search contacts (e.g. 5474 = KISH)</span>
-              </div>
+            <img src="screenshots/panel_1_favorites.png" alt="Favorites & Speed Dial Panel" loading="lazy">
+          </div>
+          <div class="phone-title">Speed Dial & Favorites</div>
+          <div class="phone-subtitle">Quick Access Grid with Visual Badges</div>
+        </div>
 
-              <!-- Filtered contacts in T9 -->
-              <div class="mock-contact-item">
-                <div class="mock-avatar" style="background: #2563eb;">KB</div>
-                <div class="mock-contact-info">
-                  <div class="mock-contact-name">Kishan B (547-426)</div>
-                  <div class="mock-contact-sub">Mobile • +1 (555) 019-2834</div>
-                </div>
-                <div class="mock-actions">
-                  <div class="mock-icon-btn wa">💬</div>
-                  <div class="mock-icon-btn phone">📞</div>
-                </div>
-              </div>
-
-              <div class="mock-contact-item">
-                <div class="mock-avatar" style="background: #8b5cf6;">SM</div>
-                <div class="mock-contact-info">
-                  <div class="mock-contact-name">Sarah Miller</div>
-                  <div class="mock-contact-sub">Work • +1 (555) 438-1290</div>
-                </div>
-                <div class="mock-actions">
-                  <div class="mock-icon-btn wa">💬</div>
-                  <div class="mock-icon-btn phone">📞</div>
-                </div>
-              </div>
-
-              <div class="mock-number-display">5474</div>
-
-              <!-- Keypad -->
-              <div class="mock-keypad">
-                <div class="mock-key">1<span>&nbsp;</span></div>
-                <div class="mock-key" style="border-color: #3b82f6;">2<span>ABC</span></div>
-                <div class="mock-key">3<span>DEF</span></div>
-                <div class="mock-key">4<span>GHI</span></div>
-                <div class="mock-key" style="border-color: #3b82f6; background: rgba(59, 130, 246, 0.2);">5<span>JKL</span></div>
-                <div class="mock-key">6<span>MNO</span></div>
-                <div class="mock-key" style="border-color: #3b82f6; background: rgba(59, 130, 246, 0.2);">7<span>PQRS</span></div>
-                <div class="mock-key">8<span>TUV</span></div>
-                <div class="mock-key">9<span>WXYZ</span></div>
-                <div class="mock-key">*<span>&nbsp;</span></div>
-                <div class="mock-key">0<span>+</span></div>
-                <div class="mock-key">#<span>&nbsp;</span></div>
-              </div>
-
-              <!-- Dual Call Actions -->
-              <div class="mock-call-actions">
-                <div class="mock-call-btn mock-call-cellular" title="Cellular Call">📞</div>
-                <div class="mock-call-btn mock-call-wa" title="WhatsApp Call">💬</div>
-              </div>
-            </div>
+        <!-- Panel 2: Keypad -->
+        <div>
+          <div class="phone-frame">
+            <img src="screenshots/panel_2_keypad.png" alt="Smart T9 Keypad Panel" loading="lazy">
           </div>
           <div class="phone-title">Dual-Action Dialer</div>
           <div class="phone-subtitle">Predictive T9 + Instant WhatsApp Button</div>
         </div>
 
-        <!-- Mockup 2: Incoming Call Screen -->
+        <!-- Panel 2: Recents -->
         <div>
           <div class="phone-frame">
-            <div class="phone-notch"></div>
-            <div class="phone-screen" style="background: linear-gradient(180deg, #090d16 0%, #0f172a 100%);">
-              <div class="mock-incall">
-                <div style="text-align: center;">
-                  <span style="font-size: 10px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase;">Incoming Call</span>
-                  <div class="mock-caller-avatar">KB</div>
-                  <div class="mock-caller-name">Kishan Burle</div>
-                  <div class="mock-caller-num">+1 (555) 019-2834 • Mobile</div>
-                  <div class="mock-caller-tag">✓ Verified Contact</div>
-                </div>
-
-                <!-- Action chips -->
-                <div style="display: flex; gap: 8px; justify-content: center;">
-                  <div style="background: #1e293b; border: 1px solid #334155; padding: 6px 10px; border-radius: 20px; font-size: 9px; color: #cbd5e1;">💬 Quick SMS</div>
-                  <div style="background: #1e293b; border: 1px solid #334155; padding: 6px 10px; border-radius: 20px; font-size: 9px; color: #cbd5e1;">🔔 Remind Me</div>
-                </div>
-
-                <!-- Modern Slider -->
-                <div class="mock-slider-track">
-                  <div class="mock-slider-pill">📞</div>
-                  <span class="mock-slider-text">Swipe to Answer →</span>
-                  <div style="width: 34px; height: 34px; border-radius: 50%; background: #ef4444; display: grid; place-items: center; font-size: 12px;">✕</div>
-                </div>
-              </div>
-            </div>
+            <img src="screenshots/panel_2_recents.png" alt="Recent Calls Panel" loading="lazy">
           </div>
-          <div class="phone-title">In-Call Experience</div>
-          <div class="phone-subtitle">Interactive Swipe Slider & Quick Actions</div>
+          <div class="phone-title">Call History & Recents</div>
+          <div class="phone-subtitle">Integrated Cellular & WhatsApp Activity</div>
         </div>
 
-        <!-- Mockup 3: Caller Automation & Rules -->
+        <!-- Panel 3: Contacts -->
         <div>
           <div class="phone-frame">
-            <div class="phone-notch"></div>
-            <div class="phone-screen">
-              <div class="mock-header">
-                <span class="mock-title">Smart Rules & Backup</span>
-                <span class="mock-badge">Automations</span>
-              </div>
-
-              <!-- Rule item 1 -->
-              <div class="mock-rule-card">
-                <div class="mock-rule-head">
-                  <span class="mock-rule-title">VIP Client Auto-Answer</span>
-                  <span class="mock-badge" style="background: rgba(37, 211, 102, 0.2); color: #25D366;">Active</span>
-                </div>
-                <div class="mock-rule-desc">Pattern: +1 (555) 019*<br>Answers in 2s • Audio: Speakerphone</div>
-              </div>
-
-              <!-- Rule item 2 -->
-              <div class="mock-rule-card" style="border-left-color: #8b5cf6;">
-                <div class="mock-rule-head">
-                  <span class="mock-rule-title">Gate Intercom DTMF</span>
-                  <span class="mock-badge" style="background: rgba(139, 92, 246, 0.2); color: #a78bfa;">Active</span>
-                </div>
-                <div class="mock-rule-desc">Answers • Sends DTMF key '9' • Hangs up</div>
-              </div>
-
-              <!-- Rule item 3 -->
-              <div class="mock-rule-card" style="border-left-color: #f59e0b;">
-                <div class="mock-rule-head">
-                  <span class="mock-rule-title">Offline JSON Backup</span>
-                  <span class="mock-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">Export / Import</span>
-                </div>
-                <div class="mock-rule-desc">1-Click JSON backup of rules, favorites sort order, and custom preferences.</div>
-              </div>
-
-              <!-- Quick Stats -->
-              <div style="margin-top: auto; background: #1e293b; border-radius: 12px; padding: 10px; border: 1px solid #334155;">
-                <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 10px; margin-bottom: 6px;">
-                  <span>Default App Status</span>
-                  <span style="color: #25D366;">✓ Default Dialer</span>
-                </div>
-                <div style="font-size: 8.5px; color: #94a3b8;">
-                  Zero cloud telemetry • All rules stored locally on SQLite
-                </div>
-              </div>
-            </div>
+            <img src="screenshots/panel_3_contacts.png" alt="Contacts Management Panel" loading="lazy">
           </div>
-          <div class="phone-title">Caller Automation & Backup</div>
-          <div class="phone-subtitle">Auto-Answer, DTMF & JSON Data Export</div>
+          <div class="phone-title">Contacts Directory</div>
+          <div class="phone-subtitle">Direct Call & Message Actions per Contact</div>
         </div>
       </div>
     </section>
