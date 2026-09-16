@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.2.2` | `10` | Sep 2026 | Default phone number prioritization with DEFAULT badge, and scrollable contacts filter bar above search. |
 | `1.2.1` | `9` | Sep 2026 | Full dual-contact predictive suggestions, instant app-contact recognition, and preserved contact visibility. |
 | `1.2.0` | `8` | Sep 2026 | Architecture modularization, faster call history search, and tamper-proof verified backups. |
 | `1.1.5` | `7` | Sep 2026 | Instant, lag-free switching to the Keypad panel and fluid tab transitions. |
@@ -20,7 +21,19 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.2.1 (Latest) — Predictive Suggestions & In-App Contact Sync</h3></summary>
+<summary><h3>🚀 Release 1.2.2 (Latest) — Default Number Sorting & Filter Bar Improvements</h3></summary>
+
+### What's New & Improvements:
+- **Default Number Prioritization**: When expanding a contact or opening their detail sheet, their default primary phone number is always sorted to the top and clearly marked with a "DEFAULT" badge.
+- **Scrollable Filter Bar**: Top-level contact discovery filters (All, Favorites, Recents, Frequent, Rediscover) are placed in a horizontal scrollable row above the search bar with clear labels and icons.
+- **Contextual Search Input**: The contacts search bar placeholder automatically updates to reflect the active filter category (e.g., "Search in Favorites...", "Search in Recents...").
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.2.1 — Predictive Suggestions & In-App Contact Sync</h3></summary>
 
 ### What's New & Improvements:
 - **Full Dual-Contact Keypad Suggestions**: Dialing a full 10-digit number now accurately lists all associated contacts in the predictive suggestion drawer, including phonebook and in-app contacts sharing a number.

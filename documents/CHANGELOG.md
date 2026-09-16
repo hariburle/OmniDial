@@ -4,6 +4,20 @@
 
 ---
 
+## 🚀 [v1.2.2] — Build 10 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Default Phone Number Prioritization**: Default primary numbers are sorted to position #1 when contacts are expanded or opened in detail sheets, clearly highlighted with a "DEFAULT" badge.
+- **Scrollable Filter Bar Above Search**: Top-level discovery filters are positioned above the contacts search bar in a horizontally scrollable chip row with clear labels and icons.
+- **Contextual Search Field**: Search bar placeholder dynamically displays the selected filter context (`Search in Favorites...`, `Search in Recents...`, etc.).
+
+### 🔧 Technical / Architecture Notes
+- **Number List Reordering Engine**: Updated contact list builders (`DeviceContact` accumulator, `ContactRowItem`, `ContactDetailsBottomSheet`) to check `ContactHelper.isSamePhoneNumber` against `contact.phoneNumber` and place primary matches at index 0.
+- **Filter Chips Migration**: Replaced fixed weight Surface button layout with Material 3 `FilterChip` and `horizontalScroll(rememberScrollState())` to prevent clipping on compact displays.
+- Incremented `versionCode` to 10 and `versionName` to `"1.2.2"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.2.1] — Build 9 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
