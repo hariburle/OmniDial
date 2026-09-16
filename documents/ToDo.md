@@ -57,6 +57,9 @@
 - [x] **Task 10.3: Android 14+ Telecom VoIP Continuity**
   - *Goal*: Integrate VoIP endpoints directly into system-level in-call handling.
   - *Deliverable*: Implement `TelecomManager.addCall()` using `CallAttributesCompat` / `CallAttributes`.
+- [ ] **Task 10.4: Contact-Level Preferred SIM Routing (Cellular)**
+  - *Goal*: Allow users to configure a preferred SIM slot (Always Ask / SIM 1 / SIM 2 / Carrier Name) per contact when using Cellular calling mode.
+  - *Deliverable*: Add preferred SIM selector in contact edit/details sheet, persist preference in local Room storage, and automatically route outgoing cellular calls via the designated SIM.
 
 ---
 

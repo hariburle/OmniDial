@@ -394,7 +394,6 @@ fun MainAppContent(
     val speedDialKeypadDisplay by viewModel.speedDialKeypadDisplay.collectAsStateWithLifecycle()
     val showDialerQuickActions by viewModel.showDialerQuickActions.collectAsStateWithLifecycle()
     val callAnswerStyle by viewModel.callAnswerStyle.collectAsStateWithLifecycle()
-    val favoriteCardStyle by viewModel.favoriteCardStyle.collectAsStateWithLifecycle()
     val swipeToSwitchPanels by viewModel.swipeToSwitchPanels.collectAsStateWithLifecycle()
     val navBarStyle by viewModel.navBarStyle.collectAsStateWithLifecycle()
     val localBackups by viewModel.localBackups.collectAsStateWithLifecycle()
@@ -744,8 +743,6 @@ fun MainAppContent(
                         recentCalls = recentCalls,
                         ignoredContacts = ignoredContacts,
                         confirmFavoritesCall = confirmFavoritesCall,
-                        favoriteCardStyle = favoriteCardStyle,
-                        onSetFavoriteCardStyle = { viewModel.setFavoriteCardStyle(it) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
                         learnedCallModes = learnedCallModes,
@@ -807,6 +804,7 @@ fun MainAppContent(
                         favorites = favorites,
                         rules = rules,
                         deviceContacts = deviceContacts,
+                        activeSims = activeSims,
                         highlightNumber = highlightNumber,
                         isSpamNumber = { num -> viewModel.isSpamNumber(num) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
@@ -959,8 +957,6 @@ fun MainAppContent(
                         favorites = favorites,
                         themeMode = themeMode,
                         onSetThemeMode = { viewModel.setThemeMode(it) },
-                        favoriteCardStyle = favoriteCardStyle,
-                        onSetFavoriteCardStyle = { viewModel.setFavoriteCardStyle(it) },
                         whatsAppCallMode = whatsAppCallMode,
                         onSetWhatsAppCallMode = { viewModel.setWhatsAppCallMode(it) },
                         onResetWhatsAppChoices = { viewModel.resetWhatsAppChoices() },

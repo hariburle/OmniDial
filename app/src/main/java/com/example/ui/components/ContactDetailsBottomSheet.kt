@@ -561,22 +561,43 @@ fun ContactDetailsBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    contact.phoneNumbers.forEachIndexed { index, pn ->
+                    val orderedNumbers = remember(contact) {
+                        val all = if (contact.phoneNumbers.isNotEmpty()) contact.phoneNumbers else listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
+                        if (contact.phoneNumber.isNotBlank()) {
+                            val defaultPn = all.firstOrNull { pn ->
+                                pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
+                            }
+                            if (defaultPn != null) {
+                                listOf(defaultPn) + all.filter { it != defaultPn }
+                            } else {
+                                all
+                            }
+                        } else {
+                            all
+                        }
+                    }
+
+                    orderedNumbers.forEachIndexed { index, pn ->
                         val normPn = pn.number.filter { it.isDigit() }.takeLast(10)
                         val favDigits = favoriteContact?.phoneNumber?.filter { it.isDigit() }?.takeLast(10) ?: ""
                         val isThisNumberFavorite = isFavorite && (
                             (favDigits.length >= 7 && normPn == favDigits) ||
-                            (contact.phoneNumbers.size == 1)
+                            (orderedNumbers.size == 1)
                         )
+                        val isDefaultNumber = if (contact.phoneNumber.isNotBlank()) {
+                            pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
+                        } else {
+                            index == 0
+                        }
 
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(
                                     when {
-                                        contact.phoneNumbers.size == 1 -> RoundedCornerShape(16.dp)
+                                        orderedNumbers.size == 1 -> RoundedCornerShape(16.dp)
                                         index == 0 -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                                        index == contact.phoneNumbers.lastIndex -> RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+                                        index == orderedNumbers.lastIndex -> RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
                                         else -> RoundedCornerShape(0.dp)
                                     }
                                 )
@@ -616,6 +637,21 @@ fun ContactDetailsBottomSheet(
                                             color = MaterialTheme.colorScheme.primary
                                         )
 
+                                        if (isDefaultNumber) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.primaryContainer
+                                            ) {
+                                                Text(
+                                                    text = "DEFAULT",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+
                                         if (isThisNumberFavorite) {
                                             Surface(
                                                 shape = RoundedCornerShape(4.dp),
@@ -633,7 +669,7 @@ fun ContactDetailsBottomSheet(
                                                         modifier = Modifier.size(10.dp)
                                                     )
                                                     Text(
-                                                        text = if (contact.phoneNumbers.size > 1) "DEFAULT" else "FAVORITE",
+                                                        text = "FAVORITE",
                                                         fontSize = 9.sp,
                                                         fontWeight = FontWeight.ExtraBold
                                                     )
@@ -1069,20 +1105,34 @@ fun ContactDetailsBottomSheet(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
 
-                                        // SIM Slot or WhatsApp Badge for Contact Call History
+                                        // SIM Slot or WhatsApp Badge for Contact Call History (SIM shown only on multi-SIM devices)
                                         val isWaCall = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = if (isWaCall) Color(0xFF25D366).copy(alpha = 0.2f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                                        ) {
-                                            Text(
-                                                text = if (isWaCall) "WhatsApp" else "SIM ${if (call.simSlot > 0) call.simSlot else 1}",
-                                                fontSize = 9.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isWaCall) Color(0xFF166534) else MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                            )
+                                        val activeSims = remember(context) {
+                                            com.example.telecom.SimHelper.getActiveSimCards(context)
+                                        }
+                                        val showBadge = isWaCall || activeSims.size > 1
+                                        if (showBadge) {
+                                            val slot = if (call.simSlot > 0) call.simSlot else 1
+                                            val matchedSim = activeSims.firstOrNull { it.slotIndex + 1 == slot }
+                                            val simLabel = if (matchedSim != null && matchedSim.displayName.isNotBlank()) {
+                                                matchedSim.displayName.take(8)
+                                            } else {
+                                                "SIM $slot"
+                                            }
+                                            val simColor = if (slot == 2) Color(0xFF16A34A) else Color(0xFF2563EB)
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = if (isWaCall) Color(0xFF25D366).copy(alpha = 0.2f) else simColor.copy(alpha = 0.12f)
+                                            ) {
+                                                Text(
+                                                    text = if (isWaCall) "WhatsApp" else simLabel,
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isWaCall) Color(0xFF166534) else simColor,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
                                         }
 
                                         val isCarrierAutoDropped = call.isSpam && (
@@ -1242,7 +1292,7 @@ fun ContactDetailsBottomSheet(
                                 Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = Color(0xFFF59E0B))
                                 Column {
                                     Text(text = "Set as default number", fontWeight = FontWeight.Bold)
-                                    Text(text = "Use this number when calling or speed-dialing", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(text = "Use this number as primary default for this contact", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }

@@ -548,12 +548,12 @@ fun CreateContactDialog(
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Device & Google Account",
+                                        text = "Device / Phone Contacts",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        text = "Synced across your Android contacts & Google account",
+                                        text = "Saved to your device address book and default sync account",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

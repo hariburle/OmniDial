@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.view.HapticFeedbackConstants
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.width
@@ -187,6 +188,38 @@ fun DialerScreen(
     var multiNumberContactToCall by remember { mutableStateOf<DeviceContact?>(null) }
     var multiNumberSpeedDialSlot by remember { mutableStateOf<Int?>(null) }
     var multiNumberFavoriteTarget by remember { mutableStateOf<FavoriteContact?>(null) }
+
+    BackHandler(
+        enabled = number.isNotBlank() ||
+                  assignSpeedDialSlotTarget != null ||
+                  promptAssignSlotTarget != null ||
+                  speedDialActionSlotTarget != null ||
+                  showAddFavoriteDialog ||
+                  showContactPicker ||
+                  multiNumberContactToCall != null ||
+                  multiNumberFavoriteTarget != null ||
+                  showCallReasonMenu
+    ) {
+        if (assignSpeedDialSlotTarget != null) {
+            assignSpeedDialSlotTarget = null
+        } else if (promptAssignSlotTarget != null) {
+            promptAssignSlotTarget = null
+        } else if (speedDialActionSlotTarget != null) {
+            speedDialActionSlotTarget = null
+        } else if (showAddFavoriteDialog) {
+            showAddFavoriteDialog = false
+        } else if (showContactPicker) {
+            showContactPicker = false
+        } else if (multiNumberContactToCall != null) {
+            multiNumberContactToCall = null
+        } else if (multiNumberFavoriteTarget != null) {
+            multiNumberFavoriteTarget = null
+        } else if (showCallReasonMenu) {
+            showCallReasonMenu = false
+        } else if (number.isNotBlank()) {
+            onClearDigits()
+        }
+    }
 
     // Use background pre-computed contacts if provided, otherwise fallback to local computation
     val allSearchContacts = remember(precomputedSearchContacts, favorites, effectiveContacts) {
@@ -808,48 +841,53 @@ fun DialerScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // PART 1 (Left 1/3, under column 1): SIM Selector Pill
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Surface(
-                            onClick = onToggleSim,
-                            shape = RoundedCornerShape(20.dp),
-                            color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier
-                                .height(44.dp)
-                                .testTag("sim_toggle_button")
+                    // PART 1 (Left 1/3, under column 1): SIM Selector Pill (shown only on multi-SIM devices)
+                    if (activeSims.size > 1) {
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                            Surface(
+                                onClick = onToggleSim,
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .height(44.dp)
+                                    .testTag("sim_toggle_button")
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.SimCard,
-                                    contentDescription = "Active SIM",
-                                    tint = if (simSlot == 1) Color(0xFF2563EB) else Color(0xFF16A34A),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                val currentSim = activeSims.firstOrNull { it.slotIndex + 1 == simSlot }
-                                val simLabel = if (currentSim != null && currentSim.displayName.isNotBlank()) {
-                                    currentSim.displayName.take(5)
-                                } else {
-                                    "SIM $simSlot"
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SimCard,
+                                        contentDescription = "Active SIM",
+                                        tint = if (simSlot == 1) Color(0xFF2563EB) else Color(0xFF16A34A),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    val currentSim = activeSims.firstOrNull { it.slotIndex + 1 == simSlot }
+                                    val simLabel = if (currentSim != null && currentSim.displayName.isNotBlank()) {
+                                        currentSim.displayName.take(5)
+                                    } else {
+                                        "SIM $simSlot"
+                                    }
+                                    Text(
+                                        text = simLabel,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
-                                Text(
-                                    text = simLabel,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
                             }
                         }
+                    } else {
+                        // Empty spacer maintaining dialer grid alignment
+                        Spacer(modifier = Modifier.weight(1f))
                     }
 
                     // PART 2 (Center 1/3, under column 2): Call Button (Circular or Pill when WhatsApp)

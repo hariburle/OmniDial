@@ -1452,7 +1452,8 @@ object ContactHelper {
                 android.provider.CallLog.Calls.CACHED_NAME,
                 android.provider.CallLog.Calls.TYPE,
                 android.provider.CallLog.Calls.DATE,
-                android.provider.CallLog.Calls.DURATION
+                android.provider.CallLog.Calls.DURATION,
+                android.provider.CallLog.Calls.PHONE_ACCOUNT_ID
             )
             val cursor = context.contentResolver.query(
                 android.provider.CallLog.Calls.CONTENT_URI,
@@ -1467,6 +1468,7 @@ object ContactHelper {
                 val typeIdx = it.getColumnIndex(android.provider.CallLog.Calls.TYPE)
                 val dateIdx = it.getColumnIndex(android.provider.CallLog.Calls.DATE)
                 val durIdx = it.getColumnIndex(android.provider.CallLog.Calls.DURATION)
+                val accountIdIdx = it.getColumnIndex(android.provider.CallLog.Calls.PHONE_ACCOUNT_ID)
 
                 var matchedCount = 0
                 while (it.moveToNext() && matchedCount < 50) {
@@ -1481,6 +1483,8 @@ object ContactHelper {
                         val type = if (typeIdx != -1) it.getInt(typeIdx) else 1
                         val date = if (dateIdx != -1) it.getLong(dateIdx) else System.currentTimeMillis()
                         val duration = if (durIdx != -1) it.getLong(durIdx) else 0L
+                        val accountId = if (accountIdIdx != -1) it.getString(accountIdIdx) else null
+                        val simSlot = com.example.telecom.SimHelper.resolveSimSlot(context, accountId = accountId)
 
                         result.add(
                             com.example.data.RecentCall(
@@ -1488,7 +1492,8 @@ object ContactHelper {
                                 callerName = if (cachedName.isNotBlank()) cachedName else (name ?: rawNumber),
                                 callType = type,
                                 timestamp = date,
-                                durationSeconds = duration
+                                durationSeconds = duration,
+                                simSlot = simSlot
                             )
                         )
                         matchedCount++
@@ -1513,7 +1518,8 @@ object ContactHelper {
                 CallLog.Calls.CACHED_NAME,
                 CallLog.Calls.TYPE,
                 CallLog.Calls.DATE,
-                CallLog.Calls.DURATION
+                CallLog.Calls.DURATION,
+                CallLog.Calls.PHONE_ACCOUNT_ID
             )
             val cursor = context.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
@@ -1529,6 +1535,7 @@ object ContactHelper {
                 val typeIdx = it.getColumnIndex(CallLog.Calls.TYPE)
                 val dateIdx = it.getColumnIndex(CallLog.Calls.DATE)
                 val durIdx = it.getColumnIndex(CallLog.Calls.DURATION)
+                val accountIdIdx = it.getColumnIndex(CallLog.Calls.PHONE_ACCOUNT_ID)
 
                 var count = 0
                 while (it.moveToNext() && count < limit) {
@@ -1538,6 +1545,8 @@ object ContactHelper {
                     val type = if (typeIdx != -1) it.getInt(typeIdx) else 1
                     val date = if (dateIdx != -1) it.getLong(dateIdx) else System.currentTimeMillis()
                     val duration = if (durIdx != -1) it.getLong(durIdx) else 0L
+                    val accountId = if (accountIdIdx != -1) it.getString(accountIdIdx) else null
+                    val simSlot = com.example.telecom.SimHelper.resolveSimSlot(context, accountId = accountId)
 
                     if (rawNumber.isNotBlank()) {
                         val sysId = if (rawId > 0L) -rawId else -Math.abs("${rawNumber}_${date}_$count".hashCode().toLong()).coerceAtLeast(1L)
@@ -1548,7 +1557,8 @@ object ContactHelper {
                                 callerName = cachedName.ifBlank { null },
                                 callType = type,
                                 timestamp = date,
-                                durationSeconds = duration
+                                durationSeconds = duration,
+                                simSlot = simSlot
                             )
                         )
                         count++
@@ -1647,6 +1657,11 @@ private class DeviceContactAccumulator(
 
     fun toDeviceContact(): DeviceContact {
         val primary = defaultNumberItem ?: numbers.firstOrNull()
+        val orderedList = if (primary != null) {
+            listOf(primary) + numbers.filter { it != primary }
+        } else {
+            numbers.toList()
+        }
         return DeviceContact(
             name = name,
             phoneNumber = primary?.number ?: "",
@@ -1654,7 +1669,7 @@ private class DeviceContactAccumulator(
             photoUri = photoUri,
             contactId = contactId,
             nickname = nickname,
-            phoneNumbers = numbers.toList(),
+            phoneNumbers = orderedList,
             isStarred = isStarred
         )
     }

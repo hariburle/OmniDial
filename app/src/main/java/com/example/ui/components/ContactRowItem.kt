@@ -185,11 +185,15 @@ fun ContactRowItem(
                         }
                     }
 
-                    val subtitleText = matchedNumber ?: if (contact.phoneNumbers.isNotEmpty()) {
-                        "${contact.phoneNumbers.first().number} (${contact.phoneNumbers.first().label})"
-                    } else {
-                        contact.phoneNumber
+                    val primaryDisplayNumber = remember(contact) {
+                        if (contact.phoneNumber.isNotBlank()) contact.phoneNumber else contact.phoneNumbers.firstOrNull()?.number ?: ""
                     }
+                    val primaryDisplayLabel = remember(contact) {
+                        if (contact.phoneNumber.isNotBlank() && contact.label.isNotBlank()) contact.label else contact.phoneNumbers.firstOrNull()?.label ?: "Mobile"
+                    }
+                    val subtitleText = matchedNumber ?: if (primaryDisplayNumber.isNotBlank()) {
+                        "$primaryDisplayNumber ($primaryDisplayLabel)"
+                    } else ""
                     Text(
                         text = subtitleText,
                         style = MaterialTheme.typography.bodyMedium,
@@ -254,10 +258,30 @@ fun ContactRowItem(
                 ) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                    val numbersToDisplay = if (contact.phoneNumbers.isNotEmpty()) contact.phoneNumbers else listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
+                    val numbersToDisplay = remember(contact) {
+                        val all = if (contact.phoneNumbers.isNotEmpty()) contact.phoneNumbers else listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
+                        if (contact.phoneNumber.isNotBlank()) {
+                            val defaultPn = all.firstOrNull { pn ->
+                                pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
+                            }
+                            if (defaultPn != null) {
+                                listOf(defaultPn) + all.filter { it != defaultPn }
+                            } else {
+                                all
+                            }
+                        } else {
+                            all
+                        }
+                    }
 
-                    numbersToDisplay.forEach { pn ->
+                    numbersToDisplay.forEachIndexed { index, pn ->
                         val isMobile = pn.label.equals("Mobile", ignoreCase = true)
+                        val isDefaultNumber = if (contact.phoneNumber.isNotBlank()) {
+                            pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
+                        } else {
+                            index == 0
+                        }
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -272,11 +296,30 @@ fun ContactRowItem(
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Text(
-                                    text = pn.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = pn.label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (isDefaultNumber) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer
+                                        ) {
+                                            Text(
+                                                text = "DEFAULT",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
                             Row(

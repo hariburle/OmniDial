@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.RecentCall
+import com.example.telecom.SimInfo
 import com.example.ui.screens.GroupedCallLog
 import com.example.util.ContactHelper
 import com.example.util.DeviceContact
@@ -47,6 +48,7 @@ fun CallLogItem(
     onDeleteCall: () -> Unit = {},
     onDeleteCallsForNumber: () -> Unit = {},
     matchedDc: DeviceContact? = null,
+    activeSims: List<SimInfo> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val call = group.primaryCall
@@ -370,7 +372,7 @@ fun CallLogItem(
                         }
                     }
 
-                    // Line 2: Time + Duration + Rules
+                    // Line 2: Time + Duration + SIM Badge + Rules
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -388,27 +390,68 @@ fun CallLogItem(
                                 fontWeight = FontWeight.Medium,
                                 color = Color(0xFF15803D)
                             )
-                        } else if (call.durationSeconds > 0) {
-                            val mins = call.durationSeconds / 60
-                            val secs = call.durationSeconds % 60
-                            val durText = if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
-                            Text(
-                                text = "• $durText",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        } else {
+                            if (call.durationSeconds > 0) {
+                                val mins = call.durationSeconds / 60
+                                val secs = call.durationSeconds % 60
+                                val durText = if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
+                                Text(
+                                    text = "• $durText",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            // SIM Badge with Custom Name (shown only on multi-SIM devices)
+                            if (activeSims.size > 1) {
+                                val slot = if (call.simSlot > 0) call.simSlot else 1
+                                val matchedSim = activeSims.firstOrNull { it.slotIndex + 1 == slot }
+                                val simLabel = if (matchedSim != null && matchedSim.displayName.isNotBlank()) {
+                                    matchedSim.displayName.take(8)
+                                } else {
+                                    "SIM $slot"
+                                }
+                                val simColor = if (slot == 2) Color(0xFF16A34A) else Color(0xFF2563EB)
+
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = simColor.copy(alpha = 0.12f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 4.5.dp, vertical = 1.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SimCard,
+                                            contentDescription = simLabel,
+                                            tint = simColor,
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                        Text(
+                                            text = simLabel,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = simColor,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
                         }
                         if (!call.ruleMatched.isNullOrBlank()) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.weight(1f, fill = false)
                             ) {
                                 Text(
                                     text = "🤖 ${call.ruleMatched}",
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -448,31 +491,30 @@ fun CallLogItem(
                     // Note Display in Recents
                     if (!noteToShow.isNullOrBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
-                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 3.dp)
+                                .padding(top = 2.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Notes,
                                     contentDescription = "Note",
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(11.dp)
                                 )
                                 Text(
                                     text = noteToShow,
                                     style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Normal,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    maxLines = 2,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }

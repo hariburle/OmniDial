@@ -92,6 +92,34 @@ object SimHelper {
     }
 
     /**
+     * Resolves 1-based SIM slot index (1 for SIM 1, 2 for SIM 2) from a PhoneAccountHandle or account ID string.
+     */
+    fun resolveSimSlot(context: Context, accountHandle: PhoneAccountHandle? = null, accountId: String? = null): Int {
+        val targetId = accountHandle?.id ?: accountId ?: return 1
+        val simCards = getActiveSimCards(context)
+        if (simCards.isEmpty()) return 1
+        
+        // Match by subscription ID in account ID string
+        for (sim in simCards) {
+            if (targetId.contains(sim.subscriptionId.toString())) {
+                return sim.slotIndex + 1
+            }
+        }
+        
+        // Match by TelecomManager account index
+        try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            val accounts = telecomManager?.callCapablePhoneAccounts ?: emptyList()
+            val index = accounts.indexOfFirst { it.id == targetId }
+            if (index != -1 && index < simCards.size) {
+                return simCards[index].slotIndex + 1
+            }
+        } catch (_: Exception) {}
+
+        return 1
+    }
+
+    /**
      * Resolves the Telecom PhoneAccountHandle associated with a given SIM slot index.
      */
     fun getPhoneAccountForSimSlot(context: Context, slotIndex: Int): PhoneAccountHandle? {

@@ -47,7 +47,8 @@ data class ActiveCallInfo(
     val nickname: String? = null,
     val numberLabel: String? = null,
     val trustTier: com.example.domain.usecase.TrustTier = com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
-    val trustBadgeLabel: String? = null
+    val trustBadgeLabel: String? = null,
+    val simSlot: Int = 1
 )
 
 @Immutable
@@ -185,6 +186,11 @@ object CallManager {
         val isCarrierSpamThreat = isIncoming && !isWhitelisted && autoBlockCarrier && isCarrierSpam(call, number, name)
         val shouldAutoDeclineSpam = (isCarrierSpamThreat || (isDatabaseSpam && blockSpamPreset))
 
+        val resolvedSimSlot = SimHelper.resolveSimSlot(
+            context = context,
+            accountHandle = call.details?.accountHandle
+        )
+
         if (shouldAutoDeclineSpam) {
             val spamReason = when {
                 matchedSpamNumber != null -> matchedSpamNumber.label.ifBlank { "Known Spam Number" }
@@ -223,7 +229,8 @@ object CallManager {
                             ruleMatched = spamReason,
                             isSpam = true,
                             callReason = "$spamReason auto-dropped",
-                            note = null
+                            note = null,
+                            simSlot = resolvedSimSlot
                         )
                     )
                 } catch (e: Exception) {
@@ -255,7 +262,8 @@ object CallManager {
             nickname = resolvedNickname,
             numberLabel = resolvedLabel,
             trustTier = trustBadge.first,
-            trustBadgeLabel = trustBadge.second
+            trustBadgeLabel = trustBadge.second,
+            simSlot = resolvedSimSlot
         )
         _activeCall.value = callInfo
 
@@ -367,7 +375,8 @@ object CallManager {
                                 durationSeconds = duration,
                                 ruleMatched = _automationState.value?.ruleName,
                                 callReason = callInfo.callReason,
-                                communityTag = callInfo.communityInfo?.category
+                                communityTag = callInfo.communityInfo?.category,
+                                simSlot = callInfo.simSlot
                             )
                         )
                         lastInsertedCallId = insertedId

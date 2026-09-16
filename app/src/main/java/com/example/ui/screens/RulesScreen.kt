@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,8 +66,6 @@ fun RulesScreen(
     favorites: List<FavoriteContact> = emptyList(),
     themeMode: String = "system",
     onSetThemeMode: (String) -> Unit = {},
-    favoriteCardStyle: String = "bento",
-    onSetFavoriteCardStyle: (String) -> Unit = {},
     whatsAppCallMode: String = "ask_learn",
     onSetWhatsAppCallMode: (String) -> Unit = {},
     onResetWhatsAppChoices: () -> Unit = {},
@@ -111,6 +110,16 @@ fun RulesScreen(
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<CallerRule?>(null) }
+
+    BackHandler(enabled = showDialog || showHistoryDialog || editingRule != null) {
+        if (showDialog) {
+            showDialog = false
+        } else if (showHistoryDialog) {
+            showHistoryDialog = false
+        } else if (editingRule != null) {
+            editingRule = null
+        }
+    }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -264,8 +273,6 @@ fun RulesScreen(
                     SettingsScreen(
                         themeMode = themeMode,
                         onSetThemeMode = onSetThemeMode,
-                        favoriteCardStyle = favoriteCardStyle,
-                        onSetFavoriteCardStyle = onSetFavoriteCardStyle,
                         whatsAppCallMode = whatsAppCallMode,
                         onSetWhatsAppCallMode = onSetWhatsAppCallMode,
                         onResetWhatsAppChoices = onResetWhatsAppChoices,

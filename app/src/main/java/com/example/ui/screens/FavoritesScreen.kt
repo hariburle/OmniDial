@@ -140,7 +140,6 @@ import com.example.util.DeviceContact
 import java.util.Collections
 
 import com.example.ui.models.PopularContactItem
-import com.example.ui.models.FavCardDesign
 import com.example.ui.components.FavoriteGridCard
 import com.example.ui.components.PopularGridCard
 import com.example.ui.components.SpeedDialAssignDialog
@@ -170,8 +169,6 @@ fun FavoritesScreen(
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
     learnedCallModes: Map<String, String> = emptyMap(),
     confirmFavoritesCall: Boolean = true,
-    favoriteCardStyle: String = "bento",
-    onSetFavoriteCardStyle: (String) -> Unit = {},
     isFlipToShhhEnabled: Boolean = true,
     isShhhActive: Boolean = false,
     onToggleFlipToShhh: () -> Unit = {},
@@ -187,10 +184,10 @@ fun FavoritesScreen(
     var editTargetContact by remember { mutableStateOf<FavoriteContact?>(null) }
     var editTargetIgnored by remember { mutableStateOf<IgnoredContact?>(null) }
     var isConfigureMode by remember { mutableStateOf(false) }
-    val cardDesign = FavCardDesign.fromKey(favoriteCardStyle)
     var searchQuery by remember { mutableStateOf("") }
     var localFavorites by remember { mutableStateOf(favorites) }
     var draggingContactId by remember { mutableStateOf<Long?>(null) }
+    var lastSwappedTargetId by remember { mutableStateOf<Long?>(null) }
     var dragStartOffset by remember { mutableStateOf(Offset.Zero) }
     var dragTotalOffset by remember { mutableStateOf(Offset.Zero) }
     var dragItemSize by remember { mutableStateOf(IntSize.Zero) }
@@ -198,11 +195,32 @@ fun FavoritesScreen(
     val coroutineScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
 
-    BackHandler(enabled = searchQuery.isNotBlank() || isConfigureMode) {
-        if (searchQuery.isNotBlank()) {
+    var isSearchActive by remember { mutableStateOf(false) }
+    var pendingCallConfirmation by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) }
+    var nicknameDialogTarget by remember { mutableStateOf<Pair<DeviceContact, String?>?>(null) }
+    var nicknameDialogText by remember { mutableStateOf("") }
+    val effectiveDeviceContacts = deviceContacts
+    var multiNumberContactToCall by remember { mutableStateOf<DeviceContact?>(null) }
+
+    BackHandler(
+        enabled = searchQuery.isNotBlank() || 
+                  isSearchActive || 
+                  isConfigureMode || 
+                  nicknameDialogTarget != null || 
+                  pendingCallConfirmation != null || 
+                  multiNumberContactToCall != null
+    ) {
+        if (nicknameDialogTarget != null) {
+            nicknameDialogTarget = null
+        } else if (pendingCallConfirmation != null) {
+            pendingCallConfirmation = null
+        } else if (multiNumberContactToCall != null) {
+            multiNumberContactToCall = null
+        } else if (searchQuery.isNotBlank()) {
             searchQuery = ""
-        }
-        if (isConfigureMode) {
+        } else if (isSearchActive) {
+            isSearchActive = false
+        } else if (isConfigureMode) {
             isConfigureMode = false
         }
     }
@@ -212,12 +230,6 @@ fun FavoritesScreen(
             localFavorites = favorites
         }
     }
-    var isSearchActive by remember { mutableStateOf(false) }
-    var pendingCallConfirmation by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) }
-    var nicknameDialogTarget by remember { mutableStateOf<Pair<DeviceContact, String?>?>(null) }
-    var nicknameDialogText by remember { mutableStateOf("") }
-    val effectiveDeviceContacts = deviceContacts
-    var multiNumberContactToCall by remember { mutableStateOf<DeviceContact?>(null) }
     var favoriteContactToCall by remember { mutableStateOf<FavoriteContact?>(null) }
     var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
 
@@ -368,7 +380,7 @@ fun FavoritesScreen(
                         PopularContactItem(
                             name = resolvedName,
                             phoneNumber = matchingDc?.phoneNumber?.ifBlank { rc.phoneNumber } ?: rc.phoneNumber,
-                            label = matchingDc?.label ?: "Frequent",
+                            label = matchingDc?.label ?: if (!isCallerNamePhoneNumber) "Recent" else null,
                             photoUri = rc.photoUri ?: matchingDc?.photoUri,
                             callCount = count,
                             deviceContact = matchingDc,
@@ -416,25 +428,15 @@ fun FavoritesScreen(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "Reorder Favorites",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = "Drag grip to rearrange • Arrows for 1-step moves",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                            )
-                        }
+                        Text(
+                            text = "Reorder cards or tap # to assign speed dial",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             } else {
@@ -838,43 +840,15 @@ fun FavoritesScreen(
                             ) {
                                 FavoriteGridCard(
                                     contact = contact,
-                                    cardDesign = cardDesign,
                                     isCompact = isCompact,
                                     isConfigureMode = isConfigureMode,
                                     isDraggingActive = draggingContactId != null,
                                     preferredCallingMode = preferredMode,
-                                    canMoveUpRow = index >= columnsCount,
-                                    canMoveDownRow = index + columnsCount < localFavorites.size,
-                                    canMoveLeftCol = index % columnsCount > 0,
-                                    canMoveRightCol = (index % columnsCount < columnsCount - 1) && (index + 1 < localFavorites.size),
-                                    onMoveUpRow = {
-                                        val next = localFavorites.toMutableList()
-                                        Collections.swap(next, index, index - columnsCount)
-                                        localFavorites = next
-                                        onReorderFavorites(next)
-                                    },
-                                    onMoveDownRow = {
-                                        val next = localFavorites.toMutableList()
-                                        Collections.swap(next, index, index + columnsCount)
-                                        localFavorites = next
-                                        onReorderFavorites(next)
-                                    },
-                                    onMoveLeftCol = {
-                                        val next = localFavorites.toMutableList()
-                                        Collections.swap(next, index, index - 1)
-                                        localFavorites = next
-                                        onReorderFavorites(next)
-                                    },
-                                    onMoveRightCol = {
-                                        val next = localFavorites.toMutableList()
-                                        Collections.swap(next, index, index + 1)
-                                        localFavorites = next
-                                        onReorderFavorites(next)
-                                    },
                                     onDragStart = {
                                         val itemInfo = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == contact.id }
                                         if (itemInfo != null) {
                                             draggingContactId = contact.id
+                                            lastSwappedTargetId = null
                                             dragStartOffset = Offset(itemInfo.offset.x.toFloat(), itemInfo.offset.y.toFloat())
                                             dragTotalOffset = Offset.Zero
                                             dragItemSize = itemInfo.size
@@ -886,6 +860,7 @@ fun FavoritesScreen(
                                     onDragEnd = {
                                         if (draggingContactId != null) {
                                             draggingContactId = null
+                                            lastSwappedTargetId = null
                                             dragTotalOffset = Offset.Zero
                                             dragItemSize = IntSize.Zero
                                             onReorderFavorites(localFavorites)
@@ -916,7 +891,7 @@ fun FavoritesScreen(
                                             }
                                         }
 
-                                        // Find if hovered over another favorite item
+                                        // Find if hovered over another favorite item in 2D space
                                         val targetItem = gridState.layoutInfo.visibleItemsInfo.firstOrNull { info ->
                                             val key = info.key
                                             if (key !is Long || key == draggingContactId) return@firstOrNull false
@@ -928,17 +903,48 @@ fun FavoritesScreen(
                                         }
 
                                         if (targetItem != null) {
-                                            val fromIdx = localFavorites.indexOfFirst { it.id == draggingContactId }
-                                            val toIdx = localFavorites.indexOfFirst { it.id == targetItem.key }
-                                            if (fromIdx != -1 && toIdx != -1 && fromIdx != toIdx) {
-                                                val next = localFavorites.toMutableList()
-                                                val item = next.removeAt(fromIdx)
-                                                next.add(toIdx, item)
-                                                localFavorites = next
-                                                try {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                } catch (_: Exception) {}
+                                            val targetKey = targetItem.key as Long
+                                            if (lastSwappedTargetId != targetKey) {
+                                                val fromIdx = localFavorites.indexOfFirst { it.id == draggingContactId }
+                                                val toIdx = localFavorites.indexOfFirst { it.id == targetKey }
+                                                if (fromIdx != -1 && toIdx != -1 && fromIdx != toIdx) {
+                                                    val left = targetItem.offset.x.toFloat()
+                                                    val top = targetItem.offset.y.toFloat()
+                                                    val w = targetItem.size.width.toFloat()
+                                                    val h = targetItem.size.height.toFloat()
+
+                                                    val fromCol = fromIdx % columnsCount
+                                                    val toCol = toIdx % columnsCount
+
+                                                    // Check if drop is in the center swap zone (inner 60% of card)
+                                                    val inCenterX = currentCenter.x >= (left + w * 0.2f) && currentCenter.x <= (left + w * 0.8f)
+                                                    val inCenterY = currentCenter.y >= (top + h * 0.2f) && currentCenter.y <= (top + h * 0.8f)
+                                                    val isDirectSwap = inCenterX && inCenterY
+
+                                                    val next = localFavorites.toMutableList()
+                                                    if (isDirectSwap || fromCol == toCol) {
+                                                        // Same column movement OR direct center drop on another card -> Direct 2D Swap
+                                                        Collections.swap(next, fromIdx, toIdx)
+                                                    } else {
+                                                        // Edge/boundary drop across columns -> Shift & make space (insert)
+                                                        val isNearTopHalf = currentCenter.y < (top + h * 0.5f)
+                                                        val insertIdx = if (isNearTopHalf) {
+                                                            if (fromIdx < toIdx) (toIdx - 1).coerceAtLeast(0) else toIdx
+                                                        } else {
+                                                            if (fromIdx < toIdx) toIdx else (toIdx + 1).coerceAtMost(next.size - 1)
+                                                        }
+                                                        val item = next.removeAt(fromIdx)
+                                                        next.add(insertIdx, item)
+                                                    }
+                                                    localFavorites = next
+                                                    lastSwappedTargetId = targetKey
+                                                    try {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    } catch (_: Exception) {}
+                                                }
                                             }
+                                        } else {
+                                            lastSwappedTargetId = null
                                         }
                                     },
                                     onCall = {
@@ -1033,23 +1039,28 @@ fun FavoritesScreen(
                         }
 
                         items(popularContacts, key = { "pop_${it.phoneNumber}_${it.name}" }) { popItem ->
+                            val preferredMode = remember(popItem.phoneNumber, learnedCallModes) {
+                                getPreferredCallingMode(popItem.phoneNumber)
+                            }
                             PopularGridCard(
                                 item = popItem,
                                 isConfigureMode = isConfigureMode,
+                                preferredCallingMode = preferredMode,
                                 onCall = { onCallNumber(popItem.phoneNumber) },
+                                onCallWhatsApp = { onCallWhatsApp(popItem.phoneNumber) },
                                 onAddFavorite = {
-                                    onAddFavorite(popItem.name, popItem.phoneNumber, popItem.label, popItem.photoUri, null)
+                                    onAddFavorite(popItem.name, popItem.phoneNumber, popItem.label ?: "Mobile", popItem.photoUri, null)
                                 },
                                 onIgnore = {
-                                    onIgnoreContact(popItem.phoneNumber, popItem.name, popItem.label, popItem.name)
+                                    onIgnoreContact(popItem.phoneNumber, popItem.name, popItem.label ?: "Frequent", popItem.name)
                                 },
                                 onClick = {
                                     val dc = popItem.deviceContact ?: DeviceContact(
                                         name = popItem.name,
                                         phoneNumber = popItem.phoneNumber,
-                                        label = popItem.label,
+                                        label = popItem.label ?: "Mobile",
                                         photoUri = popItem.photoUri,
-                                        phoneNumbers = listOf(ContactPhoneNumber(popItem.phoneNumber, popItem.label))
+                                        phoneNumbers = listOf(ContactPhoneNumber(popItem.phoneNumber, popItem.label ?: "Mobile"))
                                     )
                                     val matchedFav = favorites.firstOrNull { f ->
                                         val fNum = f.phoneNumber.filter { it.isDigit() }.takeLast(10)
@@ -1163,7 +1174,6 @@ fun FavoritesScreen(
                         ) {
                             FavoriteGridCard(
                                 contact = dragContact,
-                                cardDesign = cardDesign,
                                 isCompact = isCompact,
                                 isConfigureMode = isConfigureMode,
                                 isFloatingOverlay = true,

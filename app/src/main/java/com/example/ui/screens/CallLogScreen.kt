@@ -2,7 +2,13 @@ package com.example.ui.screens
 
 import com.example.util.ContactHelper
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.BackHandler
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,13 +31,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.foundation.horizontalScroll
@@ -39,14 +50,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,6 +115,13 @@ import com.example.data.SpamNumber
 import com.example.ui.components.ContactSaveDestination
 import com.example.ui.components.CreateContactDialog
 
+data class FilterOptionData(
+    val key: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val activeColor: Color? = null
+)
+
 data class GroupedCallLog(
     val primaryCall: RecentCall,
     val count: Int,
@@ -127,6 +150,7 @@ fun CallLogScreen(
     onDeleteCallsForNumber: (String) -> Unit = {},
     rules: List<com.example.data.CallerRule> = emptyList(),
     deviceContacts: List<DeviceContact> = emptyList(),
+    activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     getPreferredCallingMode: (String) -> String = { "cellular" },
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
@@ -262,6 +286,7 @@ fun CallLogScreen(
     }
 
     var searchQuery by remember { mutableStateOf("") }
+    var isSearchExpanded by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("ALL") }
 
     val filteredGroupedCalls = remember(groupedCalls, searchQuery, selectedFilter) {
@@ -307,6 +332,17 @@ fun CallLogScreen(
     androidx.compose.runtime.LaunchedEffect(highlightNumber) {
         if (!highlightNumber.isNullOrBlank()) {
             searchQuery = ""
+            isSearchExpanded = false
+            selectedFilter = "ALL"
+        }
+    }
+
+    BackHandler(enabled = searchQuery.isNotBlank() || isSearchExpanded || selectedFilter != "ALL") {
+        if (searchQuery.isNotBlank()) {
+            searchQuery = ""
+        } else if (isSearchExpanded) {
+            isSearchExpanded = false
+        } else if (selectedFilter != "ALL") {
             selectedFilter = "ALL"
         }
     }
@@ -393,45 +429,223 @@ fun CallLogScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
-            CompactSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                placeholder = "Search by name or number",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                testTag = "recents_search_input"
+            // Top Filter Buttons & Search Toggle Row (Stationary at the very top)
+            val filterOptions = listOf(
+                FilterOptionData("ALL", "All Calls", Icons.AutoMirrored.Filled.List, null),
+                FilterOptionData("MISSED", "Missed Calls", Icons.AutoMirrored.Filled.CallMissed, MaterialTheme.colorScheme.error),
+                FilterOptionData("INCOMING", "Incoming Calls", Icons.AutoMirrored.Filled.CallReceived, Color(0xFF2E7D32)),
+                FilterOptionData("OUTGOING", "Outgoing Calls", Icons.AutoMirrored.Filled.CallMade, MaterialTheme.colorScheme.primary),
+                FilterOptionData("WHATSAPP", "WhatsApp Calls", Icons.Default.Chat, Color(0xFF25D366)),
+                FilterOptionData("SPAM", "Spam Calls", Icons.Default.Shield, MaterialTheme.colorScheme.error),
+                FilterOptionData("RULES", "Rules & Automation", Icons.Default.Bolt, Color(0xFFE65100)),
+                FilterOptionData("NOTES", "Notes & Reminders", Icons.Default.EditNote, Color(0xFF673AB7))
             )
 
-            // Category Filter Chips
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
                     .padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val filterOptions = listOf(
-                    "ALL" to "All",
-                    "MISSED" to "Missed",
-                    "INCOMING" to "In",
-                    "OUTGOING" to "Out",
-                    "WHATSAPP" to "WhatsApp",
-                    "SPAM" to "Spam",
-                    "RULES" to "Rules",
-                    "NOTES" to "Notes"
-                )
-                filterOptions.forEach { (key, label) ->
-                    val isSelected = (selectedFilter == key)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { selectedFilter = key },
-                        label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
-                        modifier = Modifier.height(28.dp)
-                    )
+                filterOptions.forEach { item ->
+                    val isSelected = (selectedFilter == item.key)
+                    val accentColor = item.activeColor ?: MaterialTheme.colorScheme.primary
+
+                    @OptIn(ExperimentalMaterial3Api::class)
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = {
+                            PlainTooltip {
+                                Text(item.label)
+                            }
+                        },
+                        state = rememberTooltipState()
+                    ) {
+                        Surface(
+                            onClick = {
+                                selectedFilter = if (isSelected && item.key != "ALL") "ALL" else item.key
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) {
+                                accentColor.copy(alpha = 0.18f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                            },
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 0.5.dp,
+                                color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .testTag("recents_filter_${item.key.lowercase()}")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Search Toggle Button with Tooltip
+                val isSearchActive = isSearchExpanded || searchQuery.isNotBlank()
+                @OptIn(ExperimentalMaterial3Api::class)
+                TooltipBox(
+                    positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = {
+                        PlainTooltip {
+                            Text(if (isSearchExpanded) "Close search" else "Search recents")
+                        }
+                    },
+                    state = rememberTooltipState()
+                ) {
+                    Surface(
+                        onClick = {
+                            isSearchExpanded = !isSearchExpanded
+                            if (!isSearchExpanded) {
+                                searchQuery = ""
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSearchActive) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        },
+                        border = BorderStroke(
+                            width = if (isSearchActive) 1.5.dp else 0.5.dp,
+                            color = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("recents_search_toggle_button")
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = if (isSearchExpanded) "Close search" else "Search recents",
+                                tint = if (isSearchActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Sub-bar Area: Search Bar (when expanded) OR Clean Borderless Status Row (when collapsed)
+            // Both states use an identical fixed container height (44.dp) to eliminate list bouncing
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .padding(vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSearchExpanded) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CompactSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { searchQuery = it },
+                            placeholder = "Search recents by name or number",
+                            modifier = Modifier.weight(1f),
+                            testTag = "recents_search_input"
+                        )
+                        Surface(
+                            onClick = {
+                                searchQuery = ""
+                                isSearchExpanded = false
+                            },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Fixed-height, clean borderless status row so the list never jumps when changing filters or opening search
+                    val activeOption = filterOptions.firstOrNull { it.key == selectedFilter }
+                    val isFiltered = (selectedFilter != "ALL")
+                    val accentColor = activeOption?.activeColor ?: MaterialTheme.colorScheme.primary
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Icon(
+                                imageVector = activeOption?.icon ?: Icons.AutoMirrored.Filled.List,
+                                contentDescription = null,
+                                tint = if (isFiltered) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = if (isFiltered) {
+                                    "Filtered by: ${activeOption?.label} • ${filteredGroupedCalls.size} ${if (filteredGroupedCalls.size == 1) "call" else "calls"}"
+                                } else {
+                                    "All Calls • ${filteredGroupedCalls.size} ${if (filteredGroupedCalls.size == 1) "call" else "calls"}"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isFiltered) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isFiltered) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (isFiltered) {
+                            Surface(
+                                onClick = { selectedFilter = "ALL" },
+                                shape = RoundedCornerShape(6.dp),
+                                color = accentColor.copy(alpha = 0.12f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Show All",
+                                        tint = accentColor,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = "Show All",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accentColor,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -502,6 +716,7 @@ fun CallLogScreen(
                     hasMultipleNumbers = hasMultipleNumbers,
                     numberLabel = numberLabel,
                     matchedDc = matchedDc,
+                    activeSims = activeSims,
                     onCallBack = { onCallBack(group.primaryCall.phoneNumber) },
                     onCreateRule = { onCreateRuleForNumber(group.primaryCall.phoneNumber) },
                     onOpenNoteDialog = { target ->
