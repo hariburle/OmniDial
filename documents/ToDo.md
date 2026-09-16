@@ -63,16 +63,6 @@
 
 ---
 
-### 🤖 Phase 11 (Major Release — v2.0.0): Next-Gen On-Device AI
-*Real-time conversational screening and AI action item extraction.*
-- [ ] **Task 11.1: On-Device Gemini Nano Call Screening**
-  - *Goal*: Interactive real-time screening for unknown callers.
-  - *Deliverable*: Speech-to-text live conversational transcription with one-tap AI screening chips.
-- [ ] **Task 11.2: Post-Call Note Summarization & Action Extraction**
-  - *Goal*: Extract actionable tasks and reminders from post-call notes automatically on-device.
-
----
-
 ## 📋 Historical Implementation Archive
 All prior implemented features, architectural specifications, and releases have been archived in their respective project documents:
 - **System Specifications & Architecture**: See [`documents/ARCHITECTURE.md`](ARCHITECTURE.md) and [`documents/DESIGN.md`](DESIGN.md).
