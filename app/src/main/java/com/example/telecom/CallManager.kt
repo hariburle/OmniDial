@@ -8,6 +8,7 @@ import android.content.Context
 import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.Connection
@@ -120,16 +121,73 @@ object CallManager {
 
     private var simulatedTimerJob: Job? = null
     private var appContext: Context? = null
+    private var proximityWakeLock: PowerManager.WakeLock? = null
 
     fun init(context: Context) {
         this.appContext = context.applicationContext
         OngoingCallNotificationHelper.createNotificationChannel(context)
+        initProximityWakeLock(context)
+    }
+
+    private fun initProximityWakeLock(context: Context) {
+        try {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            if (powerManager?.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK) == true) {
+                proximityWakeLock = powerManager.newWakeLock(
+                    PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                    "OmniDial:ProximityWakeLock"
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to initialize proximity wake lock: ${e.message}")
+        }
+    }
+
+    fun updateProximitySensor(context: Context) {
+        val call = _activeCall.value
+        val isCallOngoing = call != null &&
+                call.state != Call.STATE_DISCONNECTED &&
+                call.state != Call.STATE_DISCONNECTING
+        val isHandsetRoute = _currentAudioRoute.value == CallAudioState.ROUTE_EARPIECE ||
+                _currentAudioRoute.value == CallAudioState.ROUTE_WIRED_HEADSET
+
+        if (isCallOngoing && isHandsetRoute) {
+            acquireProximityWakeLock(context)
+        } else {
+            releaseProximityWakeLock()
+        }
+    }
+
+    private fun acquireProximityWakeLock(context: Context) {
+        try {
+            if (proximityWakeLock == null) {
+                initProximityWakeLock(context)
+            }
+            if (proximityWakeLock?.isHeld == false) {
+                proximityWakeLock?.acquire()
+                Log.d(TAG, "Acquired proximity screen off wake lock")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to acquire proximity wake lock: ${e.message}")
+        }
+    }
+
+    private fun releaseProximityWakeLock() {
+        try {
+            if (proximityWakeLock?.isHeld == true) {
+                proximityWakeLock?.release()
+                Log.d(TAG, "Released proximity screen off wake lock")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to release proximity wake lock: ${e.message}")
+        }
     }
 
     fun setTelecomService(service: TelecomCallService?) {
         this.telecomService = service
         if (service != null) {
             this.appContext = service.applicationContext
+            initProximityWakeLock(service.applicationContext)
         }
     }
 
@@ -283,13 +341,17 @@ object CallManager {
                 }
 
                 if (state == Call.STATE_DISCONNECTED) {
+                    releaseProximityWakeLock()
                     handleCallEnded(context, current)
+                } else {
+                    updateProximitySensor(context)
                 }
             }
         })
 
         CallForegroundService.start(context)
         OngoingCallNotificationHelper.showCallNotification(context, callInfo)
+        updateProximitySensor(context)
 
         // Check Do Not Disturb (DND) or Silence Unknown/Private status
         try {
@@ -323,6 +385,7 @@ object CallManager {
     }
 
     private fun handleCallEnded(context: Context, callInfo: ActiveCallInfo?) {
+        releaseProximityWakeLock()
         TelecomVoipHelper.endVoipCall()
         automationJob?.cancel()
         automationJob = null
@@ -774,6 +837,7 @@ object CallManager {
         _bluetoothDeviceName.value = btDevice?.let { device ->
             resolveBluetoothDevice(device, 0, 1).name
         } ?: if ((audioState.supportedRouteMask and CallAudioState.ROUTE_BLUETOOTH) != 0) "Bluetooth Device" else null
+        appContext?.let { updateProximitySensor(it) }
     }
 
     private fun resolveBluetoothDevice(device: BluetoothDevice, index: Int, totalDevices: Int): BluetoothDeviceItem {
@@ -912,6 +976,7 @@ object CallManager {
         }
         telecomService?.setAudioRoute(route)
         appContext?.let { ctx ->
+            updateProximitySensor(ctx)
             _activeCall.value?.let { OngoingCallNotificationHelper.showCallNotification(ctx, it) }
         }
     }

@@ -10,6 +10,7 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import android.provider.Settings
 import android.telecom.Call
 import android.util.Log
@@ -32,6 +33,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -200,7 +203,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         CallManager.isCallUiForegrounded = true
-        com.example.telecom.OngoingCallNotificationHelper.cancelCallNotification(this)
+        val currentCall = CallManager.activeCall.value
+        if (currentCall != null && currentCall.state != android.telecom.Call.STATE_DISCONNECTED) {
+            com.example.telecom.OngoingCallNotificationHelper.showCallNotification(this, currentCall)
+        }
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshCallRedirectionStatus()
         if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
@@ -224,12 +230,55 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         CallManager.isCallUiForegrounded = false
+        val active = CallManager.activeCall.value
+        if (active != null && active.state != android.telecom.Call.STATE_DISCONNECTED) {
+            com.example.telecom.OngoingCallNotificationHelper.showCallNotification(this, active)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        CallManager.isCallUiForegrounded = false
+        val active = CallManager.activeCall.value
+        if (active != null && active.state != android.telecom.Call.STATE_DISCONNECTED) {
+            com.example.telecom.OngoingCallNotificationHelper.showCallNotification(this, active)
+        }
+    }
+
+    fun updateLockScreenFlags(hasActiveCall: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(hasActiveCall)
+            setTurnScreenOn(hasActiveCall)
+        } else {
+            @Suppress("DEPRECATION")
+            if (hasActiveCall) {
+                window.addFlags(
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                )
+            } else {
+                window.clearFlags(
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                )
+            }
+        }
+        if (hasActiveCall) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         val active = CallManager.activeCall.value
-        if (active != null && active.state == android.telecom.Call.STATE_ACTIVE) {
+        if (active != null && (
+            active.state == android.telecom.Call.STATE_ACTIVE ||
+            active.state == android.telecom.Call.STATE_DIALING ||
+            active.state == android.telecom.Call.STATE_CONNECTING ||
+            active.state == android.telecom.Call.STATE_RINGING
+        )) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 try {
                     enterPictureInPictureMode(buildPipParams())
@@ -420,6 +469,13 @@ fun MainAppContent(
         focusManager.clearFocus()
     }
 
+    LaunchedEffect(activeCall?.state) {
+        val hasActive = activeCall != null &&
+                activeCall?.state != Call.STATE_DISCONNECTED &&
+                activeCall?.state != Call.STATE_DISCONNECTING
+        (context as? MainActivity)?.updateLockScreenFlags(hasActive)
+    }
+
     LaunchedEffect(pendingNavTab) {
         pendingNavTab?.let { targetPage ->
             navigateToTab(targetPage)
@@ -578,6 +634,28 @@ fun MainAppContent(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
+            topBar = {
+                AnimatedVisibility(
+                    visible = activeCall != null &&
+                            activeCall?.state != Call.STATE_DISCONNECTED &&
+                            activeCall?.state != Call.STATE_DISCONNECTING &&
+                            isCallScreenMinimized,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    activeCall?.let { call ->
+                        FloatingCallPill(
+                            callInfo = call,
+                            isMuted = isMuted,
+                            isSpeakerOn = isSpeakerOn,
+                            onToggleMute = { viewModel.toggleMute() },
+                            onToggleSpeaker = { viewModel.toggleSpeaker() },
+                            onMaximize = { viewModel.maximizeCall() },
+                            onDisconnect = { viewModel.disconnectCall() }
+                        )
+                    }
+                }
+            },
             bottomBar = {
                 Box(
                     modifier = Modifier
@@ -1045,29 +1123,6 @@ fun MainAppContent(
             }
         }
 
-        // Floating Green In-Call Progress Pill (Appears when user minimizes in-call screen or navigates app during active call)
-        AnimatedVisibility(
-            visible = activeCall != null &&
-                    activeCall?.state != Call.STATE_DISCONNECTED &&
-                    activeCall?.state != Call.STATE_DISCONNECTING &&
-                    isCallScreenMinimized,
-            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-            modifier = Modifier.align(Alignment.TopCenter)
-        ) {
-            activeCall?.let { call ->
-                FloatingCallPill(
-                    callInfo = call,
-                    isMuted = isMuted,
-                    isSpeakerOn = isSpeakerOn,
-                    onToggleMute = { viewModel.toggleMute() },
-                    onToggleSpeaker = { viewModel.toggleSpeaker() },
-                    onMaximize = { viewModel.maximizeCall() },
-                    onDisconnect = { viewModel.disconnectCall() }
-                )
-            }
-        }
-
         // Explicit Confirmation Dialog before making any changes to Google Account Contacts in the Cloud
         pendingCloudConfirmation?.let { conf ->
             AlertDialog(
@@ -1461,7 +1516,7 @@ private fun FloatingCallPill(
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
         modifier = modifier
             .statusBarsPadding()
-            .padding(top = 8.dp, start = 12.dp, end = 12.dp)
+            .padding(top = 8.dp, bottom = 8.dp, start = 12.dp, end = 12.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .testTag("floating_call_pill")

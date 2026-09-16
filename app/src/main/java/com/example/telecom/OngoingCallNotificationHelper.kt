@@ -218,10 +218,6 @@ object OngoingCallNotificationHelper {
     }
 
     fun showCallNotification(context: Context, callInfo: ActiveCallInfo) {
-        // If the user is actively viewing the dialer app, suppress popup notification
-        if (CallManager.isCallUiForegrounded) {
-            return
-        }
         try {
             val notification = buildCallNotification(context, callInfo)
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager

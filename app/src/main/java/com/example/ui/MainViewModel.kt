@@ -995,6 +995,17 @@ class MainViewModel(
     fun placeCall(context: Context, number: String, reason: String? = null) {
         val cleanNumber = number.ifBlank { _dialerNumber.value }
         if (cleanNumber.isBlank()) return
+
+        // Guard against duplicate outgoing calls while a call is already active or connecting
+        val currentCall = activeCall.value
+        if (currentCall != null &&
+            currentCall.state != Call.STATE_DISCONNECTED &&
+            currentCall.state != Call.STATE_DISCONNECTING
+        ) {
+            maximizeCall()
+            return
+        }
+
         val effectiveReason = reason ?: _selectedCallReason.value
         maximizeCall()
 
