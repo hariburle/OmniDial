@@ -129,6 +129,17 @@ object PhoneNumberNormalizer {
         val s2 = num2.trim()
         if (s1.equals(s2, ignoreCase = true)) return true
 
+        val d1 = s1.filter { it.isDigit() }
+        val d2 = s2.filter { it.isDigit() }
+
+        // Short codes, star codes (e.g. *86, 911, 611), or short numbers (< 7 digits)
+        // must match exactly and can never fuzzy match standard phone numbers.
+        if (d1.length < 7 || d2.length < 7) {
+            val clean1 = s1.replace(Regex("[^0-9+*#]"), "")
+            val clean2 = s2.replace(Regex("[^0-9+*#]"), "")
+            return clean1.equals(clean2, ignoreCase = true)
+        }
+
         val util = phoneUtil
         if (util != null) {
             try {
@@ -137,15 +148,20 @@ object PhoneNumberNormalizer {
                     PhoneNumberUtil.MatchType.EXACT_MATCH,
                     PhoneNumberUtil.MatchType.NSN_MATCH -> return true
                     PhoneNumberUtil.MatchType.SHORT_NSN_MATCH -> {
-                        // Check if they both have explicit conflicting country codes
-                        val clean1 = s1.replace(Regex("[^0-9+]"), "")
-                        val clean2 = s2.replace(Regex("[^0-9+]"), "")
-                        if (clean1.startsWith("+") && clean2.startsWith("+")) {
-                            val e1 = toE164(clean1, defaultRegion)
-                            val e2 = toE164(clean2, defaultRegion)
-                            return e1 == e2
+                        // SHORT_NSN_MATCH only applies when both numbers have at least 7 digits,
+                        // one is a suffix of the other (e.g. 7-digit local number matching 10-digit),
+                        // and they do not have conflicting country codes.
+                        if (d1.length >= 7 && d2.length >= 7 && (d1.endsWith(d2) || d2.endsWith(d1))) {
+                            val clean1 = s1.replace(Regex("[^0-9+]"), "")
+                            val clean2 = s2.replace(Regex("[^0-9+]"), "")
+                            if (clean1.startsWith("+") && clean2.startsWith("+")) {
+                                val e1 = toE164(clean1, defaultRegion)
+                                val e2 = toE164(clean2, defaultRegion)
+                                return e1 == e2
+                            }
+                            return true
                         }
-                        return true
+                        return false
                     }
                     PhoneNumberUtil.MatchType.NO_MATCH -> return false
                     else -> { /* proceed to fallback */ }

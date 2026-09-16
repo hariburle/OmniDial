@@ -67,8 +67,11 @@ interface AppDao {
     @Query("DELETE FROM recent_calls WHERE id = :callId")
     suspend fun deleteRecentCallById(callId: Long)
 
-    @Query("DELETE FROM recent_calls WHERE phoneNumber = :phoneNumber")
-    suspend fun deleteRecentCallsForNumber(phoneNumber: String)
+    @Query("DELETE FROM recent_calls WHERE phoneNumber = :phoneNumber OR normalized_number = :normalizedNumber")
+    suspend fun deleteRecentCallsForNumber(phoneNumber: String, normalizedNumber: String = phoneNumber)
+
+    @Query("DELETE FROM recent_calls WHERE (phoneNumber = :phoneNumber OR normalized_number = :normalizedNumber) AND ABS(timestamp - :timestamp) < 60000")
+    suspend fun deleteRecentCallByNumberAndTimestamp(phoneNumber: String, normalizedNumber: String, timestamp: Long)
 
     @Query("SELECT * FROM recent_calls ORDER BY timestamp DESC")
     suspend fun getAllRecentCallsList(): List<RecentCall>

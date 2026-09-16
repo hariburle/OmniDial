@@ -841,6 +841,9 @@ fun MainAppContent(
                         onUpdateContact = { oldNum, name, number, label, nickname ->
                             viewModel.updateContact(oldNum, name, number, label, nickname)
                         },
+                        onDeleteContact = { contact ->
+                            viewModel.deleteContact(contact)
+                        },
                         onDeleteCall = { call ->
                             viewModel.deleteRecentCall(call)
                         },
@@ -930,6 +933,14 @@ fun MainAppContent(
                                 name = name,
                                 phoneNumber = num,
                                 label = label,
+                                saveToDevice = destination == ContactSaveDestination.PHONE_CONTACTS,
+                                addToFavorites = addToFavs
+                            )
+                        },
+                        onAddNewContactMulti = { name, numbers, destination, addToFavs ->
+                            viewModel.createNewContact(
+                                name = name,
+                                phoneNumbers = numbers,
                                 saveToDevice = destination == ContactSaveDestination.PHONE_CONTACTS,
                                 addToFavorites = addToFavs
                             )

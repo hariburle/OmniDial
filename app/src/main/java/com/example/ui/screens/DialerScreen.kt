@@ -219,8 +219,7 @@ fun DialerScreen(
                 }
             }
             list.distinctBy { dc ->
-                val digits = normDigits(dc.phoneNumber)
-                if (digits.isNotBlank()) digits else (dc.name.trim().lowercase() + "_" + (dc.contactId ?: 0L))
+                (if (dc.isAppOnly) "app_" else "dev_") + (dc.contactId ?: "") + "_" + dc.name.trim().lowercase() + "_" + normDigits(dc.phoneNumber)
             }
         }
     }
@@ -230,14 +229,27 @@ fun DialerScreen(
 
     LaunchedEffect(number, allSearchContacts) {
         if (number.isNotBlank()) {
-            val fav = favorites.firstOrNull { it.phoneNumber == number }
+            val cleanNum = number.filter { it.isDigit() }
+            val fav = favorites.firstOrNull { it.phoneNumber.filter { c -> c.isDigit() } == cleanNum }
             if (fav != null) {
                 matchedContact = DeviceContact(fav.name, fav.phoneNumber, fav.label, fav.photoUri)
             } else {
-                withContext(Dispatchers.IO) {
-                    val lookedUp = ContactHelper.lookupContactByNumber(context, number)
-                    withContext(Dispatchers.Main) {
-                        matchedContact = lookedUp
+                val directMatch = allSearchContacts.firstOrNull { dc ->
+                    val dcClean = dc.phoneNumber.filter { it.isDigit() }
+                    dcClean == cleanNum || (cleanNum.length >= 7 && (dcClean.endsWith(cleanNum) || cleanNum.endsWith(dcClean))) ||
+                    dc.phoneNumbers.any { pn ->
+                        val pnClean = pn.number.filter { it.isDigit() }
+                        pnClean == cleanNum || (cleanNum.length >= 7 && (pnClean.endsWith(cleanNum) || cleanNum.endsWith(pnClean)))
+                    }
+                }
+                if (directMatch != null) {
+                    matchedContact = directMatch
+                } else {
+                    withContext(Dispatchers.IO) {
+                        val lookedUp = ContactHelper.lookupContactByNumber(context, number)
+                        withContext(Dispatchers.Main) {
+                            matchedContact = lookedUp
+                        }
                     }
                 }
             }
@@ -254,7 +266,7 @@ fun DialerScreen(
         }
     }
 
-    // Filter out the already-matched contact from T9 search matches to eliminate duplicate suggestions
+    // Filter out only the exact contact already displayed in the top matchedContact banner to prevent identical duplicates
     val filteredT9Matches = remember(t9Matches, matchedContact, number) {
         if (matchedContact != null) {
             val cleanNum = number.filter { it.isDigit() }
@@ -262,7 +274,7 @@ fun DialerScreen(
                 val matchClean = match.phoneNumber.filter { it.isDigit() }
                 val isSameNum = matchClean.isNotEmpty() && (matchClean == cleanNum || (cleanNum.length >= 7 && (matchClean.endsWith(cleanNum) || cleanNum.endsWith(matchClean))))
                 val isSameName = match.name.equals(matchedContact?.name, ignoreCase = true)
-                !isSameNum && !isSameName
+                !(isSameNum && isSameName)
             }
         } else {
             t9Matches

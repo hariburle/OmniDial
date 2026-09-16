@@ -787,6 +787,17 @@ object ContactHelper {
         val s2 = num2.trim()
         if (s1.equals(s2, ignoreCase = true)) return true
 
+        val d1 = s1.filter { it.isDigit() }
+        val d2 = s2.filter { it.isDigit() }
+
+        // Short codes, star codes (e.g. *86, 911, 611), or short numbers (< 7 digits)
+        // must match exactly and can never fuzzy match standard telephone numbers.
+        if (d1.length < 7 || d2.length < 7) {
+            val clean1 = s1.replace(Regex("[^0-9+*#]"), "")
+            val clean2 = s2.replace(Regex("[^0-9+*#]"), "")
+            return clean1.equals(clean2, ignoreCase = true)
+        }
+
         // Libphonenumber Match Check
         if (PhoneNumberNormalizer.isSamePhoneNumber(s1, s2, context)) {
             return true
@@ -1356,8 +1367,7 @@ object ContactHelper {
         return false
     }
 
-    fun fetchDeviceContacts(context: Context): List<DeviceContact> {
-        val nicknameMap = fetchNicknameMap(context)
+    fun fetchDeviceContacts(context: Context, nicknameMap: Map<Long, String>? = null): List<DeviceContact> {
         val contactsMap = linkedMapOf<String, DeviceContactAccumulator>()
         var cursor: Cursor? = null
         try {
@@ -1407,7 +1417,7 @@ object ContactHelper {
 
                     val key = contactId?.toString() ?: fullName.trim().lowercase()
                     val accumulator = contactsMap.getOrPut(key) {
-                        val nickname = if (contactId != null) nicknameMap[contactId] else null
+                        val nickname = if (contactId != null) nicknameMap?.get(contactId) else null
                         DeviceContactAccumulator(
                             name = fullName,
                             photoUri = photo ?: thumb,
@@ -1498,6 +1508,7 @@ object ContactHelper {
         val result = mutableListOf<RecentCall>()
         try {
             val projection = arrayOf(
+                CallLog.Calls._ID,
                 CallLog.Calls.NUMBER,
                 CallLog.Calls.CACHED_NAME,
                 CallLog.Calls.TYPE,
@@ -1512,6 +1523,7 @@ object ContactHelper {
                 "${CallLog.Calls.DATE} DESC"
             )
             cursor?.use {
+                val idIdx = it.getColumnIndex(CallLog.Calls._ID)
                 val numIdx = it.getColumnIndex(CallLog.Calls.NUMBER)
                 val nameIdx = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
                 val typeIdx = it.getColumnIndex(CallLog.Calls.TYPE)
@@ -1520,6 +1532,7 @@ object ContactHelper {
 
                 var count = 0
                 while (it.moveToNext() && count < limit) {
+                    val rawId = if (idIdx != -1) it.getLong(idIdx) else 0L
                     val rawNumber = if (numIdx != -1) it.getString(numIdx) ?: "" else ""
                     val cachedName = if (nameIdx != -1) it.getString(nameIdx) ?: "" else ""
                     val type = if (typeIdx != -1) it.getInt(typeIdx) else 1
@@ -1527,7 +1540,7 @@ object ContactHelper {
                     val duration = if (durIdx != -1) it.getLong(durIdx) else 0L
 
                     if (rawNumber.isNotBlank()) {
-                        val sysId = -Math.abs("${rawNumber}_${date}_$count".hashCode().toLong()).coerceAtLeast(1L)
+                        val sysId = if (rawId > 0L) -rawId else -Math.abs("${rawNumber}_${date}_$count".hashCode().toLong()).coerceAtLeast(1L)
                         result.add(
                             RecentCall(
                                 id = sysId,
@@ -1546,6 +1559,67 @@ object ContactHelper {
             // Permission not granted or query failed
         }
         return result
+    }
+
+    /**
+     * Deletes a specific call log entry from Android system CallLog.Calls
+     */
+    fun deleteDeviceCallLogEntry(context: Context, phoneNumber: String?, timestamp: Long?, sysCallId: Long? = null): Boolean {
+        try {
+            val resolver = context.contentResolver
+            var deleted = 0
+            if (sysCallId != null && sysCallId > 0L) {
+                try {
+                    val uri = ContentUris.withAppendedId(CallLog.Calls.CONTENT_URI, sysCallId)
+                    deleted += resolver.delete(uri, null, null)
+                } catch (_: Exception) {}
+            }
+            if (deleted == 0 && timestamp != null && timestamp > 0L) {
+                try {
+                    val timeWhere = "${CallLog.Calls.DATE} >= ? AND ${CallLog.Calls.DATE} <= ?"
+                    val timeArgs = arrayOf((timestamp - 10000L).toString(), (timestamp + 10000L).toString())
+                    deleted += resolver.delete(CallLog.Calls.CONTENT_URI, timeWhere, timeArgs)
+                } catch (_: Exception) {}
+            }
+            if (deleted == 0 && !phoneNumber.isNullOrBlank()) {
+                val clean = phoneNumber.trim()
+                val digits = clean.filter { it.isDigit() }
+                val last10 = digits.takeLast(10)
+                try {
+                    val where = "${CallLog.Calls.NUMBER} = ? OR ${CallLog.Calls.NUMBER} = ? OR ${CallLog.Calls.NUMBER} LIKE ?"
+                    if (timestamp != null && timestamp > 0L) {
+                        val whereTime = "($where) AND ${CallLog.Calls.DATE} >= ? AND ${CallLog.Calls.DATE} <= ?"
+                        val argsTime = arrayOf(clean, digits, "%$last10", (timestamp - 30000L).toString(), (timestamp + 30000L).toString())
+                        deleted += resolver.delete(CallLog.Calls.CONTENT_URI, whereTime, argsTime)
+                    } else {
+                        val args = arrayOf(clean, digits, "%$last10")
+                        deleted += resolver.delete(CallLog.Calls.CONTENT_URI, where, args)
+                    }
+                } catch (_: Exception) {}
+            }
+            return deleted > 0
+        } catch (e: Exception) {
+            android.util.Log.e("ContactHelper", "Failed to delete call log entry from device", e)
+            return false
+        }
+    }
+
+    /**
+     * Deletes all call log entries for a given phone number from Android system CallLog.Calls
+     */
+    fun deleteDeviceCallLogsForNumber(context: Context, phoneNumber: String): Int {
+        try {
+            val clean = phoneNumber.trim()
+            val digits = clean.filter { it.isDigit() }
+            val last10 = digits.takeLast(10)
+            val resolver = context.contentResolver
+            val where = "${CallLog.Calls.NUMBER} = ? OR ${CallLog.Calls.NUMBER} = ? OR ${CallLog.Calls.NUMBER} LIKE ?"
+            val args = arrayOf(clean, digits, "%$last10")
+            return resolver.delete(CallLog.Calls.CONTENT_URI, where, args)
+        } catch (e: Exception) {
+            android.util.Log.e("ContactHelper", "Failed to delete call logs for number from device", e)
+            return 0
+        }
     }
 }
 

@@ -222,7 +222,8 @@ object CallManager {
                             durationSeconds = 0,
                             ruleMatched = spamReason,
                             isSpam = true,
-                            note = "$spamReason auto-dropped"
+                            callReason = "$spamReason auto-dropped",
+                            note = null
                         )
                     )
                 } catch (e: Exception) {

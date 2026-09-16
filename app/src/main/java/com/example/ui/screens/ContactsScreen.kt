@@ -120,6 +120,7 @@ fun ContactsScreen(
     onUpdateFavoriteNumber: (FavoriteContact, String, String) -> Unit = { _, _, _ -> },
     onCreateRule: (String) -> Unit,
     onAddNewContact: (name: String, number: String, label: String, destination: ContactSaveDestination, addToFavorites: Boolean) -> Unit = { _, _, _, _, _ -> },
+    onAddNewContactMulti: ((name: String, numbers: List<ContactPhoneNumber>, destination: ContactSaveDestination, addToFavorites: Boolean) -> Unit)? = null,
     onUpdateContact: (oldNumber: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
     onSyncContactToPhone: (DeviceContact) -> Unit = {},
     onSyncAllAppContactsToDevice: () -> Unit = {},
@@ -1120,6 +1121,15 @@ fun ContactsScreen(
             onDismiss = { showAddCustomDialog = false },
             onSave = { name, number, label, destination, addToFav ->
                 onAddNewContact(name, number, label, destination, addToFav)
+                showAddCustomDialog = false
+            },
+            onSaveMulti = { name, numbers, destination, addToFav ->
+                if (onAddNewContactMulti != null) {
+                    onAddNewContactMulti(name, numbers, destination, addToFav)
+                } else {
+                    val first = numbers.firstOrNull() ?: ContactPhoneNumber("", "Mobile")
+                    onAddNewContact(name, first.number, first.label, destination, addToFav)
+                }
                 showAddCustomDialog = false
             }
         )

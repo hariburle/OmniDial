@@ -105,4 +105,3 @@ However, several screens suffer from **cognitive overload, nested container fati
 
 ---
 *Document saved to `/documents/UX_CRITIQUE.md` for team reference and future design sprints.*
-*Interactive Light & Dark comparison mockups available at `/documents/UX_MOCKUPS.html`.*

@@ -40,8 +40,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import java.util.Collections
 import kotlin.math.abs
+import android.util.Log
 
 data class CloudContactConfirmation(
     val title: String,
@@ -303,7 +305,7 @@ class MainViewModel(
     }
 
     // Device Contacts Flow & Observer for live synchronization with system contacts app
-    private val _deviceContacts = MutableStateFlow<List<DeviceContact>>(emptyList())
+    private val _deviceContacts = MutableStateFlow<List<DeviceContact>>(inMemoryCachedDeviceContacts ?: emptyList())
     val deviceContacts: StateFlow<List<DeviceContact>> = _deviceContacts.asStateFlow()
 
     private var contactsObserver: android.database.ContentObserver? = null
@@ -405,7 +407,7 @@ class MainViewModel(
     val rules: StateFlow<List<CallerRule>> = repository.allRules
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _combinedRecentCalls = MutableStateFlow<List<RecentCall>>(emptyList())
+    private val _combinedRecentCalls = MutableStateFlow<List<RecentCall>>(inMemoryCachedRecentCalls ?: emptyList())
     val recentCalls: StateFlow<List<RecentCall>> = _combinedRecentCalls.asStateFlow()
 
     private var callLogObserver: ContentObserver? = null
@@ -447,8 +449,7 @@ class MainViewModel(
             }
         }
         list.distinctBy { dc ->
-            val digits = normDigits(dc.phoneNumber)
-            if (digits.isNotBlank()) digits else (dc.name.trim().lowercase() + "_" + (dc.contactId ?: 0L))
+            (if (dc.isAppOnly) "app_" else "dev_") + (dc.contactId ?: "") + "_" + dc.name.trim().lowercase() + "_" + normDigits(dc.phoneNumber)
         }
     }
         .flowOn(Dispatchers.Default)
@@ -464,10 +465,64 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val isRefreshingRecents = java.util.concurrent.atomic.AtomicBoolean(false)
-    private val isRefreshingContacts = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val contactsMutex = kotlinx.coroutines.sync.Mutex()
     private var hasSeededInitialCalls = false
 
+    private val deletedCallsPrefs by lazy {
+        appContext.getSharedPreferences("omni_dial_deleted_calls", Context.MODE_PRIVATE)
+    }
+    private val deletedCallKeys = java.util.Collections.synchronizedSet(
+        deletedCallsPrefs.getStringSet("deleted_call_keys", emptySet())?.toMutableSet() ?: mutableSetOf()
+    )
+    private val deletedNumbersUntil = java.util.Collections.synchronizedMap(
+        (deletedCallsPrefs.getStringSet("deleted_numbers_until", emptySet()) ?: emptySet())
+            .mapNotNull { entry ->
+                val parts = entry.split("=")
+                if (parts.size == 2) parts[0] to (parts[1].toLongOrNull() ?: 0L) else null
+            }.toMap().toMutableMap()
+    )
+
+    private fun persistDeletedRegistry() {
+        try {
+            val keySet = synchronized(deletedCallKeys) { deletedCallKeys.toList().takeLast(500).toSet() }
+            val numSet = synchronized(deletedNumbersUntil) {
+                deletedNumbersUntil.entries.toList().takeLast(300).map { "${it.key}=${it.value}" }.toSet()
+            }
+            deletedCallsPrefs.edit()
+                .putStringSet("deleted_call_keys", keySet)
+                .putStringSet("deleted_numbers_until", numSet)
+                .apply()
+        } catch (_: Exception) {}
+    }
+
     init {
+        // Fast local initialization: immediately populate state from Room database
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (_combinedRecentCalls.value.isEmpty()) {
+                    val initialRoomCalls = repository.getAllRecentCallsList()
+                    if (initialRoomCalls.isNotEmpty()) {
+                        _combinedRecentCalls.value = initialRoomCalls
+                    }
+                }
+                if (_deviceContacts.value.isEmpty()) {
+                    val initialLocals = repository.getAllLocalContactsList().map { lc ->
+                        DeviceContact(
+                            name = lc.name,
+                            phoneNumber = lc.phoneNumber,
+                            label = lc.label,
+                            photoUri = lc.photoUri,
+                            nickname = lc.nickname,
+                            isStarred = false,
+                            isAppOnly = true
+                        )
+                    }
+                    if (initialLocals.isNotEmpty()) {
+                        _deviceContacts.value = initialLocals
+                    }
+                }
+            } catch (_: Exception) {}
+        }
         refreshContacts()
         refreshRecentCalls()
         refreshSimCards()
@@ -486,8 +541,27 @@ class MainViewModel(
             try {
                 fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
 
-                val roomCalls = repository.getAllRecentCallsList()
-                val systemCalls = ContactHelper.fetchDeviceCallHistory(appContext, limit = 100)
+                fun isCallDeleted(call: RecentCall): Boolean {
+                    val digits = normDigits(call.phoneNumber)
+                    val rawClean = call.phoneNumber.trim()
+                    val until = deletedNumbersUntil[digits] ?: deletedNumbersUntil[rawClean]
+                    if (until != null && call.timestamp <= until) return true
+
+                    val key = "${digits}_${call.timestamp}"
+                    if (deletedCallKeys.contains(key)) return true
+
+                    return synchronized(deletedCallKeys) {
+                        deletedCallKeys.any { k ->
+                            k.startsWith(digits) && Math.abs((k.substringAfter('_').toLongOrNull() ?: 999999L) - call.timestamp) < 30000L
+                        }
+                    }
+                }
+
+                val roomCalls = repository.getAllRecentCallsList().filterNot { isCallDeleted(it) }
+                if (_combinedRecentCalls.value.isEmpty() && roomCalls.isNotEmpty()) {
+                    _combinedRecentCalls.value = roomCalls
+                }
+                val systemCalls = ContactHelper.fetchDeviceCallHistory(appContext, limit = 100).filterNot { isCallDeleted(it) }
 
                 val merged = mutableListOf<RecentCall>()
                 val handledRoomIds = mutableSetOf<Long>()
@@ -561,6 +635,7 @@ class MainViewModel(
 
                 // Immediate UI update so user never experiences an empty recents screen
                 _combinedRecentCalls.value = deduplicated
+                inMemoryCachedRecentCalls = deduplicated
 
                 // Fresh install seed: if Room database was empty, seed Room with system call history once in background
                 if (roomCalls.isEmpty() && systemCalls.isNotEmpty() && !hasSeededInitialCalls) {
@@ -580,63 +655,46 @@ class MainViewModel(
     }
 
     fun refreshContacts() {
-        if (!isRefreshingContacts.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
-                fun normName(n: String): String = n.trim().lowercase()
+            contactsMutex.withLock {
+                try {
+                    fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
 
-                val deviceList = ContactHelper.fetchDeviceContacts(appContext)
-                val localList = repository.getAllLocalContactsList()
-                val currentFavs = repository.getAllFavoritesList()
+                    val deviceList = ContactHelper.fetchDeviceContacts(appContext)
+                    val localList = repository.getAllLocalContactsList()
+                    val currentFavs = repository.getAllFavoritesList()
 
-                val favDigits = currentFavs.map { normDigits(it.phoneNumber) }.filter { it.isNotEmpty() }.toSet()
+                    val favDigits = currentFavs.map { normDigits(it.phoneNumber) }.filter { it.isNotEmpty() }.toSet()
 
-                // Collect all phone numbers & names in device contacts
-                val deviceNumbers = deviceList.flatMap { dc ->
-                    dc.phoneNumbers.map { normDigits(it.number) } + listOf(normDigits(dc.phoneNumber))
-                }.filter { it.isNotBlank() }.toSet()
-                val deviceNames = deviceList.map { normName(it.name) }.toSet()
+                    // Group local contacts by name so multi-number contacts are consolidated into a single DeviceContact
+                    val localAsDeviceContacts = localList
+                        .groupBy { it.name.trim() }
+                        .map { (name, contacts) ->
+                            val first = contacts.first()
+                            val allNumbers = contacts.map { ContactPhoneNumber(it.phoneNumber, it.label) }
+                            val isFav = contacts.any { favDigits.contains(normDigits(it.phoneNumber)) }
+                            DeviceContact(
+                                name = name,
+                                phoneNumber = first.phoneNumber,
+                                label = first.label,
+                                photoUri = first.photoUri,
+                                nickname = first.nickname,
+                                isStarred = isFav,
+                                isAppOnly = true,
+                                phoneNumbers = allNumbers
+                            )
+                        }
 
-                // Clean up any local contacts that were synced to phone contacts or already exist on device
-                localList.forEach { lc ->
-                    val lcDigits = normDigits(lc.phoneNumber)
-                    val lcName = normName(lc.name)
-                    if ((lcDigits.isNotBlank() && deviceNumbers.contains(lcDigits)) || (lcName.isNotBlank() && deviceNames.contains(lcName))) {
-                        repository.deleteLocalContact(lc)
-                    }
+                    // Combine: Keep both device contacts and in-app contacts sorted A-Z
+                    val combined = (deviceList + localAsDeviceContacts)
+                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+
+                    _deviceContacts.value = combined
+                    inMemoryCachedDeviceContacts = combined
+                    syncWithDeviceContacts()
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-
-                // Retrieve active local contacts after pruning synced duplicates
-                val activeLocalList = repository.getAllLocalContactsList()
-
-                val localAsDeviceContacts = activeLocalList.map { lc ->
-                    val isFav = favDigits.contains(normDigits(lc.phoneNumber))
-                    DeviceContact(
-                        name = lc.name,
-                        phoneNumber = lc.phoneNumber,
-                        label = lc.label,
-                        photoUri = lc.photoUri,
-                        nickname = lc.nickname,
-                        isStarred = isFav,
-                        isAppOnly = true
-                    )
-                }
-
-                // Combine: device contacts take precedence, followed by app-only contacts, sorted strictly A-Z
-                val combined = (deviceList + localAsDeviceContacts)
-                    .distinctBy { dc ->
-                        val digits = normDigits(dc.phoneNumber)
-                        if (digits.isNotBlank()) digits else (normName(dc.name) + "_" + (dc.contactId ?: 0L))
-                    }
-                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
-
-                _deviceContacts.value = combined
-                syncWithDeviceContacts()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                isRefreshingContacts.set(false)
             }
         }
     }
@@ -1074,6 +1132,9 @@ class MainViewModel(
     }
 
     fun lookupContactByNumber(phoneNumber: String): DeviceContact? {
+        if (ContactHelper.isVoicemailNumber(appContext, phoneNumber)) {
+            return DeviceContact("Voicemail", phoneNumber, "Voicemail", null)
+        }
         val fav = favorites.value.firstOrNull {
             ContactHelper.isSamePhoneNumber(it.phoneNumber, phoneNumber)
         }
@@ -1216,20 +1277,55 @@ class MainViewModel(
     }
 
     fun deleteRecentCall(call: RecentCall) {
+        val digits = call.phoneNumber.filter { it.isDigit() }.takeLast(10)
+        val key = "${digits}_${call.timestamp}"
+        deletedCallKeys.add(key)
+        persistDeletedRegistry()
+
+        // Immediate UI update
+        _combinedRecentCalls.value = _combinedRecentCalls.value.filterNot { item ->
+            item.id == call.id || (ContactHelper.isSamePhoneNumber(item.phoneNumber, call.phoneNumber) && Math.abs(item.timestamp - call.timestamp) < 30000L)
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
-            if (call.id > 0L) {
-                repository.deleteRecentCallById(call.id)
-            } else {
-                repository.deleteRecentCallsForNumber(call.phoneNumber)
+            try {
+                if (call.id > 0L) {
+                    repository.deleteRecentCallById(call.id)
+                }
+                repository.deleteRecentCallByNumberAndTimestamp(call.phoneNumber, call.timestamp)
+
+                val sysId = if (call.id < 0L) -call.id else null
+                ContactHelper.deleteDeviceCallLogEntry(appContext, call.phoneNumber, call.timestamp, sysId)
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Error deleting recent call", e)
+            } finally {
+                refreshRecentCalls()
             }
-            refreshRecentCalls()
         }
     }
 
     fun deleteRecentCallsForNumber(phoneNumber: String) {
+        val clean = phoneNumber.trim()
+        val digits = clean.filter { it.isDigit() }.takeLast(10)
+        val now = System.currentTimeMillis()
+        if (digits.isNotBlank()) deletedNumbersUntil[digits] = now
+        deletedNumbersUntil[clean] = now
+        persistDeletedRegistry()
+
+        // Immediate UI update
+        _combinedRecentCalls.value = _combinedRecentCalls.value.filterNot { item ->
+            ContactHelper.isSamePhoneNumber(item.phoneNumber, phoneNumber)
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
-            repository.deleteRecentCallsForNumber(phoneNumber)
-            refreshRecentCalls()
+            try {
+                repository.deleteRecentCallsForNumber(phoneNumber)
+                ContactHelper.deleteDeviceCallLogsForNumber(appContext, phoneNumber)
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Error deleting recent calls for number", e)
+            } finally {
+                refreshRecentCalls()
+            }
         }
     }
 
@@ -1333,7 +1429,21 @@ class MainViewModel(
             if (validNumbers.isEmpty() || name.isBlank()) return@launch
 
             if (saveToDevice) {
-                ContactHelper.saveContactToDevice(appContext, name, validNumbers)
+                val saved = ContactHelper.saveContactToDevice(appContext, name, validNumbers)
+                if (!saved) {
+                    // Fallback to local storage if saving to Android contacts provider failed
+                    validNumbers.forEach { pn ->
+                        repository.insertLocalContact(
+                            LocalContact(
+                                name = name,
+                                phoneNumber = pn.number,
+                                label = pn.label
+                            )
+                        )
+                    }
+                } else {
+                    kotlinx.coroutines.delay(200)
+                }
             } else {
                 validNumbers.forEach { pn ->
                     repository.insertLocalContact(
@@ -1881,6 +1991,15 @@ class MainViewModel(
                     }
                 }
 
+                // 4. If this is an unknown number entry, also delete all its recent calls
+                val isUnknown = contact.name.trim().all { it.isDigit() || it in "+ -()#" } || contact.name.trim() == contact.phoneNumber.trim()
+                if (isUnknown) {
+                    val allNumbers = (contact.phoneNumbers.map { it.number } + listOf(contact.phoneNumber)).filter { it.isNotBlank() }.distinct()
+                    allNumbers.forEach { num ->
+                        deleteRecentCallsForNumber(num)
+                    }
+                }
+
                 refreshContacts()
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1988,6 +2107,11 @@ class MainViewModel(
     }
 
     companion object {
+        @Volatile
+        private var inMemoryCachedDeviceContacts: List<DeviceContact>? = null
+        @Volatile
+        private var inMemoryCachedRecentCalls: List<RecentCall>? = null
+
         fun provideFactory(context: Context): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")

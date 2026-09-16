@@ -261,7 +261,7 @@ fun FavoritesScreen(
         map
     }
 
-    val contactsWithCallCounts = remember(effectiveDeviceContacts, recentCalls) {
+    val contactsWithCallCounts = remember(deviceContactsByNorm, recentCalls) {
         val callCounts = mutableMapOf<String, Int>()
         recentCalls.forEach { call ->
             val norm = call.phoneNumber.filter { it.isDigit() }.takeLast(10)
@@ -270,16 +270,19 @@ fun FavoritesScreen(
             }
         }
 
+        val seenContacts = mutableSetOf<DeviceContact>()
         val list = mutableListOf<Triple<DeviceContact, Set<String>, Int>>()
-        effectiveDeviceContacts.forEach { dc ->
-            val allDcNorms = (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
-                .map { it.filter { c -> c.isDigit() }.takeLast(10) }
-                .filter { it.isNotBlank() }
-                .toSet()
-            
-            val totalCount = allDcNorms.sumOf { callCounts[it] ?: 0 }
-            if (totalCount > 0) {
-                list.add(Triple(dc, allDcNorms, totalCount))
+        callCounts.forEach { (norm, _) ->
+            val dc = deviceContactsByNorm[norm]
+            if (dc != null && seenContacts.add(dc)) {
+                val allDcNorms = (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
+                    .map { it.filter { c -> c.isDigit() }.takeLast(10) }
+                    .filter { it.isNotBlank() }
+                    .toSet()
+                val totalCount = allDcNorms.sumOf { callCounts[it] ?: 0 }
+                if (totalCount > 0) {
+                    list.add(Triple(dc, allDcNorms, totalCount))
+                }
             }
         }
         list

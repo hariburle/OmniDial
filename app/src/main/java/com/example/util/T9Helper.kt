@@ -138,7 +138,7 @@ object T9Helper {
             }
         }
 
-        // Distinct by phone number and limit to top 8
-        return results.distinctBy { it.phoneNumber }.take(8)
+        // Distinct by contact name and phone number and limit to top 8
+        return results.distinctBy { it.name.trim().lowercase() + "_" + it.phoneNumber }.take(8)
     }
 }

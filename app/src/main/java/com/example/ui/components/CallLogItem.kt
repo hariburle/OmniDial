@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.RecentCall
 import com.example.ui.screens.GroupedCallLog
+import com.example.util.ContactHelper
 import com.example.util.DeviceContact
 import java.text.SimpleDateFormat
 import java.util.*
@@ -48,9 +50,20 @@ fun CallLogItem(
     modifier: Modifier = Modifier
 ) {
     val call = group.primaryCall
-    val photoToUse = matchedDc?.photoUri?.ifBlank { null } ?: call.photoUri?.ifBlank { null }
-    val nameToUse = matchedDc?.name?.ifBlank { null } ?: call.callerName?.ifBlank { null }
+    val context = LocalContext.current
+    val isVoicemail = remember(call.phoneNumber) {
+        ContactHelper.isVoicemailNumber(context, call.phoneNumber)
+    }
+    val photoToUse = if (isVoicemail) null else (matchedDc?.photoUri?.ifBlank { null } ?: call.photoUri?.ifBlank { null })
+    val nameToUse = if (isVoicemail) "Voicemail" else (matchedDc?.name?.ifBlank { null } ?: call.callerName?.ifBlank { null })
     val isWhatsApp = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
+    val isCarrierAutoDropped = call.isSpam && (
+        call.note?.contains("auto-dropped", ignoreCase = true) == true ||
+        call.ruleMatched?.contains("Carrier", ignoreCase = true) == true ||
+        call.callReason?.contains("auto-dropped", ignoreCase = true) == true
+    )
+    val noteToShow = if (isCarrierAutoDropped) null else call.note
+    val reminderToShow = call.reminderTime
     val (typeIcon, typeColor, typeLabel) = when {
         isWhatsApp -> Triple(Icons.AutoMirrored.Filled.CallMade, Color(0xFF25D366), "WhatsApp Call")
         call.callType == 1 -> Triple(Icons.AutoMirrored.Filled.CallReceived, Color(0xFF16A34A), "Incoming")
@@ -124,6 +137,15 @@ fun CallLogItem(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
+                        } else if (isVoicemail) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Voicemail,
+                                    contentDescription = "Voicemail",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         } else if (!nameToUse.isNullOrBlank()) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
@@ -392,8 +414,36 @@ fun CallLogItem(
                         }
                     }
 
-                    val noteToShow = call.note
-                    val reminderToShow = call.reminderTime
+                    // Carrier Spam Security Badge (compact single-line badge, replaces wrapping note)
+                    if (isCarrierAutoDropped) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
+                            modifier = Modifier.padding(top = 3.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = "Spam Blocked",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = "Carrier Auto-Dropped",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
 
                     // Note Display in Recents
                     if (!noteToShow.isNullOrBlank()) {
@@ -514,14 +564,15 @@ fun CallLogItem(
                         expanded = showOverflowMenu,
                         onDismissRequest = { showOverflowMenu = false }
                     ) {
+                        val hasUserNote = !noteToShow.isNullOrBlank() || call.reminderTime != null
                         DropdownMenuItem(
-                            text = { Text(if (!call.note.isNullOrBlank() || call.reminderTime != null) "Edit Note / Reminder" else "Add Note / Reminder") },
+                            text = { Text(if (hasUserNote) "Edit Note / Reminder" else "Add Note / Reminder") },
                             leadingIcon = {
                                 Icon(Icons.Default.EditNote, contentDescription = null)
                             },
                             onClick = {
                                 showOverflowMenu = false
-                                onOpenNoteDialog(call)
+                                onOpenNoteDialog(if (isCarrierAutoDropped && call.note?.contains("auto-dropped", ignoreCase = true) == true) call.copy(note = null) else call)
                             }
                         )
                         DropdownMenuItem(

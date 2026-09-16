@@ -53,4 +53,19 @@ class ExampleUnitTest {
         val label = ContactHelper.getDescriptiveNumberLabel(contact, "5551234")
         assertEquals("Home", label)
     }
+
+    @Test
+    fun testVoicemailAndShortCodeIsolation() {
+        // *86 voicemail must NOT match arbitrary contacts with 86 in their number
+        assertFalse(ContactHelper.isSamePhoneNumber("*86", "+18605551234"))
+        assertFalse(ContactHelper.isSamePhoneNumber("*86", "860-555-1234"))
+        assertFalse(ContactHelper.isSamePhoneNumber("*86", "+8613800000000"))
+        assertFalse(ContactHelper.isSamePhoneNumber("*86", "555-8686"))
+        assertFalse(ContactHelper.isSamePhoneNumber("911", "+12129115555"))
+        
+        // Exact matches must still pass
+        assertTrue(ContactHelper.isSamePhoneNumber("*86", "*86"))
+        assertTrue(ContactHelper.isSamePhoneNumber("*86", " *86 "))
+        assertTrue(ContactHelper.isSamePhoneNumber("911", "911"))
+    }
 }

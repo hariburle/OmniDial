@@ -53,6 +53,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Voicemail
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -136,6 +138,7 @@ fun ContactDetailsBottomSheet(
     onEditContact: (name: String, phoneNumber: String, label: String, nickname: String?) -> Unit = { _, _, _, _ -> },
     onAddNewContact: ((name: String, number: String, label: String, saveToDevice: Boolean, addToFavorites: Boolean) -> Unit)? = null,
     onDeleteContact: ((DeviceContact) -> Unit)? = null,
+    onDeleteCallLog: (() -> Unit)? = null,
     getPreferredCallingMode: (String) -> String = { "cellular" },
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
@@ -148,7 +151,11 @@ fun ContactDetailsBottomSheet(
     var showCreateContactDialog by remember { mutableStateOf(false) }
     var showAddNumberDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
-    val isUnknownNumber = remember(contact) {
+    val isVoicemail = remember(contact.phoneNumber, contact.name) {
+        ContactHelper.isVoicemailNumber(context, contact.phoneNumber) || contact.name.equals("Voicemail", ignoreCase = true)
+    }
+    val isUnknownNumber = remember(contact, isVoicemail) {
+        if (isVoicemail) return@remember false
         val trimmed = contact.name.trim()
         trimmed.startsWith("+") ||
         trimmed.all { it.isDigit() || it == '+' || it == ' ' || it == '-' || it == '(' || it == ')' } ||
@@ -243,7 +250,7 @@ fun ContactDetailsBottomSheet(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete Contact",
+                                contentDescription = if (isUnknownNumber && onDeleteCallLog != null) "Remove from Recents" else "Delete Contact",
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -302,6 +309,15 @@ fun ContactDetailsBottomSheet(
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            } else if (isVoicemail) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Voicemail,
+                                        contentDescription = "Voicemail",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
                             } else if (isUnknownNumber) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
@@ -1069,7 +1085,38 @@ fun ContactDetailsBottomSheet(
                                             )
                                         }
 
-                                        if (!call.note.isNullOrBlank()) {
+                                        val isCarrierAutoDropped = call.isSpam && (
+                                            call.note?.contains("auto-dropped", ignoreCase = true) == true ||
+                                            call.ruleMatched?.contains("Carrier", ignoreCase = true) == true ||
+                                            call.callReason?.contains("auto-dropped", ignoreCase = true) == true
+                                        )
+                                        if (isCarrierAutoDropped) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Security,
+                                                        contentDescription = "Spam Blocked",
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier.size(10.dp)
+                                                    )
+                                                    Text(
+                                                        text = "Carrier Auto-Dropped",
+                                                        fontSize = 9.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                            }
+                                        } else if (!call.note.isNullOrBlank()) {
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -1085,7 +1132,9 @@ fun ContactDetailsBottomSheet(
                                                     text = call.note,
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.primary,
-                                                    fontWeight = FontWeight.Medium
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
@@ -1433,6 +1482,7 @@ fun ContactDetailsBottomSheet(
     }
 
     if (showDeleteConfirmationDialog) {
+        val isRemovingFromRecents = isUnknownNumber && onDeleteCallLog != null
         AlertDialog(
             onDismissRequest = { showDeleteConfirmationDialog = false },
             icon = {
@@ -1445,22 +1495,31 @@ fun ContactDetailsBottomSheet(
             },
             title = {
                 Text(
-                    text = "Delete Contact?",
+                    text = if (isRemovingFromRecents) "Remove from Recents?" else "Delete Contact?",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium
                 )
             },
             text = {
                 Text(
-                    text = "Are you sure you want to delete ${contact.name}? ${if (!contact.isAppOnly) "This will remove the contact from your Phone Contacts and this app." else "This will remove the local contact."}"
+                    text = if (isRemovingFromRecents) {
+                        "Are you sure you want to remove call history for ${contact.name} from Recents?"
+                    } else {
+                        "Are you sure you want to delete ${contact.name}? ${if (!contact.isAppOnly) "This will remove the contact from your Phone Contacts and this app." else "This will remove the local contact."}"
+                    }
                 )
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showDeleteConfirmationDialog = false
-                        onDeleteContact?.invoke(contact)
-                        Toast.makeText(context, "Deleted ${contact.name}", Toast.LENGTH_SHORT).show()
+                        if (isRemovingFromRecents) {
+                            onDeleteCallLog?.invoke()
+                            Toast.makeText(context, "Removed from Recents", Toast.LENGTH_SHORT).show()
+                        } else {
+                            onDeleteContact?.invoke(contact)
+                            Toast.makeText(context, "Deleted ${contact.name}", Toast.LENGTH_SHORT).show()
+                        }
                         onDismiss()
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -1469,7 +1528,7 @@ fun ContactDetailsBottomSheet(
                     ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Delete", fontWeight = FontWeight.Bold)
+                    Text(if (isRemovingFromRecents) "Remove" else "Delete", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import com.example.util.ContactHelper
+import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -121,6 +122,7 @@ fun CallLogScreen(
     onAddNewContact: (name: String, number: String, label: String, saveToDevice: Boolean, addToFavorites: Boolean) -> Unit = { _, _, _, _, _ -> },
     onUpdateNoteAndReminder: (RecentCall, String?, Long?) -> Unit = { _, _, _ -> },
     onUpdateContact: (oldNum: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
+    onDeleteContact: ((DeviceContact) -> Unit)? = null,
     onDeleteCall: (RecentCall) -> Unit = {},
     onDeleteCallsForNumber: (String) -> Unit = {},
     rules: List<com.example.data.CallerRule> = emptyList(),
@@ -129,6 +131,7 @@ fun CallLogScreen(
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var noteDialogCall by remember { mutableStateOf<RecentCall?>(null) }
     var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
 
@@ -176,6 +179,27 @@ fun CallLogScreen(
             },
             onAddNewContact = { name, number, label, saveToDevice, addToFav ->
                 onAddNewContact(name, number, label, saveToDevice, addToFav)
+                contactDetailsTarget = null
+            },
+            onDeleteContact = if (onDeleteContact != null) {
+                { contactToDelete ->
+                    val numsToDelete = (contactToDelete.phoneNumbers.map { it.number } + listOf(contactToDelete.phoneNumber))
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    numsToDelete.forEach { num ->
+                        onDeleteCallsForNumber(num)
+                    }
+                    onDeleteContact(contactToDelete)
+                    contactDetailsTarget = null
+                }
+            } else null,
+            onDeleteCallLog = {
+                val numsToDelete = (matchedContact.phoneNumbers.map { it.number } + listOf(matchedContact.phoneNumber))
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                numsToDelete.forEach { num ->
+                    onDeleteCallsForNumber(num)
+                }
                 contactDetailsTarget = null
             },
             getPreferredCallingMode = getPreferredCallingMode,
@@ -432,13 +456,18 @@ fun CallLogScreen(
                 ) {
                     itemsIndexed(filteredGroupedCalls, key = { index, group -> "${group.primaryCall.id}_${group.primaryCall.timestamp}_$index" }) { _, group ->
                 val call = group.primaryCall
-                val isFav = remember(call.phoneNumber, fastFavoritesNormalizedSet) {
+                val isVoicemail = remember(call.phoneNumber) {
+                    ContactHelper.isVoicemailNumber(context, call.phoneNumber)
+                }
+                val isFav = remember(call.phoneNumber, fastFavoritesNormalizedSet, isVoicemail) {
+                    if (isVoicemail) return@remember false
                     val norm = ContactHelper.normalizeToLocalDigits(call.phoneNumber)
                     fastFavoritesNormalizedSet.contains(norm)
                 }
-                val matchedDc = remember(call.phoneNumber, call.callerName, fastDeviceContactsMap, deviceContacts) {
+                val matchedDc = remember(call.phoneNumber, call.callerName, fastDeviceContactsMap, deviceContacts, isVoicemail) {
+                    if (isVoicemail) return@remember null
                     val norm = ContactHelper.normalizeToLocalDigits(call.phoneNumber)
-                    var dcMatch = fastDeviceContactsMap[norm]
+                    var dcMatch = if (norm.length >= 7) fastDeviceContactsMap[norm] else null
                     if (dcMatch == null && !call.callerName.isNullOrBlank()) {
                         dcMatch = deviceContacts.firstOrNull { it.name.equals(call.callerName, ignoreCase = true) }
                     }
@@ -495,25 +524,36 @@ fun CallLogScreen(
                     },
                     onOpenDetails = {
                         val call = group.primaryCall
-                        val contactName = call.callerName?.ifBlank { null } ?: call.phoneNumber
-                        val resolvedDc = deviceContacts.firstOrNull { dc ->
-                            ContactHelper.isSamePhoneNumber(dc.phoneNumber, call.phoneNumber) ||
-                            dc.phoneNumbers.any { ContactHelper.isSamePhoneNumber(it.number, call.phoneNumber) }
-                        }?.let { dc ->
-                            val matchedItem = dc.phoneNumbers.firstOrNull { ContactHelper.isSamePhoneNumber(it.number, call.phoneNumber) }
-                            if (matchedItem != null) {
-                                dc.copy(phoneNumber = matchedItem.number, label = matchedItem.label)
-                            } else {
-                                dc
-                            }
-                        } ?: DeviceContact(
-                            name = contactName,
-                            phoneNumber = call.phoneNumber,
-                            label = "Mobile",
-                            photoUri = call.photoUri,
-                            phoneNumbers = listOf(ContactPhoneNumber(call.phoneNumber, "Mobile"))
-                        )
-                        val matchedFav = favorites.firstOrNull { fav ->
+                        val isVm = ContactHelper.isVoicemailNumber(context, call.phoneNumber)
+                        val contactName = if (isVm) "Voicemail" else (call.callerName?.ifBlank { null } ?: call.phoneNumber)
+                        val resolvedDc = if (isVm) {
+                            DeviceContact(
+                                name = "Voicemail",
+                                phoneNumber = call.phoneNumber,
+                                label = "Voicemail",
+                                photoUri = null,
+                                phoneNumbers = listOf(ContactPhoneNumber(call.phoneNumber, "Voicemail"))
+                            )
+                        } else {
+                            deviceContacts.firstOrNull { dc ->
+                                ContactHelper.isSamePhoneNumber(dc.phoneNumber, call.phoneNumber) ||
+                                dc.phoneNumbers.any { ContactHelper.isSamePhoneNumber(it.number, call.phoneNumber) }
+                            }?.let { dc ->
+                                val matchedItem = dc.phoneNumbers.firstOrNull { ContactHelper.isSamePhoneNumber(it.number, call.phoneNumber) }
+                                if (matchedItem != null) {
+                                    dc.copy(phoneNumber = matchedItem.number, label = matchedItem.label)
+                                } else {
+                                    dc
+                                }
+                            } ?: DeviceContact(
+                                name = contactName,
+                                phoneNumber = call.phoneNumber,
+                                label = "Mobile",
+                                photoUri = call.photoUri,
+                                phoneNumbers = listOf(ContactPhoneNumber(call.phoneNumber, "Mobile"))
+                            )
+                        }
+                        val matchedFav = if (isVm) null else favorites.firstOrNull { fav ->
                             ContactHelper.isSamePhoneNumber(fav.phoneNumber, call.phoneNumber)
                         }
                         contactDetailsTarget = Pair(resolvedDc, matchedFav)

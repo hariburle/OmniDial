@@ -28,7 +28,11 @@ class AppRepository(private val appDao: AppDao) {
 
     suspend fun deleteRecentCallById(callId: Long) = appDao.deleteRecentCallById(callId)
 
-    suspend fun deleteRecentCallsForNumber(phoneNumber: String) = appDao.deleteRecentCallsForNumber(phoneNumber)
+    suspend fun deleteRecentCallsForNumber(phoneNumber: String) =
+        appDao.deleteRecentCallsForNumber(phoneNumber, com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
+
+    suspend fun deleteRecentCallByNumberAndTimestamp(phoneNumber: String, timestamp: Long) =
+        appDao.deleteRecentCallByNumberAndTimestamp(phoneNumber, com.example.util.PhoneNumberNormalizer.toE164(phoneNumber), timestamp)
 
     fun getCallHistoryForContact(numbers: List<String>, name: String): Flow<List<RecentCall>> =
         appDao.getCallHistoryForContact(numbers, name)

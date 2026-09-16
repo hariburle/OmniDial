@@ -4,6 +4,22 @@
 
 ---
 
+## 🚀 [v1.2.1] — Build 9 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Full Dual-Contact Keypad Suggestions**: Dialing a full 10-digit number displays all matching contacts in the predictive suggestion drawer, including phonebook and in-app contacts sharing a number.
+- **Instant In-App Contact Recognition**: Newly created app contacts appear immediately across keypad search suggestions and directory lists without requiring manual sync or app restart.
+- **Preserved Contact Visibility**: In-app contacts and device contacts sharing identical phone numbers are now both preserved across the contacts book without one hiding or overwriting the other.
+
+### 🔧 Technical / Architecture Notes
+- **Dialer Suggestion Filter Refinement**: In `DialerScreen.kt`, adjusted the duplicate exclusion predicate for `filteredT9Matches` from a loose `OR` condition to exact match (`!(isSameNum && isSameName)`), preventing distinct contacts sharing a number from being filtered out when one matches the top header card.
+- **Identity-Based Deduplication in T9 Engine**: Updated `T9Helper.search()` to deduplicate candidates based on composite keys (`name + phoneNumber`) rather than purely `phoneNumber`.
+- **Direct Search Match Resolution**: In `DialerScreen.kt`, integrated `allSearchContacts` direct lookup in `LaunchedEffect(number, allSearchContacts)` so in-app contacts resolve alongside phone contacts.
+- **Race-Condition Free Contact Refresh**: In `MainViewModel.kt`, replaced `AtomicBoolean` guard in `refreshContacts()` with `Mutex.withLock` to guarantee queued refreshes execute and eliminated automatic pruning of local contacts on load.
+- Incremented `versionCode` to 9 and `versionName` to `"1.2.1"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.2.0] — Build 8 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

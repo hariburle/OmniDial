@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.2.1` | `9` | Sep 2026 | Full dual-contact predictive suggestions, instant app-contact recognition, and preserved contact visibility. |
 | `1.2.0` | `8` | Sep 2026 | Architecture modularization, faster call history search, and tamper-proof verified backups. |
 | `1.1.5` | `7` | Sep 2026 | Instant, lag-free switching to the Keypad panel and fluid tab transitions. |
 | `1.1.4` | `6` | Sep 2026 | Simplified automatic backup saving and one-tap restore without confusing file prompts. |
@@ -19,7 +20,19 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.2.0 (Latest) — Core Architecture & Data Integrity</h3></summary>
+<summary><h3>🚀 Release 1.2.1 (Latest) — Predictive Suggestions & In-App Contact Sync</h3></summary>
+
+### What's New & Improvements:
+- **Full Dual-Contact Keypad Suggestions**: Dialing a full 10-digit number now accurately lists all associated contacts in the predictive suggestion drawer, including phonebook and in-app contacts sharing a number.
+- **Instant In-App Contact Recognition**: Newly saved app contacts immediately appear across search suggestions and directory lists without needing an app restart or manual reload.
+- **Preserved Contact Visibility**: In-app and device contacts that share identical phone numbers are now both preserved cleanly across the address book without one hiding or overwriting the other.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.2.0 — Core Architecture & Data Integrity</h3></summary>
 
 ### What's New & Improvements:
 - **Snappier Call History & Search**: Faster indexing for recent calls and rules ensures searching through thousands of past calls and predictive contacts remains smooth and responsive.
