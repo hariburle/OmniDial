@@ -174,6 +174,50 @@
     .release-notes-list li::before { content: "•"; position: absolute; left: 8px; color: var(--primary-light); font-weight: bold; font-size: 1.2rem; line-height: 1; top: -1px; }
     .release-notes-list strong { color: #fff; }
 
+    /* Navigation Links */
+    .nav-links { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .nav-link { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: color 0.2s ease; }
+    .nav-link:hover { color: var(--primary-light); }
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+    }
+
+    /* Comparison Table Section */
+    .comparison-section { margin-bottom: 70px; }
+    .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 20px; border: 1px solid var(--surface-border); background: var(--surface); box-shadow: 0 20px 40px -15px rgba(0,0,0,0.5); }
+    .comparison-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95rem; }
+    .comparison-table th, .comparison-table td { padding: 16px 20px; border-bottom: 1px solid rgba(51, 65, 85, 0.7); }
+    .comparison-table thead th { background: #0f172a; color: var(--text); font-weight: 800; font-size: 0.88rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .comparison-table tbody tr:last-child td { border-bottom: none; }
+    .comparison-table tbody tr:hover { background: rgba(30, 41, 59, 0.5); }
+    .comparison-table .feature-col { font-weight: 600; color: #f1f5f9; min-width: 250px; }
+    .comparison-table .feature-sub { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; display: block; margin-top: 2px; }
+    .comparison-table .omnidial-col { background: rgba(37, 99, 235, 0.08); border-left: 2px solid rgba(37, 99, 235, 0.4); border-right: 2px solid rgba(37, 99, 235, 0.4); font-weight: 700; color: #38bdf8; text-align: center; min-width: 190px; }
+    .comparison-table thead th.omnidial-col { background: rgba(37, 99, 235, 0.2); color: #60a5fa; border-top: 2px solid rgba(37, 99, 235, 0.4); font-size: 0.95rem; }
+    .comparison-table tbody tr:last-child td.omnidial-col { border-bottom: 2px solid rgba(37, 99, 235, 0.4); }
+    .comparison-table .other-col { text-align: center; color: var(--text-muted); min-width: 140px; font-size: 0.88rem; }
+    .status-badge { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 12px; border-radius: 9999px; font-size: 0.82rem; font-weight: 700; white-space: nowrap; }
+    .status-badge.yes { background: rgba(37, 211, 102, 0.15); color: var(--whatsapp); border: 1px solid rgba(37, 211, 102, 0.35); }
+    .status-badge.no { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
+    .status-badge.partial { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    /* Unique Capabilities Grid */
+    .capabilities-section { margin-bottom: 70px; }
+    .capabilities-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+    .cap-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 20px; padding: 28px; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .cap-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #3b82f6, #25D366); opacity: 0; transition: opacity 0.25s ease; }
+    .cap-card:hover { transform: translateY(-5px); border-color: rgba(96, 165, 250, 0.4); box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5); }
+    .cap-card:hover::before { opacity: 1; }
+    .cap-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .cap-icon { width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 211, 102, 0.15)); border: 1px solid rgba(59, 130, 246, 0.3); display: grid; place-items: center; font-size: 1.4rem; }
+    .cap-tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 10px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); }
+    .cap-card h3 { font-size: 1.25rem; font-weight: 800; color: #fff; margin-bottom: 10px; line-height: 1.3; }
+    .cap-card p { font-size: 0.92rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 16px; flex-grow: 1; }
+    .cap-highlights { list-style: none; padding-left: 0; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(51, 65, 85, 0.6); padding-top: 14px; }
+    .cap-highlights li { font-size: 0.85rem; color: #94a3b8; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+    .cap-highlights li strong { color: #e2e8f0; }
+    .cap-highlights li::before { content: "✓"; color: var(--whatsapp); font-weight: 800; flex-shrink: 0; }
+
     /* Footer */
     footer { border-top: 1px solid var(--surface-border); padding: 36px 0; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
     footer a { color: var(--primary-light); text-decoration: none; }
@@ -187,6 +231,12 @@
           <div class="logo-icon">📞</div>
           <span>OmniDial</span>
         </div>
+        <div class="nav-links">
+          <a href="#comparison" class="nav-link">Comparison</a>
+          <a href="#capabilities" class="nav-link">Unique Features</a>
+          <a href="#releases" class="nav-link">Releases</a>
+          <a href="#setup" class="nav-link">Setup</a>
+        </div>
         <span class="version-tag">v1.3.0 Release</span>
       </div>
     </header>
@@ -194,14 +244,15 @@
     <section class="hero">
       <div class="hero-badge">⚡ Cellular + WhatsApp In One App</div>
       <h1>Unified Voice & Messaging<br><span>The OmniDial Experience</span></h1>
-      <p>A fast, modern Android default phone dialer. Integrated dual-channel calling (Cellular & WhatsApp), caller automation rules, instant T9 keypad search, and speed dial.</p>
+      <p>The intelligent Android dialer that adapts to how you communicate. Seamlessly unify Cellular & WhatsApp calling, automate gate buzzers, prevent spam, and protect your privacy—100% on-device.</p>
       <div class="cta-group">
         <a href="apks/OmniDial-v1.3.0.apk" download="OmniDial-v1.3.0.apk" class="btn btn-primary">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           Download OmniDial v1.3.0 APK
         </a>
-        <a href="#releases" class="btn btn-secondary">Release Notes & Versions</a>
-        <a href="#setup" class="btn btn-secondary">Installation Guide</a>
+        <a href="#comparison" class="btn btn-secondary">Feature Comparison</a>
+        <a href="#capabilities" class="btn btn-secondary">Unique Capabilities</a>
+        <a href="#releases" class="btn btn-secondary">Release Notes</a>
       </div>
     </section>
 
@@ -277,6 +328,322 @@
           <div class="card-icon">🔒</div>
           <h3>Privacy-First & Ad-Free</h3>
           <p>Zero telemetry tracking and no advertising. Your contacts and logs remain private on your device.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Comparison Matrix -->
+    <section id="comparison" class="comparison-section">
+      <div class="section-title">
+        <h2>OmniDial vs. Standard Dialers</h2>
+        <p>See how OmniDial compares to stock Android phone apps and Truecaller.</p>
+      </div>
+
+      <div class="table-responsive">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th scope="col" style="padding-left: 24px;">Capability / Feature</th>
+              <th scope="col" class="other-col">Stock Dialer<br><span style="font-size:0.75rem; font-weight:normal; text-transform:none; color:var(--text-muted);">(Google / Samsung)</span></th>
+              <th scope="col" class="other-col">Truecaller</th>
+              <th scope="col" class="omnidial-col">OmniDial<br><span style="font-size:0.75rem; font-weight:700; text-transform:none; color:#38bdf8;">(All Features Included)</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Dual-Channel Calling (Cellular + WhatsApp)
+                <span class="feature-sub">Seamlessly route calls over standard carrier GSM or WhatsApp voice</span>
+              </td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Manual only</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Native & Automated</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Car & Wearable WhatsApp Redirection
+                <span class="feature-sub">Android Auto, car head units, and smartwatches auto-route to WhatsApp</span>
+              </td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Automated via Telecom</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Pre-Answer Audio Route Selector
+                <span class="feature-sub">Pick Handset, Speaker, or Bluetooth device BEFORE picking up</span>
+              </td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ In-Call HUD</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Gate / Intercom Auto-Answer & DTMF Buzzer
+                <span class="feature-sub">Auto-answers apartment gates, sends touch tone (e.g. 9#), and hangs up</span>
+              </td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Dedicated Rule Engine</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                2x2 Quick Actions for Non-Contacts
+                <span class="feature-sub">Call, SMS, WhatsApp Chat, or WhatsApp Call for any unsaved number</span>
+              </td>
+              <td class="other-col"><span class="status-badge no">❌ Call only</span></td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Limited</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Instant 2x2 Grid</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Per-Number SIM Routing & Roaming Guard
+                <span class="feature-sub">Designate SIM 1 / SIM 2 per number; avoid roaming bill-shocks automatically</span>
+              </td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Manual prompt</span></td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Basic</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Auto Roaming Avoidance</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Post-Call Notes & Scheduled Reminders
+                <span class="feature-sub">Capture key takeaways instantly after hangup with scheduled notification alarms</span>
+              </td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Post-Call Action Sheet</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Smart Screen-Off Ear Detection
+                <span class="feature-sub">Turns off screen near ear; keeps awake intelligently on speaker or Bluetooth</span>
+              </td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Basic</span></td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Basic</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Route-Aware Sensor</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Continuous Multi-Row Drag-and-Drop Favorites
+                <span class="feature-sub">Smooth interactive reordering across multiple rows in Bento or Grid styles</span>
+              </td>
+              <td class="other-col"><span class="status-badge no">❌ Static list</span></td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Grid only</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Bento & Speed Dial</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                "Flip to Shhh" Silence on Flip
+                <span class="feature-sub">Silence incoming calls or activate DND by placing phone face down</span>
+              </td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Pixel only</span></td>
+              <td class="other-col"><span class="status-badge no">❌ No</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Universal on any Android</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                100% On-Device Privacy & Zero Cloud Uploads
+                <span class="feature-sub">Contacts, history, and rules stored locally in SQLite; zero telemetry or ad trackers</span>
+              </td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Cloud-synced</span></td>
+              <td class="other-col"><span class="status-badge no">❌ Uploads address book</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ Strictly Local & Private</span></td>
+            </tr>
+            <tr>
+              <td class="feature-col" style="padding-left: 24px;">
+                Cryptographic Tamper-Proof Local Backup
+                <span class="feature-sub">One-tap JSON export and restore with SHA-256 cryptographic verification</span>
+              </td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Cloud backup</span></td>
+              <td class="other-col"><span class="status-badge partial">⚠️ Cloud backup</span></td>
+              <td class="omnidial-col"><span class="status-badge yes">✅ SHA-256 Verified JSON</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Deep-Dive Unique Capabilities Grid -->
+    <section id="capabilities" class="capabilities-section">
+      <div class="section-title">
+        <h2>Unique Capabilities & Architectural Innovations</h2>
+        <p>Built for users who demand power, precision, and privacy from their phone app.</p>
+      </div>
+
+      <div class="capabilities-grid">
+        <!-- Card 1 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">🔀</div>
+            <span class="cap-tag">Telecom & OTT</span>
+          </div>
+          <h3>Dual-Channel Calling & Car Redirection</h3>
+          <p>Unify Cellular GSM and WhatsApp calling into one frictionless interface. In "Ask & Learn" mode, OmniDial learns how you communicate with each contact and highlights your preferred route.</p>
+          <ul class="cap-highlights">
+            <li><strong>Automated Car Redirection:</strong> Calls initiated from Android Auto or Bluetooth headsets auto-route via WhatsApp when preferred.</li>
+            <li><strong>Smart Country Prefixing:</strong> Automatically prepends country codes so overseas messaging never fails.</li>
+          </ul>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">🎧</div>
+            <span class="cap-tag">In-Call Audio</span>
+          </div>
+          <h3>Pre-Answer Audio Route Selector</h3>
+          <p>Take complete command of where sound goes before accepting an incoming call. Never accidentally answer on speaker in public or scramble to pair your car headset mid-conversation.</p>
+          <ul class="cap-highlights">
+            <li><strong>Pre-Answer HUD:</strong> Select Handset Earpiece, Speakerphone, or paired Bluetooth devices right on the incoming ring screen.</li>
+            <li><strong>Bluetooth Device Recognition:</strong> Instant routing to AirPods, Galaxy Buds, hearing aids, or vehicle dashboards.</li>
+          </ul>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">🤖</div>
+            <span class="cap-tag">Smart Automation</span>
+          </div>
+          <h3>Automated Gate & Intercom Buzzer Rules</h3>
+          <p>A dedicated automation engine tailored for apartment buzzers, security gates, and delivery intercoms. Never get locked out or miss delivery packages again.</p>
+          <ul class="cap-highlights">
+            <li><strong>Auto-Answer Delay:</strong> Answers gate calls automatically after a configured delay (e.g. 1 second).</li>
+            <li><strong>Automated DTMF Key Sequence:</strong> Transmits touch tones (e.g. <code>9#</code> or <code>*#</code>) to buzz open the door.</li>
+            <li><strong>Carrier Spam Bypass:</strong> Whitelists intercom numbers so STIR/SHAKEN filters never drop deliveries.</li>
+          </ul>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">🎹</div>
+            <span class="cap-tag">Dialer Keypad</span>
+          </div>
+          <h3>2x2 Action Grid for Unsaved Numbers</h3>
+          <p>Dial any number—even temporary contractors, local businesses, or delivery couriers not in your phonebook—and immediately access a structured 4-button action hub.</p>
+          <ul class="cap-highlights">
+            <li><strong>4 Instant Actions:</strong> Regular Phone Call, Send Text (SMS), WhatsApp Chat, or WhatsApp Voice Call.</li>
+            <li><strong>No Address Book Clutter:</strong> Message or VoIP-call anyone on WhatsApp without saving them to contacts first.</li>
+          </ul>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">📶</div>
+            <span class="cap-tag">Dual-SIM & Travel</span>
+          </div>
+          <h3>Dual-SIM Intelligence & Roaming Guard</h3>
+          <p>Master multi-SIM devices with granular per-number routing and real-time international travel protection against unexpected roaming fees.</p>
+          <ul class="cap-highlights">
+            <li><strong>Per-Number Preferred SIM:</strong> Assign SIM 1, SIM 2, Auto, or Always Ask to specific numbers within multi-number contacts.</li>
+            <li><strong>Roaming-Aware Protection:</strong> Detects network roaming and automatically routes calls to local eSIMs or VoIP channels.</li>
+            <li><strong>Call Log SIM Badges:</strong> Visual <code>SIM 1</code> and <code>SIM 2</code> badges displayed directly on past call entries.</li>
+          </ul>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">📝</div>
+            <span class="cap-tag">Productivity</span>
+          </div>
+          <h3>Post-Call Notes & Scheduled Reminders</h3>
+          <p>Capture key discussion points and action items right when a call finishes, with seamless reminders that keep your follow-ups on track.</p>
+          <ul class="cap-highlights">
+            <li><strong>Instant Post-Call Sheet:</strong> Quick note entry appears after hanging up to record meeting items while fresh.</li>
+            <li><strong>Scheduled Notification Alarms:</strong> Set 15-minute, 1-hour, or next-morning reminders with one-tap callback buttons.</li>
+            <li><strong>Persistent Log Attachments:</strong> Notes remain permanently attached to call history records.</li>
+          </ul>
+        </div>
+
+        <!-- Card 7 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">🤫</div>
+            <span class="cap-tag">Sensors & Gestures</span>
+          </div>
+          <h3>Universal "Flip to Shhh" & Ear Detection</h3>
+          <p>Brings Google Pixel's beloved hardware gestures to all Android devices, combining accelerometer-based silence with route-aware ear detection.</p>
+          <ul class="cap-highlights">
+            <li><strong>Silence on Flip:</strong> Mute incoming calls or trigger Do-Not-Disturb instantly by turning your phone face down.</li>
+            <li><strong>Route-Aware Proximity Off:</strong> Disables screen when held to ear; keeps screen awake when on speakerphone or Bluetooth.</li>
+            <li><strong>Universal Android Support:</strong> Runs smoothly across Samsung, Xiaomi, OnePlus, Motorola, and Pixel hardware.</li>
+          </ul>
+        </div>
+
+        <!-- Card 8 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">⭐</div>
+            <span class="cap-tag">VIP Speed Dial</span>
+          </div>
+          <h3>Continuous Multi-Row Bento Favorites</h3>
+          <p>Organize your VIP contacts with smooth drag-and-drop rearrangement that flows seamlessly across multiple rows, backed by responsive haptics.</p>
+          <ul class="cap-highlights">
+            <li><strong>Fluid Drag & Drop:</strong> Drag cards across rows with surrounding contacts gliding out of the way smoothly.</li>
+            <li><strong>3 Customizable Card Themes:</strong> Choose between modern Bento, compact Grid, and classic Material layouts.</li>
+            <li><strong>Keypad Speed Dial:</strong> Long-press digits 2–9 to place instant calls to your top contacts.</li>
+          </ul>
+        </div>
+
+        <!-- Card 9 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">🛡️</div>
+            <span class="cap-tag">Privacy & Security</span>
+          </div>
+          <h3>100% On-Device Privacy & Spam Defense</h3>
+          <p>Experience Truecaller-grade spam protection without sacrificing your private personal contacts to third-party marketing servers.</p>
+          <ul class="cap-highlights">
+            <li><strong>Zero Cloud Uploads:</strong> Contact book, call records, and caller rules are stored on-device in Room SQLite.</li>
+            <li><strong>Tiered Caller Trust Badges:</strong> Visual trust ratings for Verified Business, Delivery Couriers, and High-Risk Spam.</li>
+            <li><strong>STIR/SHAKEN Verification:</strong> Warns when caller ID authentication fails due to carrier spoofing.</li>
+          </ul>
+        </div>
+
+        <!-- Card 10 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">💾</div>
+            <span class="cap-tag">Data Backup</span>
+          </div>
+          <h3>Cryptographic One-Tap Verified Backup</h3>
+          <p>Easily protect and migrate your dialer configurations, caller rules, custom favorite grids, and speed dial shortcuts across Android devices.</p>
+          <ul class="cap-highlights">
+            <li><strong>1-Tap Local Backup:</strong> Exports all preferences to clean JSON without navigating confusing folder pickers.</li>
+            <li><strong>SHA-256 Checksums:</strong> Cryptographic integrity validation ensures backup files are untampered and uncorrupted.</li>
+            <li><strong>Smooth Device Migration:</strong> Rapidly restore your personalized setup when upgrading to a new phone.</li>
+          </ul>
+        </div>
+
+        <!-- Card 11 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">⏳</div>
+            <span class="cap-tag">Telephony Tools</span>
+          </div>
+          <h3>Pause (,) & Wait (;) IVR Touch-Tone Dialing</h3>
+          <p>Navigate complex automated phone trees, corporate extension directories, and conference dial-ins effortlessly with standardized pause syntax.</p>
+          <ul class="cap-highlights">
+            <li><strong>Quick Key Shortcuts:</strong> Long-press <code>*</code> for a 2-second Pause (<code>,</code>) and <code>#</code> for a Wait (<code>;</code>).</li>
+            <li><strong>Automated Tree Navigation:</strong> Dial extensions, PIN codes, and meeting IDs automatically without manual re-entry.</li>
+          </ul>
+        </div>
+
+        <!-- Card 12 -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">🔍</div>
+            <span class="cap-tag">Contact Discovery</span>
+          </div>
+          <h3>Discovery Filters & Deep Search</h3>
+          <p>Surfacing the right person at the right time with smart discovery categories and lightning-fast predictive indexing.</p>
+          <ul class="cap-highlights">
+            <li><strong>Rediscover Dormant Contacts:</strong> Instantly highlights friends and colleagues you haven't contacted in over 60 days.</li>
+            <li><strong>Zero-Lag T9 Search:</strong> Matches full names, initials, nicknames, and digits in real time as you type.</li>
+          </ul>
         </div>
       </div>
     </section>
