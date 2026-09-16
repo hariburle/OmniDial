@@ -179,6 +179,7 @@ fun FavoritesScreen(
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
+    globalSimPreferenceMode: String = "system",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1321,6 +1322,7 @@ fun FavoritesScreen(
             activeSims = activeSims,
             getPreferredSimSlot = getPreferredSimSlot,
             onSetPreferredSimSlot = onSetPreferredSimSlot,
+            globalSimPreferenceMode = globalSimPreferenceMode,
             onDeleteContact = { contactToDelete ->
                 onDeleteContact(contactToDelete)
                 contactDetailsTarget = null

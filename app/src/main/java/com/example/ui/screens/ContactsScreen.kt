@@ -135,6 +135,7 @@ fun ContactsScreen(
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
+    globalSimPreferenceMode: String = "system",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1033,6 +1034,7 @@ fun ContactsScreen(
             activeSims = activeSims,
             getPreferredSimSlot = getPreferredSimSlot,
             onSetPreferredSimSlot = onSetPreferredSimSlot,
+            globalSimPreferenceMode = globalSimPreferenceMode,
             onEditContact = { name, number, label, nickname ->
                 onUpdateContact(detailContact.phoneNumber, name, number, label, nickname)
                 contactForDetailsSheet = null

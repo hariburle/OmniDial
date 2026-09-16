@@ -14,13 +14,10 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 | **Car Infotainment & Wearable WhatsApp Redirection** | ❌ No | ❌ No | ✅ **Automated via Telecom** |
 | **Pre-Answer Audio Routing (Pick Bluetooth/Speaker first)** | ❌ No | ❌ No | ✅ **Built-in InCall HUD** |
 | **Gate / Intercom Auto-Answer & DTMF Buzzer** | ❌ No | ❌ No | ✅ **Dedicated Rule Engine** |
-| **2x2 Quick Actions for Non-Contacts** | ❌ Call only | ❌ Limited | ✅ **Call, SMS, WA Chat, WA Call** |
+| **Quick Actions for Unsaved Numbers** | ❌ Call only | ❌ Limited | ✅ **Call, SMS, WA Chat, WA Call** |
 | **Roaming-Aware Smart Dual-SIM Routing** | ❌ Manual prompt | ❌ Basic | ✅ **Automated Roaming Avoidance** |
 | **Post-Call Notes & Scheduled Callback Reminders** | ❌ No | ❌ No | ✅ **Immediate After-Call Card** |
 | **Proximity Sensor Smart Screen-Off (Ear Detection)** | ⚠️ Basic | ⚠️ Basic | ✅ **Intelligent Audio-Route Aware** |
-| **Continuous Multi-Row Drag-and-Drop Favorites** | ❌ Static list | ❌ Grid only | ✅ **Interactive Bento/Grid Reordering** |
-| **Flip-to-Shhh / Silence on Flip** | ⚠️ Pixel only | ❌ No | ✅ **Universal on any Android** |
-| **100% On-Device Privacy (Zero Cloud Uploads)** | ⚠️ Cloud-synced | ❌ Uploads address book | ✅ **Strictly Local & Private** |
 | **Cryptographic Tamper-Proof Local Backup** | ❌ Cloud only | ❌ Cloud backup | ✅ **1-Tap Verified Local JSON** |
 
 ---
@@ -53,8 +50,8 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 
 ---
 
-### 4. 🎹 2x2 Non-Contact Keypad Action Grid
-* **The Capability**: Enter any phone number on the dial pad—even if it is **not saved** in your contacts—and immediately get a stable 2x2 action grid:
+### 4. 🎹 Quick Action Hub for Unsaved Numbers
+* **The Capability**: Enter any phone number on the dial pad—even if it is **not saved** in your contacts—and immediately get a structured 4-action hub:
   1. **Text Message (SMS)**
   2. **Cellular Phone Call**
   3. **WhatsApp Chat**
@@ -65,7 +62,7 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 
 ### 5. 📶 Dual-SIM Intelligence & Roaming Bill-Shock Protection
 * **The Capability**:
-  - **Per-Contact & Per-Rule Preferred SIM**: Assign specific SIM cards (SIM 1 or SIM 2) to family, business, or specific area codes.
+  - **Per-Number Preferred SIM**: Assign specific SIM cards (SIM 1, SIM 2, Auto, or Always Ask) to individual numbers within multi-number contacts.
   - **Live Keypad SIM Toggle**: Switch between SIM 1 and SIM 2 right from the dial pad before tapping call.
   - **Roaming-Aware Routing**: Real-time network roaming detection (`isNetworkRoaming()`) automatically redirects international calls to local eSIMs or VoIP to avoid carrier roaming charges.
   - **Visual SIM Badges**: Call logs display explicit `SIM 1` / `SIM 2` (or `WhatsApp`) badges alongside timestamps and durations.
@@ -87,31 +84,15 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 
 ---
 
-### 8. ⭐ Continuous Multi-Row Drag-and-Drop VIP Favorites
+### 8. 🛡️ STIR/SHAKEN Spam Defense & Screening
 * **The Capability**:
-  - **Smooth Visual Reordering**: Unlock Configure Mode (`✓`) and drag any contact card across 1, 2, 5, or 10 rows. Surrounding cards glide out of the way smoothly.
-  - **3 Card Styles**: Choose between **Bento**, **Grid (Quick Action)**, and **Material** card themes in Settings.
-  - **1-Tap Speed Dial**: Bind favorites to numeric keypad keys 2–9 for instant long-press dialing.
-  - **Nickname Auto-Resolution**: Stars popular contacts with their custom device nicknames to save screen space.
-
----
-
-### 9. 🤫 "Flip to Shhh" (Silence on Flip Gesture)
-* **The Capability**: Uses device accelerometer and proximity sensors to immediately silence an incoming ringing call or activate Do-Not-Disturb (DND) by flipping your phone face down on a table.
-* **Universal Support**: Works across all Android devices, bringing the beloved Google Pixel gesture to Samsung, Xiaomi, OnePlus, and Motorola phones.
-
----
-
-### 10. 🛡️ 100% On-Device Privacy & Truecaller-Grade Spam Defense
-* **The Capability**:
-  - **Strict Local Privacy**: Your contacts, call history, and rules are stored on-device in Room SQLite. **Zero data is uploaded** to remote third-party cloud servers.
-  - **Tiered Caller Trust Badges**: Visual indicators for *Verified Business* (Green), *Delivery / Courier* (Amber), and *High-Risk Spam* (Red).
   - **Carrier STIR/SHAKEN Detection**: Inspects carrier network metadata (`VERIFICATION_STATUS_FAILED`) and warns you if the incoming caller's identity was spoofed.
+  - **Tiered Caller Trust Badges**: Visual indicators for *Verified Business* (Green), *Delivery / Courier* (Amber), and *High-Risk Spam* (Red).
   - **Auto-Block Presets**: One-tap auto-blocking of top telemarketers, hidden/restricted IDs, and foreign prefix wildcards.
 
 ---
 
-### 11. ⏳ Pause (`,`) and Wait (`;`) IVR Dialing Support
+### 9. ⏳ Pause (`,`) and Wait (`;`) IVR Dialing Support
 * **The Capability**:
   - Long-press `*` key to enter a 2-second **Pause (`,`)**.
   - Long-press `#` key to enter a **Wait (`;`)**.
@@ -119,7 +100,7 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 
 ---
 
-### 12. 🔍 Contextual Discovery Filters & Deep Search
+### 10. 🔍 Contextual Discovery Filters & Deep Search
 * **The Capability**:
   - **Horizontal Filter Bar**: Filter your address book with one tap: **All**, **Favorites**, **Recents**, **Frequent**, and **Rediscover** (surfacing contacts you haven't spoken to in over 60 days).
   - **Zero-Lag T9 Search**: Real-time T9 matching across full names, initials, nicknames, and digits as you type.
@@ -127,7 +108,7 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 
 ---
 
-### 13. 💾 Cryptographic One-Tap Backup & Cross-Device Restore
+### 11. 💾 Cryptographic One-Tap Backup & Cross-Device Restore
 * **The Capability**:
   - **1-Tap Auto-Backup**: Exports all rules, custom favorite grids, speed dials, and learned channel preferences to JSON without confusing folder pickers.
   - **SHA-256 Checksum Validation**: Every backup includes automated cryptographic integrity verification to prevent corrupted or tampered file restores.
@@ -139,12 +120,12 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 
 ### Hero Tagline
 > **OmniDial: The Intelligent Android Dialer That Adapts to How You Actually Communicate.**  
-> *Seamlessly unify Cellular & WhatsApp calling, automate gate buzzers, prevent spam, and protect your privacy—100% on-device.*
+> *Seamlessly unify Cellular & WhatsApp calling, automate gate buzzers, route dual-SIM numbers, and screen spam.*
 
 ### 3 Key Pillars for Homepage Cards
 1. **Multi-Protocol Calling (GSM + WhatsApp)**  
    *One dialer for cellular calls and WhatsApp voice. Automatically redirects car infotainment and smartwatch calls to your preferred channel.*
 2. **Smart Gate & Intercom Automation**  
    *Never miss a delivery or get locked out. OmniDial auto-answers apartment gates, enters your buzzer DTMF code, and hangs up automatically.*
-3. **True Privacy & Dual-SIM Mastery**  
-   *No account required. No contact book uploads. Full roaming protection, custom multi-row drag-and-drop favorites, and tactile haptic feedback.*
+3. **Dual-SIM Mastery & Smart Audio**  
+   *Full roaming protection, per-number SIM routing, route-aware ear detection, and pre-answer audio controls.*

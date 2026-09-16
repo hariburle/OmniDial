@@ -69,6 +69,9 @@ fun SettingsScreen(
     onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)? = null,
     onRestoreLocalBackup: ((java.io.File, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
+    globalSimPreferenceMode: String = "system",
+    onSetGlobalSimPreferenceMode: (String) -> Unit = {},
+    activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -284,6 +287,85 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Reset Choices and Learn Memory", fontSize = 12.sp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Dual SIM Management",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(text = "Cellular SIM Preference Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                val simModeOptions = listOf(
+                    Triple("system", "System", "Highlights default SIM across contacts without clutter") to Icons.Default.PhoneAndroid,
+                    Triple("ask_learn", "Ask & Learn", "Highlights default SIM and allows customizing SIM per contact") to Icons.Default.Psychology,
+                    Triple("international", "International", "Select SIM for overseas numbers; domestic uses default") to Icons.Default.Public
+                )
+                simModeOptions.forEach { (info, icon) ->
+                    val (mode, label, desc) = info
+                    val isSelected = globalSimPreferenceMode == mode
+                    Card(
+                        onClick = { onSetGlobalSimPreferenceMode(mode) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected)
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 2.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("sim_pref_mode_$mode")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = desc,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

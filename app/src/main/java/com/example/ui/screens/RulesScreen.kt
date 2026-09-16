@@ -104,6 +104,9 @@ fun RulesScreen(
     onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)? = null,
     onRestoreLocalBackup: ((java.io.File, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
+    globalSimPreferenceMode: String = "system",
+    onSetGlobalSimPreferenceMode: (String) -> Unit = {},
+    activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(1) }
@@ -303,7 +306,10 @@ fun RulesScreen(
                         localBackups = localBackups,
                         onCreateLocalBackup = onCreateLocalBackup,
                         onRestoreLocalBackup = onRestoreLocalBackup,
-                        onDeleteLocalBackup = onDeleteLocalBackup
+                        onDeleteLocalBackup = onDeleteLocalBackup,
+                        globalSimPreferenceMode = globalSimPreferenceMode,
+                        onSetGlobalSimPreferenceMode = onSetGlobalSimPreferenceMode,
+                        activeSims = activeSims
                     )
                 }
             }

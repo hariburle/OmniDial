@@ -437,6 +437,7 @@ fun MainAppContent(
     val isCallScreenMinimized by viewModel.isCallScreenMinimized.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val whatsAppCallMode by viewModel.whatsAppCallMode.collectAsStateWithLifecycle()
+    val globalSimPreferenceMode by viewModel.globalSimPreferenceMode.collectAsStateWithLifecycle()
     val learnedCallModes by viewModel.learnedCallModes.collectAsStateWithLifecycle()
     val defaultStartTab by viewModel.defaultStartTab.collectAsStateWithLifecycle()
     val confirmFavoritesCall by viewModel.confirmFavoritesCall.collectAsStateWithLifecycle()
@@ -880,7 +881,8 @@ fun MainAppContent(
                         deviceContacts = deviceContacts,
                         activeSims = activeSims,
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
-                        onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) }
+                        onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
+                        globalSimPreferenceMode = globalSimPreferenceMode
                     )
                     1 -> CallLogScreen(
                         recentCalls = recentCalls,
@@ -895,6 +897,7 @@ fun MainAppContent(
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
+                        globalSimPreferenceMode = globalSimPreferenceMode,
                         onCallBack = { num ->
                             viewModel.initiateCall(context, num)
                         },
@@ -993,6 +996,7 @@ fun MainAppContent(
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
+                        globalSimPreferenceMode = globalSimPreferenceMode,
                         onSelectNumber = { num ->
                             viewModel.setDialerNumber(num)
                             navigateToTab(2)
@@ -1085,7 +1089,10 @@ fun MainAppContent(
                         localBackups = localBackups,
                         onCreateLocalBackup = { onDone -> viewModel.createLocalBackup(onDone) },
                         onRestoreLocalBackup = { file, onDone -> viewModel.restoreLocalBackup(file, onDone) },
-                        onDeleteLocalBackup = { file -> viewModel.deleteLocalBackup(file) }
+                        onDeleteLocalBackup = { file -> viewModel.deleteLocalBackup(file) },
+                        globalSimPreferenceMode = globalSimPreferenceMode,
+                        onSetGlobalSimPreferenceMode = { viewModel.setGlobalSimPreferenceMode(it) },
+                        activeSims = activeSims
                     )
                 }
             }
@@ -1330,6 +1337,9 @@ fun MainAppContent(
                             val sim1 = activeSims.firstOrNull { it.slotIndex == 0 }
                             val sim2 = activeSims.firstOrNull { it.slotIndex == 1 }
 
+                            val sim1Title = sim1?.displayName?.takeIf { it.isNotBlank() } ?: "SIM 1"
+                            val sim2Title = sim2?.displayName?.takeIf { it.isNotBlank() } ?: "SIM 2"
+
                             // SIM 1 Button
                             Button(
                                 onClick = { viewModel.confirmSimChoiceAndPlaceCall(context, 1) },
@@ -1340,10 +1350,10 @@ fun MainAppContent(
                                 )
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("SIM 1", fontWeight = FontWeight.Bold)
-                                    if (sim1 != null) {
+                                    Text(sim1Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (sim1 != null && sim1.carrierName.isNotBlank() && sim1.carrierName != sim1Title) {
                                         Text(
-                                            text = sim1.displayName,
+                                            text = sim1.carrierName,
                                             style = MaterialTheme.typography.labelSmall,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -1362,10 +1372,10 @@ fun MainAppContent(
                                 )
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("SIM 2", fontWeight = FontWeight.Bold)
-                                    if (sim2 != null) {
+                                    Text(sim2Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (sim2 != null && sim2.carrierName.isNotBlank() && sim2.carrierName != sim2Title) {
                                         Text(
-                                            text = sim2.displayName,
+                                            text = sim2.carrierName,
                                             style = MaterialTheme.typography.labelSmall,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis

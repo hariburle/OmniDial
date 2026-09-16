@@ -204,4 +204,26 @@ object PhoneNumberNormalizer {
             null
         }
     }
+
+    /**
+     * Determines whether a given phone number is international relative to the device's home country.
+     */
+    fun isInternational(context: Context?, rawNumber: String?): Boolean {
+        if (rawNumber.isNullOrBlank()) return false
+        val trimmed = rawNumber.trim()
+        val defaultRegion = getDefaultCountryIso(context)
+        val util = phoneUtil ?: return trimmed.startsWith("+")
+        return try {
+            val parsed = util.parse(trimmed, defaultRegion)
+            val regionForNumber = util.getRegionCodeForNumber(parsed)
+            if (!regionForNumber.isNullOrBlank()) {
+                !regionForNumber.equals(defaultRegion, ignoreCase = true)
+            } else {
+                val defaultCountryCode = util.getCountryCodeForRegion(defaultRegion)
+                parsed.countryCode != defaultCountryCode
+            }
+        } catch (_: Throwable) {
+            trimmed.startsWith("+")
+        }
+    }
 }

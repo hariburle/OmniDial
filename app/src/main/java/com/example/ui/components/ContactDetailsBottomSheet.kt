@@ -145,6 +145,7 @@ fun ContactDetailsBottomSheet(
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
+    globalSimPreferenceMode: String = "system",
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -876,23 +877,35 @@ fun ContactDetailsBottomSheet(
                                         modifier = Modifier.height(26.dp)
                                     )
                                     if (currentPref == "cellular" || currentPref == "whatsapp") {
-                                        AssistChip(
+                                        IconButton(
                                             onClick = {
                                                 preferredModes[pn.number] = "ask"
                                                 onSaveLearnedCallMode(pn.number, "ask")
                                                 Toast.makeText(context, "★ Preference reset to Ask & Learn", Toast.LENGTH_SHORT).show()
                                             },
-                                            label = { Text("Reset", fontSize = 9.5.sp) },
-                                            modifier = Modifier.height(26.dp)
-                                        )
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear preference",
+                                                modifier = Modifier.size(14.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
                             }
 
-                            if (activeSims.size > 1) {
+                            // SIM row: shown when phone has multiple SIMs and current preference is cellular / default (not WhatsApp)
+                            val isIntlNumber = remember(pn.number) {
+                                com.example.util.PhoneNumberNormalizer.isInternational(context, pn.number)
+                            }
+                            val isEditable = (globalSimPreferenceMode == "ask_learn") || (globalSimPreferenceMode == "international" && isIntlNumber)
+
+                            if (activeSims.size > 1 && currentPref != "whatsapp") {
                                 Spacer(modifier = Modifier.height(6.dp))
 
-                                // Row 3: Preferred SIM Selector (Per-number SIM preference)
+                                // Row 3: SIM Selector (Shows actual SIM card names as pills)
                                 val currentSimPref = preferredSims[pn.number] ?: getPreferredSimSlot(pn.number)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -900,7 +913,7 @@ fun ContactDetailsBottomSheet(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = "Preferred SIM:",
+                                        text = "SIM:",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -908,53 +921,38 @@ fun ContactDetailsBottomSheet(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         modifier = Modifier.horizontalScroll(rememberScrollState())
                                     ) {
-                                        FilterChip(
-                                            selected = currentSimPref == 0,
-                                            onClick = {
-                                                preferredSims[pn.number] = 0
-                                                onSetPreferredSimSlot?.invoke(pn.number, 0)
-                                                Toast.makeText(context, "★ SIM preference: Auto (Default)", Toast.LENGTH_SHORT).show()
-                                            },
-                                            label = { Text("Auto", fontSize = 10.5.sp) },
-                                            modifier = Modifier.height(26.dp)
-                                        )
+                                        activeSims.forEach { sim ->
+                                            val simName = sim.displayName.ifBlank { "SIM ${sim.slotIndex + 1}" }
+                                            val isSelected = when (currentSimPref) {
+                                                0 -> sim.isDefault || (activeSims.none { it.isDefault } && sim.slotIndex == 0)
+                                                else -> currentSimPref == (sim.slotIndex + 1)
+                                            }
 
-                                        val sim1 = activeSims.firstOrNull { it.slotIndex == 0 }
-                                        val sim1Label = if (sim1 != null && sim1.displayName.isNotBlank()) "SIM 1 (${sim1.displayName.take(6)})" else "SIM 1"
-                                        FilterChip(
-                                            selected = currentSimPref == 1,
-                                            onClick = {
-                                                preferredSims[pn.number] = 1
-                                                onSetPreferredSimSlot?.invoke(pn.number, 1)
-                                                Toast.makeText(context, "★ Preferred SIM: SIM 1", Toast.LENGTH_SHORT).show()
-                                            },
-                                            label = { Text(sim1Label, fontSize = 10.5.sp, maxLines = 1) },
-                                            modifier = Modifier.height(26.dp)
-                                        )
-
-                                        val sim2 = activeSims.firstOrNull { it.slotIndex == 1 }
-                                        val sim2Label = if (sim2 != null && sim2.displayName.isNotBlank()) "SIM 2 (${sim2.displayName.take(6)})" else "SIM 2"
-                                        FilterChip(
-                                            selected = currentSimPref == 2,
-                                            onClick = {
-                                                preferredSims[pn.number] = 2
-                                                onSetPreferredSimSlot?.invoke(pn.number, 2)
-                                                Toast.makeText(context, "★ Preferred SIM: SIM 2", Toast.LENGTH_SHORT).show()
-                                            },
-                                            label = { Text(sim2Label, fontSize = 10.5.sp, maxLines = 1) },
-                                            modifier = Modifier.height(26.dp)
-                                        )
-
-                                        FilterChip(
-                                            selected = currentSimPref == -1,
-                                            onClick = {
-                                                preferredSims[pn.number] = -1
-                                                onSetPreferredSimSlot?.invoke(pn.number, -1)
-                                                Toast.makeText(context, "★ Preference: Always Ask SIM", Toast.LENGTH_SHORT).show()
-                                            },
-                                            label = { Text("Ask", fontSize = 10.5.sp) },
-                                            modifier = Modifier.height(26.dp)
-                                        )
+                                            FilterChip(
+                                                selected = isSelected,
+                                                onClick = {
+                                                    if (isEditable) {
+                                                        preferredSims[pn.number] = sim.slotIndex + 1
+                                                        onSetPreferredSimSlot?.invoke(pn.number, sim.slotIndex + 1)
+                                                        Toast.makeText(context, "★ Preferred SIM: $simName", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        if (globalSimPreferenceMode == "system") {
+                                                            Toast.makeText(context, "System SIM ($simName) is default. Change in Settings to customize.", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, "Domestic numbers use System SIM ($simName).", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                },
+                                                label = {
+                                                    Text(
+                                                        text = if (sim.isDefault && globalSimPreferenceMode == "system") "$simName (Default)" else simName,
+                                                        fontSize = 10.5.sp,
+                                                        maxLines = 1
+                                                    )
+                                                },
+                                                modifier = Modifier.height(26.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

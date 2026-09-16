@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.4.0` | `13` | Sep 2026 | Dual SIM management modes (System, Ask & Learn, International), direct SIM name pills, smart roaming warnings, and streamlined channel clearing. |
 | `1.3.0` | `12` | Sep 2026 | Per-number preferred SIM selection, unified nickname display in call history, and synchronized contact editing. |
 | `1.2.3` | `11` | Sep 2026 | Direct phone contacts default number sync, refined rounded-rectangle discovery filters, and single-line search bar layouts. |
 | `1.2.2` | `10` | Sep 2026 | Default phone number prioritization with DEFAULT badge, and scrollable contacts filter bar above search. |
@@ -23,7 +24,24 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.3.0 (Latest) — Per-Number SIM Routing & Unified Nicknames</h3></summary>
+<summary><h3>🚀 Release 1.4.0 (Latest) — Intelligent Dual SIM Management & Direct SIM Names</h3></summary>
+
+### What's New & Improvements:
+- **Intelligent Dual SIM Management Suite**: Choose how your phone handles multi-SIM calling from Settings with three clear modes:
+  - **System (Default)**: Keeps your contacts clean and clutter-free by automatically highlighting your default SIM card.
+  - **Ask & Learn**: Highlights your default SIM while giving you full flexibility to customize preferred SIM cards per contact.
+  - **International**: Intelligently presents SIM selection for non-domestic overseas numbers while keeping domestic calls on your primary default SIM.
+- **Direct SIM Name Pills in Contact Sheets**: View your actual carrier and user-assigned SIM names (like "US" or "India") directly as clean selection pills without redundant technical labels.
+- **Channel-Smart Calling Display**: Cellular SIM controls automatically hide when a contact's preferred calling channel is set to WhatsApp.
+- **International Roaming Cost Alerts**: Protects you from unexpected carrier bills with timely alerts when an outgoing call is routed through an active roaming SIM.
+- **Streamlined Channel Clearing**: Replaced bulky reset buttons on preferred calling channels with a sleek, one-tap clear icon.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.3.0 — Per-Number SIM Routing & Unified Nicknames</h3></summary>
 
 ### What's New & Improvements:
 - **Per-Number Preferred SIM Selection**: Dual-SIM users can now assign a preferred SIM card (SIM 1, SIM 2, Auto, or Always Ask) for each individual phone number. Outgoing calls to that specific number will automatically place through your chosen SIM card.

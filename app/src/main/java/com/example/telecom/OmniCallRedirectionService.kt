@@ -111,6 +111,12 @@ class OmniCallRedirectionService : CallRedirectionService() {
                         (suffix10.isNotEmpty() && (numKey.endsWith(suffix10) || numKeySuffix10 == suffix10))) {
                         if (slot != null && slot > 0) {
                             preferredSimSlot = slot
+                        } else if (slot == -2) {
+                            val activeSims = SimHelper.getActiveSimCards(this)
+                            val intlSim = activeSims.firstOrNull {
+                                it.isRoaming || it.displayName.contains("intl", ignoreCase = true) || it.displayName.contains("international", ignoreCase = true)
+                            }
+                            preferredSimSlot = intlSim?.let { it.slotIndex + 1 } ?: (if (activeSims.size > 1) 2 else null)
                         }
                         break
                     }

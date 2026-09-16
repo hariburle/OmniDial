@@ -123,10 +123,11 @@ data class LocalContact(
 /**
  * Stores contact-specific cellular SIM preference.
  * preferredSimSlot:
- *   0: Global / System Default (follows dialer's active slot)
- *   1: SIM 1 (Slot 0)
- *   2: SIM 2 (Slot 1)
- *  -1: Always Ask before dialing
+ *   0: System Default (default choice, follows system/active slot)
+ *  -1: Ask & Learn (prompts user upon calling and learns choice)
+ *  -2: International (routes overseas/international calls to roaming or intl SIM)
+ *   1: SIM 1 (Slot 0, fixed or learned)
+ *   2: SIM 2 (Slot 1, fixed or learned)
  */
 @Immutable
 @Entity(

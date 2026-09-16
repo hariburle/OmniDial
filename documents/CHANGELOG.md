@@ -2,6 +2,26 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v1.4.0] — Build 13 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Dual SIM Preference Modes**: Introduced 3 global SIM modes in Settings (`System`, `Ask & Learn`, and `International`).
+  - `System` (Default): Highlights active system default SIM card across contacts without clutter.
+  - `Ask & Learn`: Highlights default SIM and allows customizing per-contact SIM preferences.
+  - `International`: Intelligently shows SIM selection options for overseas/non-domestic numbers while keeping domestic calls on default SIM.
+- **Direct SIM Name Pills**: SIM selection pills in contact sheets now directly display custom carrier and SIM names without redundant `SIM 1:` prefix text.
+- **Channel-Aware SIM Display**: Per-contact SIM options automatically hide when WhatsApp is set as the preferred channel.
+- **International Roaming Cost Alerts**: Added proactive toast alerts when placing calls via an active roaming SIM.
+- **Streamlined Preferred Channel Action**: Replaced text Reset button with a sleek `✕` clear icon.
+
+### 🔧 Technical / Architecture Notes
+- **Global SIM Preference State & Storage**: Added `global_sim_pref_mode` (`system`, `ask_learn`, `international`) in `MainViewModel`, SharedPreferences, and Settings/Rules UI.
+- **Contact Sheet Reactive SIM Routing**: Updated `ContactDetailsBottomSheet` to query `PhoneNumberNormalizer.isInternational(context, number)` and toggle SIM chip interactivity based on global SIM mode.
+- **SimHelper Direct Name Resolution**: Refactored SIM display names to prefer carrier/custom user labels and resolved roaming status via `TelephonyManager.isNetworkRoaming`.
+- Incremented `versionCode` to 13 and `versionName` to `"1.4.0"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.3.0] — Build 12 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

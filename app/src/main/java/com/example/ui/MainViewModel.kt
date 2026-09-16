@@ -96,6 +96,15 @@ class MainViewModel(
         appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit().putString("whatsapp_call_mode", mode).apply()
     }
 
+    private val _globalSimPreferenceMode = MutableStateFlow(prefs.getString("global_sim_pref_mode", "system") ?: "system")
+    val globalSimPreferenceMode: StateFlow<String> = _globalSimPreferenceMode.asStateFlow()
+
+    fun setGlobalSimPreferenceMode(mode: String) {
+        _globalSimPreferenceMode.value = mode
+        prefs.edit().putString("global_sim_pref_mode", mode).apply()
+        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit().putString("global_sim_pref_mode", mode).apply()
+    }
+
     // Learned Calling Choices for Contacts (Map of normalized number -> "cellular" | "whatsapp")
     private val _learnedCallModes = MutableStateFlow<Map<String, String>>(loadLearnedCallModes())
     val learnedCallModes: StateFlow<Map<String, String>> = _learnedCallModes.asStateFlow()
@@ -1042,6 +1051,11 @@ class MainViewModel(
         val prompt = _pendingSimChoicePrompt.value
         _pendingSimChoicePrompt.value = null
         if (prompt != null) {
+            val prefSlot = getPreferredSimSlot(prompt.number)
+            if (prefSlot == -1) {
+                // Ask & Learn: learn the selected SIM slot for future calls
+                setPreferredSimSlot(prompt.number, slot)
+            }
             placeCall(context, prompt.number, prompt.reason, overrideSimSlot = slot)
         }
     }
@@ -1079,7 +1093,18 @@ class MainViewModel(
             return
         }
 
-        val effectiveSlot = overrideSimSlot ?: (if (prefSlot > 0) prefSlot else _selectedSimSlot.value)
+        val effectiveSlot = when {
+            overrideSimSlot != null -> overrideSimSlot
+            prefSlot in 1..2 -> prefSlot
+            prefSlot == -2 -> {
+                // International SIM preference
+                val intlSim = _activeSims.value.firstOrNull {
+                    it.isRoaming || it.displayName.contains("intl", ignoreCase = true) || it.displayName.contains("international", ignoreCase = true)
+                }
+                intlSim?.let { it.slotIndex + 1 } ?: (if (_activeSims.value.size > 1) 2 else _selectedSimSlot.value)
+            }
+            else -> _selectedSimSlot.value
+        }
         maximizeCall()
 
         // If in ask_learn mode and user explicitly triggered cellular call, learn the choice directly
