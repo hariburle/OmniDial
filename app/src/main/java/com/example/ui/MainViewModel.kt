@@ -2030,6 +2030,46 @@ class MainViewModel(
         }
     }
 
+    fun setDefaultContactNumber(contact: DeviceContact, newNumber: String, newLabel: String = "Mobile") {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. Update Android Telecom / Contacts Provider IS_PRIMARY and IS_SUPER_PRIMARY flags
+            ContactHelper.setDefaultPhoneNumber(appContext, contact.contactId, newNumber)
+
+            // 2. If this contact is also in Room local_contacts, update it
+            val localList = repository.getAllLocalContactsList()
+            val existingLocal = localList.firstOrNull {
+                ContactHelper.isSamePhoneNumber(it.phoneNumber, contact.phoneNumber) ||
+                it.name.equals(contact.name.trim(), ignoreCase = true)
+            }
+            if (existingLocal != null) {
+                repository.updateLocalContact(
+                    existingLocal.copy(
+                        phoneNumber = newNumber.trim(),
+                        label = newLabel
+                    )
+                )
+            }
+
+            // 3. If contact is a Favorite, update favorite number so Favorite Card and Speed Dial use this new default
+            val fav = favorites.value.firstOrNull {
+                ContactHelper.isSamePhoneNumber(it.phoneNumber, contact.phoneNumber) ||
+                contact.phoneNumbers.any { pn -> ContactHelper.isSamePhoneNumber(it.phoneNumber, pn.number) } ||
+                it.name.equals(contact.name.trim(), ignoreCase = true)
+            }
+            if (fav != null) {
+                repository.updateFavorite(
+                    fav.copy(
+                        phoneNumber = newNumber.trim(),
+                        label = newLabel
+                    )
+                )
+            }
+
+            // 4. Trigger contacts refresh so list UI updates immediately
+            refreshContacts()
+        }
+    }
+
     fun exportBackup(uri: android.net.Uri, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val success = com.example.util.BackupManager.writeBackupToUri(appContext, uri)

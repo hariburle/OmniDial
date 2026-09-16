@@ -795,6 +795,7 @@ fun MainAppContent(
                         isFlipToShhhEnabled = isFlipToShhhEnabled,
                         isShhhActive = isShhhActive,
                         onToggleFlipToShhh = { viewModel.toggleFlipToShhh() },
+                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
                         onDeleteContact = { viewModel.deleteContact(it) },
                         deviceContacts = deviceContacts
                     )
@@ -847,7 +848,8 @@ fun MainAppContent(
                         },
                         onDeleteCallsForNumber = { phoneNumber ->
                             viewModel.deleteRecentCallsForNumber(phoneNumber)
-                        }
+                        },
+                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) }
                     )
                     2 -> DialerScreen(
                         number = dialerNumber,
@@ -949,6 +951,7 @@ fun MainAppContent(
                         onSyncAllAppContactsToDevice = {
                             viewModel.syncAllAppContactsToDevice()
                         },
+                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
                         onDeleteContact = { viewModel.deleteContact(it) }
                     )
                     4 -> RulesScreen(

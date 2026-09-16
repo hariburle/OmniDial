@@ -18,3 +18,4 @@ local.properties
 debug.keystore
 .idea/
 .artifacts/
+.vscode/

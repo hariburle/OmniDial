@@ -1367,6 +1367,80 @@ object ContactHelper {
         return false
     }
 
+    /**
+     * Sets a phone number as the default primary number for a contact in Android's Contacts Provider.
+     * Updates IS_PRIMARY and IS_SUPER_PRIMARY on the selected number row and clears them on other rows,
+     * allowing immediate synchronization with Android contacts and Google Contacts.
+     */
+    fun setDefaultPhoneNumber(
+        context: Context,
+        contactId: Long?,
+        targetPhoneNumber: String
+    ): Boolean {
+        var targetContactId = contactId
+        if (targetContactId == null || targetContactId <= 0L) {
+            try {
+                val uri = Uri.withAppendedPath(
+                    ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                    Uri.encode(targetPhoneNumber)
+                )
+                context.contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup._ID), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val idIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup._ID)
+                        if (idIdx != -1) targetContactId = cursor.getLong(idIdx)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        if (targetContactId == null || targetContactId <= 0L) {
+            return false
+        }
+
+        try {
+            val projection = arrayOf(
+                ContactsContract.Data._ID,
+                ContactsContract.CommonDataKinds.Phone.NUMBER
+            )
+            val cursor = context.contentResolver.query(
+                ContactsContract.Data.CONTENT_URI,
+                projection,
+                "${ContactsContract.Data.CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} = ?",
+                arrayOf(targetContactId.toString(), ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE),
+                null
+            )
+
+            val ops = ArrayList<android.content.ContentProviderOperation>()
+            cursor?.use {
+                val idIdx = it.getColumnIndex(ContactsContract.Data._ID)
+                val numIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                while (it.moveToNext()) {
+                    val dataId = if (idIdx != -1) it.getLong(idIdx) else continue
+                    val num = if (numIdx != -1) it.getString(numIdx) ?: "" else ""
+                    val isMatch = isSamePhoneNumber(num, targetPhoneNumber, context)
+
+                    ops.add(
+                        android.content.ContentProviderOperation.newUpdate(ContactsContract.Data.CONTENT_URI)
+                            .withSelection("${ContactsContract.Data._ID} = ?", arrayOf(dataId.toString()))
+                            .withValue(ContactsContract.CommonDataKinds.Phone.IS_PRIMARY, if (isMatch) 1 else 0)
+                            .withValue(ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY, if (isMatch) 1 else 0)
+                            .build()
+                    )
+                }
+            }
+
+            if (ops.isNotEmpty()) {
+                context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                return true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
     fun fetchDeviceContacts(context: Context, nicknameMap: Map<Long, String>? = null): List<DeviceContact> {
         val contactsMap = linkedMapOf<String, DeviceContactAccumulator>()
         var cursor: Cursor? = null

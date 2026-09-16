@@ -561,11 +561,12 @@ fun ContactDetailsBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val orderedNumbers = remember(contact) {
+                    val orderedNumbers = remember(contact, currentDefaultNumber) {
                         val all = if (contact.phoneNumbers.isNotEmpty()) contact.phoneNumbers else listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
-                        if (contact.phoneNumber.isNotBlank()) {
+                        val defNum = currentDefaultNumber.ifBlank { contact.phoneNumber }
+                        if (defNum.isNotBlank()) {
                             val defaultPn = all.firstOrNull { pn ->
-                                pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
+                                pn.number == defNum || ContactHelper.isSamePhoneNumber(pn.number, defNum)
                             }
                             if (defaultPn != null) {
                                 listOf(defaultPn) + all.filter { it != defaultPn }
@@ -584,8 +585,9 @@ fun ContactDetailsBottomSheet(
                             (favDigits.length >= 7 && normPn == favDigits) ||
                             (orderedNumbers.size == 1)
                         )
-                        val isDefaultNumber = if (contact.phoneNumber.isNotBlank()) {
-                            pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
+                        val defNum = currentDefaultNumber.ifBlank { contact.phoneNumber }
+                        val isDefaultNumber = if (defNum.isNotBlank()) {
+                            pn.number == defNum || ContactHelper.isSamePhoneNumber(pn.number, defNum)
                         } else {
                             index == 0
                         }
@@ -1223,9 +1225,8 @@ fun ContactDetailsBottomSheet(
     // Long-press Action Dialog for a selected phone number (Android Dialer Style)
     if (numberForActionMenu != null) {
         val selectedPn = numberForActionMenu!!
-        val normSel = selectedPn.number.filter { it.isDigit() }.takeLast(10)
-        val favDigits = favoriteContact?.phoneNumber?.filter { it.isDigit() }?.takeLast(10) ?: ""
-        val isCurrentDefault = isFavorite && ((favDigits.length >= 7 && normSel == favDigits) || (contact.phoneNumbers.size == 1))
+        val activeDef = currentDefaultNumber.ifBlank { contact.phoneNumber }
+        val isCurrentDefault = (activeDef.isNotBlank() && (selectedPn.number == activeDef || ContactHelper.isSamePhoneNumber(selectedPn.number, activeDef))) || (contact.phoneNumbers.size <= 1)
 
         AlertDialog(
             onDismissRequest = { numberForActionMenu = null },

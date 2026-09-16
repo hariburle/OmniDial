@@ -173,6 +173,7 @@ fun FavoritesScreen(
     isShhhActive: Boolean = false,
     onToggleFlipToShhh: () -> Unit = {},
     onUpdateContact: (oldNum: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
+    onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
     onDeleteContact: (DeviceContact) -> Unit = {},
     deviceContacts: List<DeviceContact> = emptyList(),
     modifier: Modifier = Modifier
@@ -1286,17 +1287,26 @@ fun FavoritesScreen(
                 }
             },
             onSetAsDefaultNumber = { newNum, newLabel ->
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(matchedContact, newNum, newLabel)
+                }
                 if (favContact != null) {
                     onUpdateFavoriteNumber(favContact, newNum, newLabel)
-                    contactDetailsTarget = Pair(matchedContact, favContact.copy(phoneNumber = newNum, label = newLabel))
+                    contactDetailsTarget = Pair(matchedContact.copy(phoneNumber = newNum, label = newLabel), favContact.copy(phoneNumber = newNum, label = newLabel))
                 } else {
                     onAddFavorite(matchedContact.name, newNum, newLabel, matchedContact.photoUri, matchedContact.nickname)
+                    contactDetailsTarget = Pair(matchedContact.copy(phoneNumber = newNum, label = newLabel), null)
                 }
             },
             onClearDefaultNumber = {
+                val firstNum = matchedContact.phoneNumbers.firstOrNull()?.number ?: matchedContact.phoneNumber
+                val firstLabel = matchedContact.phoneNumbers.firstOrNull()?.label ?: matchedContact.label
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(matchedContact, firstNum, firstLabel)
+                }
                 if (favContact != null) {
-                    onDeleteFavorite(favContact)
-                    contactDetailsTarget = Pair(matchedContact, null)
+                    onUpdateFavoriteNumber(favContact, firstNum, firstLabel)
+                    contactDetailsTarget = Pair(matchedContact.copy(phoneNumber = firstNum, label = firstLabel), favContact.copy(phoneNumber = firstNum, label = firstLabel))
                 }
             },
             onCreateRule = { num ->

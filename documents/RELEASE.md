@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.2.3` | `11` | Sep 2026 | Direct phone contacts default number sync, refined rounded-rectangle discovery filters, and single-line search bar layouts. |
 | `1.2.2` | `10` | Sep 2026 | Default phone number prioritization with DEFAULT badge, and scrollable contacts filter bar above search. |
 | `1.2.1` | `9` | Sep 2026 | Full dual-contact predictive suggestions, instant app-contact recognition, and preserved contact visibility. |
 | `1.2.0` | `8` | Sep 2026 | Architecture modularization, faster call history search, and tamper-proof verified backups. |
@@ -21,7 +22,19 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.2.2 (Latest) — Default Number Sorting & Filter Bar Improvements</h3></summary>
+<summary><h3>🚀 Release 1.2.3 (Latest) — Default Number Phone Sync & Balanced Filter Styling</h3></summary>
+
+### What's New & Improvements:
+- **Phonebook Default Number Sync**: Setting a default phone number on any contact now directly updates your Android phone's address book and Google Contacts, automatically syncing the primary number across your favorites and speed dial cards.
+- **Refined Quick Filters**: Discovery filters (All, Favorites, Recents, Frequent, Rediscover) in the Contacts tab now feature balanced, elegant rounded-rectangular buttons that span cleanly across your screen with helpful tooltips and matching color accents.
+- **Spam & Blocked Search Layout**: Improved search input across Spam & Blocked tools with smooth single-line text and clean action buttons.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.2.2 — Default Number Sorting & Filter Bar Improvements</h3></summary>
 
 ### What's New & Improvements:
 - **Default Number Prioritization**: When expanding a contact or opening their detail sheet, their default primary phone number is always sorted to the top and clearly marked with a "DEFAULT" badge.

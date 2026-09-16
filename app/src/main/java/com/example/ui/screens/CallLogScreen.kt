@@ -145,6 +145,7 @@ fun CallLogScreen(
     onAddNewContact: (name: String, number: String, label: String, saveToDevice: Boolean, addToFavorites: Boolean) -> Unit = { _, _, _, _, _ -> },
     onUpdateNoteAndReminder: (RecentCall, String?, Long?) -> Unit = { _, _, _ -> },
     onUpdateContact: (oldNum: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
+    onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
     onDeleteContact: ((DeviceContact) -> Unit)? = null,
     onDeleteCall: (RecentCall) -> Unit = {},
     onDeleteCallsForNumber: (String) -> Unit = {},
@@ -187,15 +188,25 @@ fun CallLogScreen(
                 onToggleFavorite(matchedContact.name, favContact?.phoneNumber ?: matchedContact.phoneNumber, favContact?.label ?: matchedContact.label, matchedContact.photoUri)
             },
             onSetAsDefaultNumber = { newNum, newLabel ->
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(matchedContact, newNum, newLabel)
+                }
                 if (favContact != null) {
                     onUpdateFavoriteNumber(favContact, newNum, newLabel)
+                    contactDetailsTarget = Pair(matchedContact.copy(phoneNumber = newNum, label = newLabel), favContact.copy(phoneNumber = newNum, label = newLabel))
                 } else {
-                    onToggleFavorite(matchedContact.name, newNum, newLabel, matchedContact.photoUri)
+                    contactDetailsTarget = Pair(matchedContact.copy(phoneNumber = newNum, label = newLabel), null)
                 }
             },
             onClearDefaultNumber = {
+                val firstNum = matchedContact.phoneNumbers.firstOrNull()?.number ?: matchedContact.phoneNumber
+                val firstLabel = matchedContact.phoneNumbers.firstOrNull()?.label ?: matchedContact.label
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(matchedContact, firstNum, firstLabel)
+                }
                 if (favContact != null) {
-                    onToggleFavorite(favContact.name, favContact.phoneNumber, favContact.label, favContact.photoUri)
+                    onUpdateFavoriteNumber(favContact, firstNum, firstLabel)
+                    contactDetailsTarget = Pair(matchedContact.copy(phoneNumber = firstNum, label = firstLabel), favContact.copy(phoneNumber = firstNum, label = firstLabel))
                 }
             },
             onCreateRule = { num ->
@@ -554,10 +565,20 @@ fun CallLogScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        val searchPlaceholder = when (selectedFilter) {
+                            "SPAM" -> "Search spam calls..."
+                            "MISSED" -> "Search missed calls..."
+                            "INCOMING" -> "Search incoming calls..."
+                            "OUTGOING" -> "Search outgoing calls..."
+                            "WHATSAPP" -> "Search WhatsApp calls..."
+                            "RULES" -> "Search rules..."
+                            "NOTES" -> "Search notes..."
+                            else -> "Search recents..."
+                        }
                         CompactSearchBar(
                             query = searchQuery,
                             onQueryChange = { searchQuery = it },
-                            placeholder = "Search recents by name or number",
+                            placeholder = searchPlaceholder,
                             modifier = Modifier.weight(1f),
                             testTag = "recents_search_input"
                         )

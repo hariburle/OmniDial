@@ -123,6 +123,7 @@ fun ContactsScreen(
     onAddNewContact: (name: String, number: String, label: String, destination: ContactSaveDestination, addToFavorites: Boolean) -> Unit = { _, _, _, _, _ -> },
     onAddNewContactMulti: ((name: String, numbers: List<ContactPhoneNumber>, destination: ContactSaveDestination, addToFavorites: Boolean) -> Unit)? = null,
     onUpdateContact: (oldNumber: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
+    onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
     onSyncContactToPhone: (DeviceContact) -> Unit = {},
     onSyncAllAppContactsToDevice: () -> Unit = {},
     onDeleteContact: (DeviceContact) -> Unit = {},
@@ -357,12 +358,11 @@ fun ContactsScreen(
             .fillMaxSize()
             .testTag("contacts_screen")
     ) {
-        // Smart Contact Discovery & Filter Chips
+        // Smart Contact Discovery & Filter Row (Equally distributed, elegant wide rounded-rectangular buttons)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -375,40 +375,64 @@ fun ContactsScreen(
                     SmartContactSort.FREQUENT -> Icons.Default.LocalFireDepartment
                     SmartContactSort.REDISCOVER -> Icons.Default.Casino
                 }
+                val accentColor = when (sortMode) {
+                    SmartContactSort.ALL -> MaterialTheme.colorScheme.primary
+                    SmartContactSort.FAVORITES -> Color(0xFFF59E0B)
+                    SmartContactSort.RECENT -> Color(0xFF10B981)
+                    SmartContactSort.FREQUENT -> Color(0xFFEF4444)
+                    SmartContactSort.REDISCOVER -> Color(0xFF8B5CF6)
+                }
 
-                FilterChip(
-                    selected = isSelected,
-                    onClick = {
-                        if (sortMode == SmartContactSort.REDISCOVER && isSelected) {
-                            rediscoverShuffleSeed = System.currentTimeMillis()
-                            Toast.makeText(context, "Reshuffled Rediscover list", Toast.LENGTH_SHORT).show()
-                        } else {
-                            smartSortBy = sortMode
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                ) {
+                    @OptIn(ExperimentalMaterial3Api::class)
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = {
+                            PlainTooltip {
+                                Text(sortMode.description)
+                            }
+                        },
+                        state = rememberTooltipState(),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Surface(
+                            onClick = {
+                                if (sortMode == SmartContactSort.REDISCOVER && isSelected) {
+                                    rediscoverShuffleSeed = System.currentTimeMillis()
+                                    Toast.makeText(context, "Reshuffled Rediscover list", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    smartSortBy = sortMode
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) {
+                                accentColor.copy(alpha = 0.18f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                            },
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 0.5.dp,
+                                color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("contact_filter_${sortMode.name.lowercase()}")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = sortMode.description,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = sortMode.description,
-                            modifier = Modifier.size(16.dp),
-                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = sortMode.label,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    ),
-                    modifier = Modifier.height(34.dp)
-                )
+                    }
+                }
             }
         }
 
@@ -965,15 +989,25 @@ fun ContactsScreen(
                 }
             },
             onSetAsDefaultNumber = { num, label ->
-                if (matchedFav != null) {
-                    onUpdateFavoriteNumber(matchedFav, num, label)
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(detailContact, num, label)
+                } else {
+                    if (matchedFav != null) {
+                        onUpdateFavoriteNumber(matchedFav, num, label)
+                    }
+                    onUpdateContact(detailContact.phoneNumber, detailContact.name, num, label, detailContact.nickname)
                 }
-                onUpdateContact(detailContact.phoneNumber, detailContact.name, num, label, detailContact.nickname)
+                contactForDetailsSheet = detailContact.copy(phoneNumber = num, label = label)
             },
             onClearDefaultNumber = {
                 val firstNum = detailContact.phoneNumbers.firstOrNull()?.number ?: detailContact.phoneNumber
                 val firstLabel = detailContact.phoneNumbers.firstOrNull()?.label ?: detailContact.label
-                onUpdateContact(detailContact.phoneNumber, detailContact.name, firstNum, firstLabel, detailContact.nickname)
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(detailContact, firstNum, firstLabel)
+                } else {
+                    onUpdateContact(detailContact.phoneNumber, detailContact.name, firstNum, firstLabel, detailContact.nickname)
+                }
+                contactForDetailsSheet = detailContact.copy(phoneNumber = firstNum, label = firstLabel)
             },
             onCreateRule = { num ->
                 onCreateRule(num)

@@ -2,6 +2,21 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v1.2.3] — Build 11 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Phonebook Default Number Sync**: Setting a default phone number on any contact now directly updates Android's system contacts provider and Google Contacts, keeping your primary numbers in sync across your entire device.
+- **Synced Favorites & Speed Dial**: Marking a number as default automatically updates Favorites cards and Speed Dial shortcuts to call that number directly.
+- **Refined Quick Filters Layout**: The 5 discovery filters in Contacts (`All`, `Favorites`, `Recents`, `Frequent`, `Rediscover`) are styled with elegant, wide rounded rectangles and subtle accent outlines, evenly spaced without horizontal scrolling.
+- **Single-Line Spam & Blocked Search**: Search bars in Spam & Blocked panels now cleanly fit without line-wrapping or layout distortions.
+
+### 🔧 Technical / Architecture Notes
+- **Android ContactsContract Batch Execution**: Implemented `ContactHelper.setDefaultPhoneNumber()` applying batch `ContentProviderOperation` to set `IS_PRIMARY = 1` and `IS_SUPER_PRIMARY = 1` on the targeted `Data._ID` while clearing primary flags on other numbers.
+- **Reactive Favorites Synchronization**: Added `MainViewModel.setDefaultContactNumber()` updating both `ContactHelper` and `FavoriteContact` entities in the Room database, triggering reactive StateFlow recompositions.
+- **Compose TooltipBox Layout Fix**: Wrapped each filter button in `Box(modifier = Modifier.weight(1f))` to correctly bound `TooltipBox` layout constraints and distribute all 5 filter buttons across the screen.
+- **Spam Search Optimization**: Migrated search inputs in `SpamManagementDialog.kt` to `CompactSearchBar` with single-line constraint and ellipsis overflow.
+- Incremented `versionCode` to 11 and `versionName` to `"1.2.3"` in `app/build.gradle.kts`.
+
 ---
 
 ## 🚀 [v1.2.2] — Build 10 (September 2026)
