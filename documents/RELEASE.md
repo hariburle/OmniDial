@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.3.0` | `12` | Sep 2026 | Per-number preferred SIM selection, unified nickname display in call history, and synchronized contact editing. |
 | `1.2.3` | `11` | Sep 2026 | Direct phone contacts default number sync, refined rounded-rectangle discovery filters, and single-line search bar layouts. |
 | `1.2.2` | `10` | Sep 2026 | Default phone number prioritization with DEFAULT badge, and scrollable contacts filter bar above search. |
 | `1.2.1` | `9` | Sep 2026 | Full dual-contact predictive suggestions, instant app-contact recognition, and preserved contact visibility. |
@@ -22,7 +23,20 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.2.3 (Latest) — Default Number Phone Sync & Balanced Filter Styling</h3></summary>
+<summary><h3>🚀 Release 1.3.0 (Latest) — Per-Number SIM Routing & Unified Nicknames</h3></summary>
+
+### What's New & Improvements:
+- **Per-Number Preferred SIM Selection**: Dual-SIM users can now assign a preferred SIM card (SIM 1, SIM 2, Auto, or Always Ask) for each individual phone number. Outgoing calls to that specific number will automatically place through your chosen SIM card.
+- **Unified Nicknames in Call History**: Your recent calls log now prominently highlights contact nicknames (such as "Mom" or "Dad") alongside their formal names, keeping your call history friendly and recognizable at a glance.
+- **Instant Nickname Viewing & Editing**: Opening contact details from recent calls or favorites immediately displays their saved nickname instead of prompting to add one, and nickname edits now sync cleanly across favorites and call history.
+- **Reliable In-Call Navigation & Lock Screen**: Navigating between panels or locking your phone during an ongoing call maintains steady in-call controls and smooth call management.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.2.3 — Default Number Phone Sync & Balanced Filter Styling</h3></summary>
 
 ### What's New & Improvements:
 - **Phonebook Default Number Sync**: Setting a default phone number on any contact now directly updates your Android phone's address book and Google Contacts, automatically syncing the primary number across your favorites and speed dial cards.

@@ -132,6 +132,9 @@ fun ContactsScreen(
     onPlaceWhatsAppCall: (String) -> Unit = {},
     getPreferredCallingMode: (String) -> String = { "cellular" },
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
+    activeSims: List<com.example.telecom.SimInfo> = emptyList(),
+    getPreferredSimSlot: (String) -> Int = { 0 },
+    onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1027,6 +1030,9 @@ fun ContactsScreen(
             },
             getPreferredCallingMode = getPreferredCallingMode,
             onSaveLearnedCallMode = onSaveLearnedCallMode,
+            activeSims = activeSims,
+            getPreferredSimSlot = getPreferredSimSlot,
+            onSetPreferredSimSlot = onSetPreferredSimSlot,
             onEditContact = { name, number, label, nickname ->
                 onUpdateContact(detailContact.phoneNumber, name, number, label, nickname)
                 contactForDetailsSheet = null

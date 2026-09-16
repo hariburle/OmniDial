@@ -176,6 +176,9 @@ fun FavoritesScreen(
     onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
     onDeleteContact: (DeviceContact) -> Unit = {},
     deviceContacts: List<DeviceContact> = emptyList(),
+    activeSims: List<com.example.telecom.SimInfo> = emptyList(),
+    getPreferredSimSlot: (String) -> Int = { 0 },
+    onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -975,7 +978,8 @@ fun FavoritesScreen(
                                             photoUri = contact.photoUri,
                                             phoneNumbers = listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
                                         )
-                                        contactDetailsTarget = Pair(matched, contact)
+                                        val resolvedMatched = if (!contact.nickname.isNullOrBlank()) matched.copy(nickname = contact.nickname) else matched
+                                        contactDetailsTarget = Pair(resolvedMatched, contact)
                                     },
                                     onSelect = { onSelectNumber(contact.phoneNumber) },
                                     onCreateRule = { onCreateRule(contact.phoneNumber) },
@@ -1314,6 +1318,9 @@ fun FavoritesScreen(
             },
             getPreferredCallingMode = getPreferredCallingMode,
             onSaveLearnedCallMode = onSaveLearnedCallMode,
+            activeSims = activeSims,
+            getPreferredSimSlot = getPreferredSimSlot,
+            onSetPreferredSimSlot = onSetPreferredSimSlot,
             onDeleteContact = { contactToDelete ->
                 onDeleteContact(contactToDelete)
                 contactDetailsTarget = null

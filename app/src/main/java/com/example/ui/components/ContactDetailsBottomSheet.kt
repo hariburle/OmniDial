@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Voicemail
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -141,6 +142,9 @@ fun ContactDetailsBottomSheet(
     onDeleteCallLog: (() -> Unit)? = null,
     getPreferredCallingMode: (String) -> String = { "cellular" },
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
+    activeSims: List<com.example.telecom.SimInfo> = emptyList(),
+    getPreferredSimSlot: (String) -> Int = { 0 },
+    onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -161,10 +165,11 @@ fun ContactDetailsBottomSheet(
         trimmed.all { it.isDigit() || it == '+' || it == ' ' || it == '-' || it == '(' || it == ')' } ||
         trimmed == contact.phoneNumber.trim()
     }
+    val effectiveNickname = contact.nickname?.ifBlank { null } ?: favoriteContact?.nickname?.ifBlank { null } ?: ""
     var editName by remember(contact) { mutableStateOf(contact.name) }
     var editNumber by remember(contact) { mutableStateOf(contact.phoneNumber) }
     var editLabel by remember(contact) { mutableStateOf(contact.label) }
-    var editNickname by remember(contact) { mutableStateOf(contact.nickname ?: "") }
+    var editNickname by remember(contact, favoriteContact) { mutableStateOf(effectiveNickname) }
 
     // Current default/primary number for this contact - reactive to user changes
     var currentDefaultNumber by remember(favoriteContact?.phoneNumber, contact.phoneNumber) {
@@ -180,9 +185,10 @@ fun ContactDetailsBottomSheet(
     }
     var numberForActionMenu by remember { mutableStateOf<ContactPhoneNumber?>(null) }
     val preferredModes = remember { mutableStateMapOf<String, String>() }
+    val preferredSims = remember { mutableStateMapOf<String, Int>() }
     var showNicknameEditDialog by remember { mutableStateOf(false) }
-    var directNicknameText by remember(contact.nickname) { mutableStateOf(contact.nickname ?: "") }
-    var currentDisplayNickname by remember(contact.nickname) { mutableStateOf(contact.nickname ?: "") }
+    var directNicknameText by remember(contact.nickname, favoriteContact?.nickname) { mutableStateOf(effectiveNickname) }
+    var currentDisplayNickname by remember(contact.nickname, favoriteContact?.nickname) { mutableStateOf(effectiveNickname) }
 
     var contactCallHistory by remember { mutableStateOf<List<RecentCall>>(emptyList()) }
     var isLoadingHistory by remember { mutableStateOf(true) }
@@ -877,6 +883,76 @@ fun ContactDetailsBottomSheet(
                                                 Toast.makeText(context, "★ Preference reset to Ask & Learn", Toast.LENGTH_SHORT).show()
                                             },
                                             label = { Text("Reset", fontSize = 9.5.sp) },
+                                            modifier = Modifier.height(26.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (activeSims.size > 1) {
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Row 3: Preferred SIM Selector (Per-number SIM preference)
+                                val currentSimPref = preferredSims[pn.number] ?: getPreferredSimSlot(pn.number)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Preferred SIM:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                                    ) {
+                                        FilterChip(
+                                            selected = currentSimPref == 0,
+                                            onClick = {
+                                                preferredSims[pn.number] = 0
+                                                onSetPreferredSimSlot?.invoke(pn.number, 0)
+                                                Toast.makeText(context, "★ SIM preference: Auto (Default)", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text("Auto", fontSize = 10.5.sp) },
+                                            modifier = Modifier.height(26.dp)
+                                        )
+
+                                        val sim1 = activeSims.firstOrNull { it.slotIndex == 0 }
+                                        val sim1Label = if (sim1 != null && sim1.displayName.isNotBlank()) "SIM 1 (${sim1.displayName.take(6)})" else "SIM 1"
+                                        FilterChip(
+                                            selected = currentSimPref == 1,
+                                            onClick = {
+                                                preferredSims[pn.number] = 1
+                                                onSetPreferredSimSlot?.invoke(pn.number, 1)
+                                                Toast.makeText(context, "★ Preferred SIM: SIM 1", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text(sim1Label, fontSize = 10.5.sp, maxLines = 1) },
+                                            modifier = Modifier.height(26.dp)
+                                        )
+
+                                        val sim2 = activeSims.firstOrNull { it.slotIndex == 1 }
+                                        val sim2Label = if (sim2 != null && sim2.displayName.isNotBlank()) "SIM 2 (${sim2.displayName.take(6)})" else "SIM 2"
+                                        FilterChip(
+                                            selected = currentSimPref == 2,
+                                            onClick = {
+                                                preferredSims[pn.number] = 2
+                                                onSetPreferredSimSlot?.invoke(pn.number, 2)
+                                                Toast.makeText(context, "★ Preferred SIM: SIM 2", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text(sim2Label, fontSize = 10.5.sp, maxLines = 1) },
+                                            modifier = Modifier.height(26.dp)
+                                        )
+
+                                        FilterChip(
+                                            selected = currentSimPref == -1,
+                                            onClick = {
+                                                preferredSims[pn.number] = -1
+                                                onSetPreferredSimSlot?.invoke(pn.number, -1)
+                                                Toast.makeText(context, "★ Preference: Always Ask SIM", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text("Ask", fontSize = 10.5.sp) },
                                             modifier = Modifier.height(26.dp)
                                         )
                                     }
@@ -1642,6 +1718,7 @@ fun ContactDetailsBottomSheet(
                     onClick = {
                         val trimmed = directNicknameText.trim()
                         currentDisplayNickname = trimmed
+                        editNickname = trimmed
                         onEditContact(contact.name, contact.phoneNumber, contact.label, trimmed.ifBlank { null })
                         ContactHelper.updateContactNickname(context, contact.phoneNumber, trimmed, contact.contactId)
                         showNicknameEditDialog = false

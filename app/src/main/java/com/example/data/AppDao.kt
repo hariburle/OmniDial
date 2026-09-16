@@ -171,4 +171,19 @@ interface AppDao {
 
     @Query("DELETE FROM local_contacts")
     suspend fun clearAllLocalContacts()
+
+    @Query("SELECT * FROM contact_sim_preferences")
+    fun getAllContactSimPreferences(): Flow<List<ContactSimPreference>>
+
+    @Query("SELECT * FROM contact_sim_preferences WHERE normalized_number = :normalizedNumber LIMIT 1")
+    suspend fun getContactSimPreference(normalizedNumber: String): ContactSimPreference?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setContactSimPreference(pref: ContactSimPreference)
+
+    @Query("DELETE FROM contact_sim_preferences WHERE normalized_number = :normalizedNumber")
+    suspend fun deleteContactSimPreference(normalizedNumber: String)
+
+    @Query("DELETE FROM contact_sim_preferences")
+    suspend fun clearAllContactSimPreferences()
 }

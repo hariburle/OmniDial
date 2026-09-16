@@ -120,3 +120,25 @@ data class LocalContact(
     val photoUri: String? = null
 )
 
+/**
+ * Stores contact-specific cellular SIM preference.
+ * preferredSimSlot:
+ *   0: Global / System Default (follows dialer's active slot)
+ *   1: SIM 1 (Slot 0)
+ *   2: SIM 2 (Slot 1)
+ *  -1: Always Ask before dialing
+ */
+@Immutable
+@Entity(
+    tableName = "contact_sim_preferences",
+    indices = [Index(value = ["normalized_number"])]
+)
+data class ContactSimPreference(
+    @PrimaryKey
+    @ColumnInfo(name = "normalized_number")
+    val normalizedNumber: String,
+    @ColumnInfo(name = "preferred_sim_slot")
+    val preferredSimSlot: Int
+)
+
+

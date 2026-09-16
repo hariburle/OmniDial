@@ -71,6 +71,7 @@ import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.BorderStroke
@@ -429,6 +430,7 @@ fun MainAppContent(
     val searchContacts by viewModel.searchContacts.collectAsStateWithLifecycle()
     val pendingCloudConfirmation by viewModel.pendingCloudConfirmation.collectAsStateWithLifecycle()
     val pendingCallMethodChoice by viewModel.pendingCallMethodChoice.collectAsStateWithLifecycle()
+    val pendingSimChoice by viewModel.pendingSimChoicePrompt.collectAsStateWithLifecycle()
 
     val isFlipToShhhEnabled by viewModel.isFlipToShhhEnabled.collectAsStateWithLifecycle()
     val isShhhActive by viewModel.isShhhActive.collectAsStateWithLifecycle()
@@ -875,7 +877,10 @@ fun MainAppContent(
                         onToggleFlipToShhh = { viewModel.toggleFlipToShhh() },
                         onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
                         onDeleteContact = { viewModel.deleteContact(it) },
-                        deviceContacts = deviceContacts
+                        deviceContacts = deviceContacts,
+                        activeSims = activeSims,
+                        getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
+                        onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) }
                     )
                     1 -> CallLogScreen(
                         recentCalls = recentCalls,
@@ -888,6 +893,8 @@ fun MainAppContent(
                         isSpamNumber = { num -> viewModel.isSpamNumber(num) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
+                        getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
+                        onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         onCallBack = { num ->
                             viewModel.initiateCall(context, num)
                         },
@@ -979,10 +986,13 @@ fun MainAppContent(
                         favorites = favorites,
                         recentCalls = recentCalls,
                         deviceContacts = deviceContacts,
+                        activeSims = activeSims,
                         onRefreshContacts = { viewModel.refreshContacts() },
                         onPlaceWhatsAppCall = { num -> viewModel.placeWhatsAppCall(context, num) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
+                        getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
+                        onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         onSelectNumber = { num ->
                             viewModel.setDialerNumber(num)
                             navigateToTab(2)
@@ -1274,6 +1284,101 @@ fun MainAppContent(
                 confirmButton = {},
                 dismissButton = {
                     TextButton(onClick = { viewModel.dismissCallMethodChoice() }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Dual-SIM Outgoing Call Choice Dialog (Always Ask)
+        pendingSimChoice?.let { prompt ->
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelSimChoice() },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SimCard,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "Choose SIM for Call",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val nameOrNum = prompt.contactName ?: prompt.number
+                        Text(
+                            text = "Call $nameOrNum (${prompt.number}) using:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val sim1 = activeSims.firstOrNull { it.slotIndex == 0 }
+                            val sim2 = activeSims.firstOrNull { it.slotIndex == 1 }
+
+                            // SIM 1 Button
+                            Button(
+                                onClick = { viewModel.confirmSimChoiceAndPlaceCall(context, 1) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("SIM 1", fontWeight = FontWeight.Bold)
+                                    if (sim1 != null) {
+                                        Text(
+                                            text = sim1.displayName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+
+                            // SIM 2 Button
+                            Button(
+                                onClick = { viewModel.confirmSimChoiceAndPlaceCall(context, 2) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondary
+                                )
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("SIM 2", fontWeight = FontWeight.Bold)
+                                    if (sim2 != null) {
+                                        Text(
+                                            text = sim2.displayName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { viewModel.cancelSimChoice() }) {
                         Text("Cancel")
                     }
                 }

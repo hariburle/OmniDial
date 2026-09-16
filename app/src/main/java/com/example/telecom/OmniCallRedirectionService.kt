@@ -95,7 +95,38 @@ class OmniCallRedirectionService : CallRedirectionService() {
             // Always post full-screen call notification to guarantee execution from background / car mode
             showWhatsAppRedirectionNotification(cleanNumber)
         } else {
-            // Let the standard cellular call proceed
+            // Check contact-specific preferred SIM slot
+            val simPrefsSet = (prefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet()) +
+                              (legacyPrefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet())
+            var preferredSimSlot: Int? = null
+            for (entry in simPrefsSet) {
+                val parts = entry.split(":")
+                if (parts.size >= 2) {
+                    val numKey = parts[0]
+                    val slot = parts[1].toIntOrNull()
+                    val numKeyDigits = numKey.filter { it.isDigit() }
+                    val numKeySuffix10 = if (numKeyDigits.length >= 10) numKeyDigits.takeLast(10) else numKeyDigits
+                    if (ContactHelper.isSamePhoneNumber(numKey, cleanNumber) ||
+                        numKey == cleanNumber ||
+                        (suffix10.isNotEmpty() && (numKey.endsWith(suffix10) || numKeySuffix10 == suffix10))) {
+                        if (slot != null && slot > 0) {
+                            preferredSimSlot = slot
+                        }
+                        break
+                    }
+                }
+            }
+
+            if (preferredSimSlot != null) {
+                val targetAccount = SimHelper.getPhoneAccountForSimSlot(this, preferredSimSlot - 1)
+                if (targetAccount != null && targetAccount != initialPhoneAccount) {
+                    Log.i(TAG, "External outgoing call redirected to preferred SIM $preferredSimSlot ($targetAccount)")
+                    redirectCall(handle, targetAccount, false)
+                    return
+                }
+            }
+
+            // Let standard cellular call proceed
             placeCallUnmodified()
         }
     }

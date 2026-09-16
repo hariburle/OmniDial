@@ -2,6 +2,24 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v1.3.0] — Build 12 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Per-Number Preferred SIM Routing**: Select a preferred SIM slot (SIM 1, SIM 2, Auto, or Always Ask) for specific phone numbers in multi-number contacts. Outgoing calls to that number automatically route via the chosen SIM card.
+- **Unified Call Log Nicknames**: Recent calls now display the contact's familiar nickname as the primary title with their formal name shown inline in parentheses.
+- **Instant Nickname Display in Contact Sheet**: Opening contact details from recents or favorites immediately displays their saved nickname under their avatar instead of falsely showing `+ Add Nickname`.
+- **Synchronized Nickname Editing**: Updating or setting a nickname in the contact sheet immediately propagates to Room favorites, local contact records, and the call history.
+- **Steady In-Call Navigation & Background Management**: Ongoing calls stay cleanly active and accessible when navigating across panels or locking the device.
+
+### 🔧 Technical / Architecture Notes
+- **Room `ContactNumberPreference` & DAO**: Added entity and queries for persisting `preferredSimSlot` (`-1` = Ask, `0` = Auto, `1` = SIM 1, `2` = SIM 2) mapped by normalized phone number.
+- **Telecom Redirection Service Routing**: Integrated `OmniCallRedirectionService` to query `preferredSimSlot` and dynamically bind target `PhoneAccountHandle` before placing external calls.
+- **Optimized Call Log Lookups**: Introduced `fastFavoritesMap` in `CallLogScreen` and enriched `matchedDc` with `matchedFav.nickname` during scroll-time lazy item composition.
+- **ViewModel Favorite Nickname Sync**: Updated `MainViewModel.updateContact()` to synchronize `newNickname` to matching `FavoriteContact` rows in Room DB.
+- Incremented `versionCode` to 12 and `versionName` to `"1.3.0"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.2.3] — Build 11 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

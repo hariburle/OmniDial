@@ -11,8 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class],
-    version = 12,
+    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class, ContactSimPreference::class],
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +21,20 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS contact_sim_preferences (
+                            normalized_number TEXT NOT NULL PRIMARY KEY,
+                            preferred_sim_slot INTEGER NOT NULL
+                        )
+                    """.trimIndent())
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_sim_preferences_normalized_number ON contact_sim_preferences(normalized_number)")
+                } catch (_: Throwable) {}
+            }
+        }
 
         private val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -71,7 +85,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "telecom_dialer_db"
                 )
-                .addMigrations(MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
+                .addMigrations(MIGRATION_12_13, MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
                 .fallbackToDestructiveMigration(dropAllTables = false)
                 .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = false)
                 .addCallback(object : Callback() {

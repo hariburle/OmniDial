@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
@@ -62,6 +63,12 @@ data class CallMethodChoicePrompt(
     val contactName: String?,
     val reason: String? = null,
     val isLearnMode: Boolean = false
+)
+
+data class SimChoicePrompt(
+    val number: String,
+    val contactName: String?,
+    val reason: String? = null
 )
 
 class MainViewModel(
@@ -406,6 +413,13 @@ class MainViewModel(
     // Database Flows
     val rules: StateFlow<List<CallerRule>> = repository.allRules
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val contactSimPreferences: StateFlow<Map<String, Int>> = repository.allContactSimPreferences
+        .map { list -> list.associate { it.normalizedNumber to it.preferredSimSlot } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private val _pendingSimChoicePrompt = MutableStateFlow<SimChoicePrompt?>(null)
+    val pendingSimChoicePrompt: StateFlow<SimChoicePrompt?> = _pendingSimChoicePrompt.asStateFlow()
 
     private val _combinedRecentCalls = MutableStateFlow<List<RecentCall>>(inMemoryCachedRecentCalls ?: emptyList())
     val recentCalls: StateFlow<List<RecentCall>> = _combinedRecentCalls.asStateFlow()
@@ -991,8 +1005,53 @@ class MainViewModel(
         _selectedCallReason.value = reason
     }
 
+    fun getPreferredSimSlot(phoneNumber: String): Int {
+        val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
+        val digits = clean.filter { it.isDigit() }.takeLast(10)
+        val normalized = com.example.util.PhoneNumberNormalizer.toE164(phoneNumber)
+
+        val map = contactSimPreferences.value
+        return map[normalized]
+            ?: (if (clean.isNotBlank()) map[clean] else null)
+            ?: (if (digits.isNotBlank()) map[digits] else null)
+            ?: (map.entries.firstOrNull { ContactHelper.isSamePhoneNumber(it.key, phoneNumber) }?.value)
+            ?: 0
+    }
+
+    fun setPreferredSimSlot(phoneNumber: String, slot: Int) {
+        viewModelScope.launch {
+            if (slot == 0) {
+                repository.deleteContactSimPreference(phoneNumber)
+            } else {
+                repository.setContactSimPreference(phoneNumber, slot)
+            }
+        }
+        // Mirror to SharedPreferences for fast cross-service access by OmniCallRedirectionService
+        val normalized = com.example.util.PhoneNumberNormalizer.toE164(phoneNumber)
+        val currentSet = prefs.getStringSet("contact_sim_preferences", emptySet())?.toMutableSet() ?: mutableSetOf()
+        currentSet.removeAll { it.startsWith("$normalized:") || (phoneNumber.length >= 10 && it.startsWith("${phoneNumber.takeLast(10)}:")) }
+        if (slot != 0) {
+            currentSet.add("$normalized:$slot")
+        }
+        prefs.edit().putStringSet("contact_sim_preferences", currentSet).apply()
+        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit()
+            .putStringSet("contact_sim_preferences", currentSet).apply()
+    }
+
+    fun confirmSimChoiceAndPlaceCall(context: Context, slot: Int) {
+        val prompt = _pendingSimChoicePrompt.value
+        _pendingSimChoicePrompt.value = null
+        if (prompt != null) {
+            placeCall(context, prompt.number, prompt.reason, overrideSimSlot = slot)
+        }
+    }
+
+    fun cancelSimChoice() {
+        _pendingSimChoicePrompt.value = null
+    }
+
     @SuppressLint("MissingPermission")
-    fun placeCall(context: Context, number: String, reason: String? = null) {
+    fun placeCall(context: Context, number: String, reason: String? = null, overrideSimSlot: Int? = null) {
         val cleanNumber = number.ifBlank { _dialerNumber.value }
         if (cleanNumber.isBlank()) return
 
@@ -1007,6 +1066,20 @@ class MainViewModel(
         }
 
         val effectiveReason = reason ?: _selectedCallReason.value
+
+        // Check contact-level preferred SIM routing
+        val prefSlot = getPreferredSimSlot(cleanNumber)
+        if (overrideSimSlot == null && prefSlot == -1 && _activeSims.value.size > 1) {
+            val contact = lookupContactByNumber(cleanNumber)
+            _pendingSimChoicePrompt.value = SimChoicePrompt(
+                number = cleanNumber,
+                contactName = contact?.name,
+                reason = effectiveReason
+            )
+            return
+        }
+
+        val effectiveSlot = overrideSimSlot ?: (if (prefSlot > 0) prefSlot else _selectedSimSlot.value)
         maximizeCall()
 
         // If in ask_learn mode and user explicitly triggered cellular call, learn the choice directly
@@ -1025,10 +1098,10 @@ class MainViewModel(
                 }
             }
 
-            // Ensure Android routes to cellular SIM carrier, using the selected SIM slot
+            // Ensure Android routes to cellular SIM carrier, using the resolved SIM slot
             if (telecomManager != null) {
                 try {
-                    val simAccount = SimHelper.getPhoneAccountForSimSlot(context, _selectedSimSlot.value - 1)
+                    val simAccount = SimHelper.getPhoneAccountForSimSlot(context, effectiveSlot - 1)
                     val defaultAccount = simAccount
                         ?: telecomManager.getDefaultOutgoingPhoneAccount(uri.scheme)
                         ?: telecomManager.callCapablePhoneAccounts.firstOrNull { handle ->
@@ -2033,9 +2106,12 @@ class MainViewModel(
                     )
                 )
             }
-            val fav = favorites.value.firstOrNull { it.phoneNumber == oldNumber }
+            val fav = favorites.value.firstOrNull {
+                ContactHelper.isSamePhoneNumber(it.phoneNumber, oldNumber) ||
+                (oldNumber.isNotBlank() && ContactHelper.normalizeToLocalDigits(it.phoneNumber) == ContactHelper.normalizeToLocalDigits(oldNumber))
+            }
             if (fav != null) {
-                repository.updateFavorite(fav.copy(name = newName, phoneNumber = newNumber, label = newLabel))
+                repository.updateFavorite(fav.copy(name = newName, phoneNumber = newNumber, label = newLabel, nickname = newNickname))
             }
             refreshContacts()
         }

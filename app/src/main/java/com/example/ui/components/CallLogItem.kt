@@ -57,7 +57,9 @@ fun CallLogItem(
         ContactHelper.isVoicemailNumber(context, call.phoneNumber)
     }
     val photoToUse = if (isVoicemail) null else (matchedDc?.photoUri?.ifBlank { null } ?: call.photoUri?.ifBlank { null })
-    val nameToUse = if (isVoicemail) "Voicemail" else (matchedDc?.name?.ifBlank { null } ?: call.callerName?.ifBlank { null })
+    val formalName = if (isVoicemail) "Voicemail" else (matchedDc?.name?.ifBlank { null } ?: call.callerName?.ifBlank { null })
+    val effectiveNickname = if (isVoicemail) null else matchedDc?.nickname?.ifBlank { null }
+    val nameToUse = effectiveNickname ?: formalName
     val isWhatsApp = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
     val isCarrierAutoDropped = call.isSpam && (
         call.note?.contains("auto-dropped", ignoreCase = true) == true ||
@@ -230,6 +232,16 @@ fun CallLogItem(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
+                        if (effectiveNickname != null && formalName != null && !effectiveNickname.equals(formalName, ignoreCase = true)) {
+                            Text(
+                                text = "($formalName)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                        }
                         if (group.count > 1) {
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
@@ -342,7 +354,7 @@ fun CallLogItem(
                     }
 
                     // Line 1.5: Specific Phone Number and Label if contact has multiple numbers
-                    if (hasMultipleNumbers && !call.callerName.isNullOrBlank()) {
+                    if (hasMultipleNumbers && (formalName != null || !call.callerName.isNullOrBlank())) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(5.dp),

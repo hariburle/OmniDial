@@ -89,4 +89,13 @@ class AppRepository(private val appDao: AppDao) {
     suspend fun deleteLocalContactByNumber(phoneNumber: String) = appDao.deleteLocalContactByNumber(phoneNumber)
     suspend fun deleteLocalContactByName(name: String) = appDao.deleteLocalContactByName(name)
     suspend fun clearAllLocalContacts() = appDao.clearAllLocalContacts()
+
+    val allContactSimPreferences: Flow<List<ContactSimPreference>> = appDao.getAllContactSimPreferences()
+    suspend fun getContactSimPreference(phoneNumber: String): ContactSimPreference? =
+        appDao.getContactSimPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
+    suspend fun setContactSimPreference(phoneNumber: String, simSlot: Int) =
+        appDao.setContactSimPreference(ContactSimPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber), simSlot))
+    suspend fun deleteContactSimPreference(phoneNumber: String) =
+        appDao.deleteContactSimPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
+    suspend fun clearAllContactSimPreferences() = appDao.clearAllContactSimPreferences()
 }
