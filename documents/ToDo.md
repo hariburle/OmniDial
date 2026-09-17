@@ -64,6 +64,9 @@
 ---
 
 ### 🚨 Immediate Reliability & System UX Fixes (v1.4.2)
+- [x] **Task 10.7: Missed Call Notification Auto-Scroll & Entry Highlighting**
+  - *Goal*: When tapping a missed call notification, ensure OmniDial not only deep-links to Recents but also scrolls directly to the target missed call entry and applies a visual highlight pulse.
+  - *Deliverable*: In CallLogScreen, accurately match the deep-linked call timestamp/number, trigger listState.animateScrollToItem(), and apply a temporary highlight container tint.
 - [x] **Task 10.5: In-Call Screen Priority & Modal Auto-Dismiss on External Outgoing Calls**
   - *Goal*: When an external app (Maps, Browser, etc.) or system intent initiates an outgoing call while OmniDial has a contact view, modal, or bottom sheet open, automatically dismiss all open sheets/dialogs and immediately surface the active InCallScreen.
   - *Deliverable*: In MainActivity, observe active call state and external call intents to dismiss any active ContactDetailsBottomSheet, dialogs, or sub-screens, ensuring the user immediately sees the active in-call controls.

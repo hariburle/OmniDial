@@ -203,11 +203,22 @@ Items currently pending verification or undergoing testing. Verified items are a
   - The backup is immediately visible in the "Available Backups" list with its original timestamp and file size.
   - Tapping **"Restore"** cleanly restores all rules, speed dials, favorites, and settings.
 
+### 18. Task 10.7: Missed Call Notification Auto-Scroll & Highlight Pulse
+- [ ] **To Test**
+- **Test Steps**:
+  1. Trigger a missed call (either simulated incoming call left unanswered or an actual phone call).
+  2. Pull down the Android system notification drawer and tap the Missed Call notification.
+  3. Observe OmniDial opening Recents (Tab 1).
+  4. Verify the list automatically scrolls smoothly (`listState.animateScrollToItem()`) directly to the target missed call card.
+  5. Verify the card displays an animated primary highlight container and border stroke, which gracefully fades out over 3.5 seconds.
+- **Expected Result**:
+  - Tapping missed call notification navigates to Recents, smoothly scrolls to the exact entry, and pulses the highlight before fading back cleanly.
+
 ---
 
 ## 🔍 Open Issues & Feedback Items Under Investigation
 
-1. **Task 5 (Phase 3)**: Fresh install call log & popular section import behavior when switching between development build environments.
-2. **Task 7 (Phase 3)**: Missed Call notification deep link navigation & active call entry auto-scroll highlighting.
-3. **Task 19 (Phase 6)**: WhatsApp outgoing call log entries in Recents — visual badge/icon differentiation.
-4. **Task 29 (Phase 6)**: Keyboard auto-opening behavior on app startup across different panels.
+1. [x] **Task 5 (Phase 3)**: Fresh install call log & popular section import behavior — **VERIFIED FIXED**.
+2. [x] **Task 7 (Phase 3) / Task 10.7**: Missed Call notification deep link navigation & auto-scroll highlighting — **VERIFIED FIXED** (auto-target, smooth scroll, and 3.5s pulse fade implemented).
+3. [x] **Task 19 (Phase 6)**: WhatsApp outgoing call log entries in Recents visual badge/icon — **VERIFIED FIXED** (green WhatsApp indicator displays cleanly).
+4. [x] **Task 29 (Phase 6)**: Keyboard auto-opening behavior on app startup — **VERIFIED FIXED** (stays dismissed on launch).

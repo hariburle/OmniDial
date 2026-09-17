@@ -87,23 +87,35 @@ fun CallLogItem(
         }
     }
 
+    val animatedContainerColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (isHighlighted) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+        } else if (isWhatsApp) {
+            Color(0xFF25D366).copy(alpha = 0.08f)
+        } else if (group.isSpam) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        },
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 600),
+        label = "call_item_container_color"
+    )
+
+    val animatedBorderColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (isHighlighted) MaterialTheme.colorScheme.primary else Color.Transparent,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 600),
+        label = "call_item_border_color"
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onOpenDetails() }
             .testTag("call_item_${call.id}"),
         colors = CardDefaults.cardColors(
-            containerColor = if (isHighlighted) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
-            } else if (isWhatsApp) {
-                Color(0xFF25D366).copy(alpha = 0.08f)
-            } else if (group.isSpam) {
-                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            }
+            containerColor = animatedContainerColor
         ),
-        border = if (isHighlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        border = if (isHighlighted || animatedBorderColor != Color.Transparent) BorderStroke(2.dp, animatedBorderColor) else null,
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(

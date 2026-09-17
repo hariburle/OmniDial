@@ -381,6 +381,12 @@ class MainViewModel(
             type == "vnd.android.cursor.dir/calls"
         ) {
             _pendingNavTab.value = 1
+            if (highlightNum.isNullOrBlank() && action == "android.telecom.action.SHOW_MISSED_CALLS_NOTIFICATION") {
+                val latestMissed = _combinedRecentCalls.value.firstOrNull { it.callType == android.provider.CallLog.Calls.MISSED_TYPE }
+                if (latestMissed != null) {
+                    _pendingHighlightNumber.value = latestMissed.phoneNumber
+                }
+            }
         } else if (isDialIntent || !extractedNumber.isNullOrBlank() || navTab == "DIALER" || navTab == "KEYPAD" || navTabIndex == 2) {
             _pendingNavTab.value = 2
         } else if (navTabIndex in 0..4) {
