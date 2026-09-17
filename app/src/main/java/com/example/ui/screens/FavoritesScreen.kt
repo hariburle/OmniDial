@@ -180,6 +180,7 @@ fun FavoritesScreen(
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
+    dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -237,6 +238,20 @@ fun FavoritesScreen(
     }
     var favoriteContactToCall by remember { mutableStateOf<FavoriteContact?>(null) }
     var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
+
+    LaunchedEffect(dismissModalsTrigger) {
+        if (dismissModalsTrigger > 0L) {
+            contactDetailsTarget = null
+            multiNumberContactToCall = null
+            showAddDialog = false
+            showContactPicker = false
+            speedDialTargetContact = null
+            editTargetContact = null
+            editTargetIgnored = null
+            pendingCallConfirmation = null
+            nicknameDialogTarget = null
+        }
+    }
 
     LaunchedEffect(effectiveDeviceContacts) {
         val currentTarget = contactDetailsTarget

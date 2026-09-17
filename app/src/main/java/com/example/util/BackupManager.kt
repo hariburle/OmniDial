@@ -1,7 +1,12 @@
 package com.example.util
 
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import com.example.data.AppDatabase
 import com.example.data.CallerRule
 import com.example.data.FavoriteContact
@@ -536,6 +541,34 @@ object BackupManager {
                 // Secondary external write is best-effort
             }
 
+            // 3. Persist to Public Documents/OmniDial via MediaStore (Android 10+ / API 29+) or direct file API (< API 29)
+            // This guarantees backup files SURVIVE app uninstalls, rebuilds, and clear data!
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val resolver = context.contentResolver
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOCUMENTS}/OmniDial")
+                    }
+                    val targetUri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+                        ?: resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                    if (targetUri != null) {
+                        resolver.openOutputStream(targetUri)?.use { os ->
+                            os.write(json.toByteArray(Charsets.UTF_8))
+                            os.flush()
+                        }
+                    }
+                } else {
+                    val pubDocs = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "OmniDial")
+                    if (!pubDocs.exists()) pubDocs.mkdirs()
+                    val pubFile = File(pubDocs, fileName)
+                    pubFile.writeText(json)
+                }
+            } catch (e: Exception) {
+                // Public storage persistence is best-effort fallback
+            }
+
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -547,30 +580,70 @@ object BackupManager {
         val internalDir = getLocalBackupsDir(context)
         val discoveredFiles = mutableListOf<File>()
 
-        // Helper to check if file looks like a backup
-        fun isBackupFile(file: File): Boolean {
-            if (!file.isFile) return false
-            val name = file.name.lowercase()
-            return name.endsWith(".bak") || name.endsWith(".json") || name.contains("backup") || name.contains("omnidial")
+        fun isBackupFile(name: String): Boolean {
+            val lower = name.lowercase()
+            return lower.endsWith(".bak") || lower.endsWith(".json") || lower.contains("backup") || lower.contains("omnidial")
         }
 
-        // List candidate directories across all potential storage locations
+        // 1. Scan Public MediaStore (Android 10+ / API 29+) to discover backups that survived uninstalls
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                val resolver = context.contentResolver
+                val projection = arrayOf(
+                    MediaStore.MediaColumns._ID,
+                    MediaStore.MediaColumns.DISPLAY_NAME
+                )
+                val urisToQuery = listOf(
+                    MediaStore.Files.getContentUri("external"),
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                )
+                for (queryUri in urisToQuery) {
+                    try {
+                        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ? OR ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+                        val selectionArgs = arrayOf("%omnidial%", "%backup%")
+                        resolver.query(queryUri, projection, selection, selectionArgs, null)?.use { cursor ->
+                            val idCol = cursor.getColumnIndex(MediaStore.MediaColumns._ID)
+                            val nameCol = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+                            while (cursor.moveToNext()) {
+                                val id = if (idCol != -1) cursor.getLong(idCol) else continue
+                                val name = if (nameCol != -1) cursor.getString(nameCol) else continue
+                                if (isBackupFile(name)) {
+                                    val itemUri = ContentUris.withAppendedId(queryUri, id)
+                                    val targetFile = File(internalDir, name)
+                                    if (!targetFile.exists() || targetFile.length() == 0L) {
+                                        try {
+                                            resolver.openInputStream(itemUri)?.use { input ->
+                                                targetFile.outputStream().use { output ->
+                                                    input.copyTo(output)
+                                                }
+                                            }
+                                        } catch (_: Throwable) {}
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_: Throwable) {}
+                }
+            } catch (_: Throwable) {}
+        }
+
+        // 2. Scan standard and public directories (internal, app external, public Documents/Downloads)
         val candidateDirs = mutableListOf<File>()
         candidateDirs.add(internalDir)
         candidateDirs.add(context.filesDir)
 
         getExternalBackupsDir(context)?.let { candidateDirs.add(it) }
         context.getExternalFilesDir(null)?.let { candidateDirs.add(it) }
-        context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)?.let { candidateDirs.add(it) }
-        context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)?.let { candidateDirs.add(it) }
+        context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)?.let { candidateDirs.add(it) }
+        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { candidateDirs.add(it) }
 
         try {
-            val pubDocs = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS)
+            val pubDocs = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
             if (pubDocs != null && pubDocs.exists()) {
                 candidateDirs.add(pubDocs)
                 candidateDirs.add(File(pubDocs, "OmniDial"))
             }
-            val pubDownloads = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            val pubDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             if (pubDownloads != null && pubDownloads.exists()) {
                 candidateDirs.add(pubDownloads)
                 candidateDirs.add(File(pubDownloads, "OmniDial"))
@@ -582,7 +655,7 @@ object BackupManager {
                 if (dir.exists() && dir.isDirectory) {
                     val files = dir.listFiles() ?: continue
                     for (file in files) {
-                        if (isBackupFile(file)) {
+                        if (file.isFile && isBackupFile(file.name)) {
                             discoveredFiles.add(file)
                             // If found in another location, mirror it into internalDir so it remains visible
                             if (file.parentFile?.absolutePath != internalDir.absolutePath) {
@@ -597,6 +670,15 @@ object BackupManager {
                     }
                 }
             } catch (_: Throwable) {}
+        }
+
+        // Also add files currently in internalDir
+        if (internalDir.exists()) {
+            internalDir.listFiles()?.forEach { f ->
+                if (f.isFile && isBackupFile(f.name)) {
+                    discoveredFiles.add(f)
+                }
+            }
         }
 
         // Return deduplicated by file name, newest first
@@ -623,14 +705,39 @@ object BackupManager {
         }
     }
 
-    suspend fun deleteLocalBackup(file: File): Boolean = withContext(Dispatchers.IO) {
+    suspend fun deleteLocalBackup(file: File, context: Context? = null): Boolean = withContext(Dispatchers.IO) {
         try {
+            var deleted = false
             if (file.exists()) {
-                file.delete()
-                true
-            } else {
-                false
+                deleted = file.delete()
             }
+            if (context != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    val resolver = context.contentResolver
+                    val urisToQuery = listOf(
+                        MediaStore.Files.getContentUri("external"),
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                    )
+                    for (qUri in urisToQuery) {
+                        resolver.delete(
+                            qUri,
+                            "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                            arrayOf(file.name)
+                        )
+                    }
+                } catch (_: Throwable) {}
+            }
+            try {
+                val pubDocs = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "OmniDial")
+                val pubFile = File(pubDocs, file.name)
+                if (pubFile.exists()) pubFile.delete()
+            } catch (_: Throwable) {}
+            try {
+                val pubDownloads = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "OmniDial")
+                val pubFile = File(pubDownloads, file.name)
+                if (pubFile.exists()) pubFile.delete()
+            } catch (_: Throwable) {}
+            deleted
         } catch (e: Exception) {
             e.printStackTrace()
             false

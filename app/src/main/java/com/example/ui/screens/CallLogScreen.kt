@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.runtime.LaunchedEffect
 import com.example.util.ContactHelper
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.BackHandler
@@ -157,11 +158,19 @@ fun CallLogScreen(
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
+    dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var noteDialogCall by remember { mutableStateOf<RecentCall?>(null) }
     var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
+
+    LaunchedEffect(dismissModalsTrigger) {
+        if (dismissModalsTrigger > 0L) {
+            noteDialogCall = null
+            contactDetailsTarget = null
+        }
+    }
 
     if (contactDetailsTarget != null) {
         val (matchedContact, favContactInitial) = contactDetailsTarget!!

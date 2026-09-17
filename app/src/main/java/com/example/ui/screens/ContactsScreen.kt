@@ -136,6 +136,7 @@ fun ContactsScreen(
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
+    dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -176,6 +177,15 @@ fun ContactsScreen(
             sourceFilter = ContactSourceFilter.ALL
         } else if (smartSortBy != SmartContactSort.ALL) {
             smartSortBy = SmartContactSort.ALL
+        }
+    }
+
+    LaunchedEffect(dismissModalsTrigger) {
+        if (dismissModalsTrigger > 0L) {
+            contactForDetailsSheet = null
+            contactForMultiCall = null
+            favoriteContactForMultiCall = null
+            showAddCustomDialog = false
         }
     }
 

@@ -344,6 +344,18 @@ class MainViewModel(
     private val _pendingHighlightNumber = MutableStateFlow<String?>(null)
     val pendingHighlightNumber: StateFlow<String?> = _pendingHighlightNumber.asStateFlow()
 
+    // Signal to dismiss all active dialogs, bottom sheets, and sub-screens when a call starts or external call intent arrives
+    private val _dismissModalsTrigger = MutableStateFlow<Long>(0L)
+    val dismissModalsTrigger: StateFlow<Long> = _dismissModalsTrigger.asStateFlow()
+
+    fun dismissAllModals() {
+        _dismissModalsTrigger.value = System.currentTimeMillis()
+        _pendingCallMethodChoice.value = null
+        _pendingSimChoicePrompt.value = null
+        _pendingCloudConfirmation.value = null
+        maximizeCall()
+    }
+
     fun handleIncomingIntent(intent: Intent?) {
         if (intent == null) return
         val action = intent.action
@@ -354,6 +366,14 @@ class MainViewModel(
 
         val isDialIntent = ContactHelper.isDialOrTelIntent(intent)
         val extractedNumber = ContactHelper.extractPhoneNumberFromIntent(intent)
+
+        if (intent.getBooleanExtra("EXTRA_IN_CALL", false) ||
+            action == Intent.ACTION_CALL ||
+            action == "android.intent.action.CALL_PRIVILEGED" ||
+            isDialIntent
+        ) {
+            dismissAllModals()
+        }
 
         if (navTab == "RECENTS" || 
             navTabIndex == 1 ||
@@ -552,6 +572,13 @@ class MainViewModel(
         refreshLocalBackups()
         registerContactsObserver()
         registerCallLogObserver()
+        viewModelScope.launch {
+            CallManager.activeCall.collect { call ->
+                if (call != null && call.state != android.telecom.Call.STATE_DISCONNECTED) {
+                    dismissAllModals()
+                }
+            }
+        }
         viewModelScope.launch(Dispatchers.IO) {
             removeSpam("+1 469-731-3343")
             removeSpam("4697313343")
@@ -2253,7 +2280,7 @@ class MainViewModel(
 
     fun deleteLocalBackup(file: java.io.File) {
         viewModelScope.launch {
-            com.example.util.BackupManager.deleteLocalBackup(file)
+            com.example.util.BackupManager.deleteLocalBackup(file, appContext)
             refreshLocalBackups()
         }
     }

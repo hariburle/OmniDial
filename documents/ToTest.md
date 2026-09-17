@@ -178,6 +178,31 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Backup file preserves all ambient geofence fields and audio routing flags.
   - Restored rule retains all exact settings: Wi-Fi SSID, Bluetooth Device, Auto-Speakerphone, and Auto-Mute Mic.
 
+### 16. Task 10.5 (Issue #39): In-Call Screen Priority & Modal Auto-Dismiss on External Outgoing Calls
+- [ ] **To Test**
+- **Test Steps**:
+  1. In OmniDial, open any contact's `ContactDetailsBottomSheet` in Contacts, Favorites, or Recents (or open a rule dialog in Rules).
+  2. Switch to another app (e.g. Chrome, Google Maps) and tap a telephone number link or place a call via Bluetooth / Google Assistant.
+  3. Observe OmniDial being brought to the foreground for the outgoing call.
+  4. Also test when permission prompts or dialogs are active and an incoming call arrives.
+- **Expected Result**:
+  - All open bottom sheets (`ContactDetailsBottomSheet`), dialogs (`SimChoiceDialog`, `WhatsAppChoiceDialog`, `CloudContactSyncDialog`, `RuleEditDialog`), and prompt overlays are immediately dismissed.
+  - Active `InCallScreen` is surfaced with 100% priority and zero visual obstruction.
+
+### 17. Task 10.6 (Issue #40): Public Storage MediaStore Backup Persistence (Survive Clean Reinstalls)
+- [ ] **To Test**
+- **Test Steps**:
+  1. In **Rules / Settings** (Tab 4), scroll to **Backup & Restore** and tap **"Backup Now"**.
+  2. Confirm the backup file appears in "Available Backups".
+  3. Open a file explorer app on the device and navigate to `Documents/OmniDial/` — verify `omnidial_backup_*.bak` exists in public storage.
+  4. Uninstall OmniDial completely from the device (`adb uninstall com.example` or drag to uninstall).
+  5. Re-install OmniDial.
+  6. Open OmniDial and navigate to **Rules / Settings** (Tab 4) -> **Backup & Restore**.
+- **Expected Result**:
+  - OmniDial automatically queries public MediaStore on startup and mirrors the preserved backups from `Documents/OmniDial/`.
+  - The backup is immediately visible in the "Available Backups" list with its original timestamp and file size.
+  - Tapping **"Restore"** cleanly restores all rules, speed dials, favorites, and settings.
+
 ---
 
 ## 🔍 Open Issues & Feedback Items Under Investigation
@@ -186,5 +211,3 @@ Items currently pending verification or undergoing testing. Verified items are a
 2. **Task 7 (Phase 3)**: Missed Call notification deep link navigation & active call entry auto-scroll highlighting.
 3. **Task 19 (Phase 6)**: WhatsApp outgoing call log entries in Recents — visual badge/icon differentiation.
 4. **Task 29 (Phase 6)**: Keyboard auto-opening behavior on app startup across different panels.
-5. **Issue #39: External Intent Outgoing Call UI State**: When an outgoing call is triggered from an external app (e.g. Browser, Maps) while a contact view or bottom sheet is open in OmniDial, OmniDial must dismiss any open sheets and immediately surface the active in-call screen.
-6. **Issue #40: Public Storage Backup Persistence**: Persist automatic backups to public Documents/OmniDial/ or Download/OmniDial/ (via MediaStore) so backups survive app uninstalls and rebuilds.

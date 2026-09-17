@@ -226,12 +226,21 @@ fun RulesScreen(
     globalSimPreferenceMode: String = "system",
     onSetGlobalSimPreferenceMode: (String) -> Unit = {},
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
+    dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<CallerRule?>(null) }
+
+    LaunchedEffect(dismissModalsTrigger) {
+        if (dismissModalsTrigger > 0L) {
+            showDialog = false
+            showHistoryDialog = false
+            editingRule = null
+        }
+    }
 
     BackHandler(enabled = showDialog || showHistoryDialog || editingRule != null) {
         if (showDialog) {

@@ -64,10 +64,10 @@
 ---
 
 ### 🚨 Immediate Reliability & System UX Fixes (v1.4.2)
-- [ ] **Task 10.5: In-Call Screen Priority & Modal Auto-Dismiss on External Outgoing Calls**
+- [x] **Task 10.5: In-Call Screen Priority & Modal Auto-Dismiss on External Outgoing Calls**
   - *Goal*: When an external app (Maps, Browser, etc.) or system intent initiates an outgoing call while OmniDial has a contact view, modal, or bottom sheet open, automatically dismiss all open sheets/dialogs and immediately surface the active InCallScreen.
   - *Deliverable*: In MainActivity, observe active call state and external call intents to dismiss any active ContactDetailsBottomSheet, dialogs, or sub-screens, ensuring the user immediately sees the active in-call controls.
-- [ ] **Task 10.6: Public Storage Backup Persistence (Survive Clean Reinstalls)**
+- [x] **Task 10.6: Public Storage Backup Persistence (Survive Clean Reinstalls)**
   - *Goal*: Save automatic and manual backups to public Documents/OmniDial/ or Download/OmniDial/ via MediaStore so backup files survive app uninstalls and rebuilds.
   - *Deliverable*: Update BackupManager to write backups to public external storage (Documents/OmniDial) using MediaStore on Android 10+ and standard storage on older versions, scan public storage on startup, and preserve backup history across app reinstalls.
 
@@ -75,16 +75,16 @@
 
 ### ⚡ Phase 11 (Minor Release — v1.4.0): Context-Aware Automation & Geofenced IFTTT Recipes
 *Location guards, ambient Wi-Fi/Bluetooth triggers, visual execution pipeline, and simulated test mode (documented in [`documents/AUTOMATION_RECIPES_BLUEPRINT.md`](AUTOMATION_RECIPES_BLUEPRINT.md)).*
-- [ ] **Task 11.1: Visual Rule Pipeline & Template Gallery UX**
+- [x] **Task 11.1: Visual Rule Pipeline & Template Gallery UX**
   - *Goal*: Replace static tag chips with an interactive step-by-step pipeline (`Ringing` ➔ `Delay` ➔ `Answer` ➔ `DTMF` ➔ `Hangup`) and add low-density template starter cards (Gate, Office, Car, Voicemail).
   - *Deliverable*: Modernized `RulesScreen`, updated `RuleCard`, and top-bar history icon.
-- [ ] **Task 11.2: Zero-Battery Ambient Geofencing (Wi-Fi SSID & Bluetooth Triggers)**
+- [x] **Task 11.2: Zero-Battery Ambient Geofencing (Wi-Fi SSID & Bluetooth Triggers)**
   - *Goal*: Guard gate buzzer and auto-answer rules so they only execute when the user is actually at home or in vehicle, with 0% extra battery drain.
   - *Deliverable*: Ambient context evaluator checking active Wi-Fi SSID and paired Bluetooth device in `CallManager.checkAndExecuteAutomation()`.
-- [ ] **Task 11.3: Audio Routing & Auto-Mute in Automation Engine**
+- [x] **Task 11.3: Audio Routing & Auto-Mute in Automation Engine**
   - *Goal*: Automatically route auto-answered calls to speakerphone and auto-mute the mic while DTMF tones play.
   - *Deliverable*: `autoSpeakerphone` and `autoMuteMic` flags in `CallerRule` executed in `CallManager.executeAutomationWorkflow()`.
-- [ ] **Task 11.4: In-App Simulated Rule Dry-Run ("Test Rule")**
+- [x] **Task 11.4: In-App Simulated Rule Dry-Run ("Test Rule")**
   - *Goal*: Allow users to test and verify DTMF sequences and delay timings in real time without placing actual phone calls.
   - *Deliverable*: Interactive simulation trigger on `RuleCard` dispatching test events through `CallManager`.
 

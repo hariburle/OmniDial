@@ -463,6 +463,7 @@ fun MainAppContent(
     val pendingCloudConfirmation by viewModel.pendingCloudConfirmation.collectAsStateWithLifecycle()
     val pendingCallMethodChoice by viewModel.pendingCallMethodChoice.collectAsStateWithLifecycle()
     val pendingSimChoice by viewModel.pendingSimChoicePrompt.collectAsStateWithLifecycle()
+    val dismissModalsTrigger by viewModel.dismissModalsTrigger.collectAsStateWithLifecycle()
 
     val isFlipToShhhEnabled by viewModel.isFlipToShhhEnabled.collectAsStateWithLifecycle()
     val isShhhActive by viewModel.isShhhActive.collectAsStateWithLifecycle()
@@ -568,16 +569,24 @@ fun MainAppContent(
         }
     }
 
-    LaunchedEffect(activeCall?.id) {
-        // Whenever a call is initiated or incoming, always ensure call screen is maximized
-        viewModel.maximizeCall()
+    var showDefaultAppPrompt by remember { mutableStateOf(true) }
+    var showOverlayPrompt by remember { mutableStateOf(true) }
+    var showFullScreenPrompt by remember { mutableStateOf(true) }
+
+    LaunchedEffect(activeCall?.id, dismissModalsTrigger) {
+        // Whenever a call is initiated or incoming, always ensure call screen is maximized and dialogs dismissed
+        if (activeCall != null || dismissModalsTrigger > 0L) {
+            ruleNumberToCreate = null
+            showDefaultAppPrompt = false
+            showOverlayPrompt = false
+            showFullScreenPrompt = false
+            viewModel.maximizeCall()
+        }
     }
 
     BackHandler(enabled = activeCall != null && !isCallScreenMinimized) {
         viewModel.minimizeCall()
     }
-
-    var showDefaultAppPrompt by remember { mutableStateOf(true) }
 
     var hasOverlayPermission by remember {
         mutableStateOf(
@@ -586,8 +595,6 @@ fun MainAppContent(
             } else true
         )
     }
-    var showOverlayPrompt by remember { mutableStateOf(true) }
-
     val overlayPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
@@ -604,7 +611,6 @@ fun MainAppContent(
             } else true
         )
     }
-    var showFullScreenPrompt by remember { mutableStateOf(true) }
 
     val fullScreenPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -914,7 +920,8 @@ fun MainAppContent(
                         activeSims = activeSims,
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
-                        globalSimPreferenceMode = globalSimPreferenceMode
+                        globalSimPreferenceMode = globalSimPreferenceMode,
+                        dismissModalsTrigger = dismissModalsTrigger
                     )
                     1 -> CallLogScreen(
                         recentCalls = recentCalls,
@@ -969,7 +976,8 @@ fun MainAppContent(
                         onDeleteCallsForNumber = { phoneNumber ->
                             viewModel.deleteRecentCallsForNumber(phoneNumber)
                         },
-                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) }
+                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
+                        dismissModalsTrigger = dismissModalsTrigger
                     )
                     2 -> DialerScreen(
                         number = dialerNumber,
@@ -1076,7 +1084,8 @@ fun MainAppContent(
                             viewModel.syncAllAppContactsToDevice()
                         },
                         onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
-                        onDeleteContact = { viewModel.deleteContact(it) }
+                        onDeleteContact = { viewModel.deleteContact(it) },
+                        dismissModalsTrigger = dismissModalsTrigger
                     )
                     4 -> RulesScreen(
                         rules = rules,
@@ -1134,7 +1143,8 @@ fun MainAppContent(
                         onDeleteLocalBackup = { file -> viewModel.deleteLocalBackup(file) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
                         onSetGlobalSimPreferenceMode = { viewModel.setGlobalSimPreferenceMode(it) },
-                        activeSims = activeSims
+                        activeSims = activeSims,
+                        dismissModalsTrigger = dismissModalsTrigger
                     )
                 }
             }
@@ -1182,52 +1192,60 @@ fun MainAppContent(
             }
         }
 
+        val isCallScreenVisible = activeCall != null && !isCallScreenMinimized
+
         // Explicit Confirmation Dialog before making any changes to Google Account Contacts in the Cloud
-        pendingCloudConfirmation?.let { conf ->
-            CloudContactSyncDialog(
-                confirmation = conf,
-                onConfirm = {
-                    conf.onConfirmCloudAction()
-                    viewModel.clearCloudConfirmation()
-                },
-                onSecondary = conf.onSecondaryAction?.let { sec ->
-                    {
-                        sec.invoke()
+        if (!isCallScreenVisible) {
+            pendingCloudConfirmation?.let { conf ->
+                CloudContactSyncDialog(
+                    confirmation = conf,
+                    onConfirm = {
+                        conf.onConfirmCloudAction()
+                        viewModel.clearCloudConfirmation()
+                    },
+                    onSecondary = conf.onSecondaryAction?.let { sec ->
+                        {
+                            sec.invoke()
+                            viewModel.clearCloudConfirmation()
+                        }
+                    },
+                    onDismiss = {
+                        conf.onDismissOrCancel()
                         viewModel.clearCloudConfirmation()
                     }
-                },
-                onDismiss = {
-                    conf.onDismissOrCancel()
-                    viewModel.clearCloudConfirmation()
-                }
-            )
+                )
+            }
         }
 
         // WhatsApp vs Cellular Call Choice Dialog (Ask Always & Ask and Learn)
-        pendingCallMethodChoice?.let { prompt ->
-            WhatsAppChoiceDialog(
-                prompt = prompt,
-                onChooseMethod = { method, rememberChoice ->
-                    viewModel.chooseCallMethod(context, method, rememberChoice)
-                },
-                onDismiss = { viewModel.dismissCallMethodChoice() }
-            )
+        if (!isCallScreenVisible) {
+            pendingCallMethodChoice?.let { prompt ->
+                WhatsAppChoiceDialog(
+                    prompt = prompt,
+                    onChooseMethod = { method, rememberChoice ->
+                        viewModel.chooseCallMethod(context, method, rememberChoice)
+                    },
+                    onDismiss = { viewModel.dismissCallMethodChoice() }
+                )
+            }
         }
 
         // Dual-SIM Outgoing Call Choice Dialog (Always Ask)
-        pendingSimChoice?.let { prompt ->
-            SimChoiceDialog(
-                prompt = prompt,
-                activeSims = activeSims,
-                onSelectSim = { slot ->
-                    viewModel.confirmSimChoiceAndPlaceCall(context, slot)
-                },
-                onDismiss = { viewModel.cancelSimChoice() }
-            )
+        if (!isCallScreenVisible) {
+            pendingSimChoice?.let { prompt ->
+                SimChoiceDialog(
+                    prompt = prompt,
+                    activeSims = activeSims,
+                    onSelectSim = { slot ->
+                        viewModel.confirmSimChoiceAndPlaceCall(context, slot)
+                    },
+                    onDismiss = { viewModel.cancelSimChoice() }
+                )
+            }
         }
 
         // Check if OmniDial is the default app on startup, and prompt user if not
-        if (!isDefaultDialer && showDefaultAppPrompt) {
+        if (!isCallScreenVisible && !isDefaultDialer && showDefaultAppPrompt) {
             DefaultAppPromptDialog(
                 onRequestSetDefault = {
                     val intent = RoleHelper.createDefaultDialerIntent(context)
@@ -1241,7 +1259,7 @@ fun MainAppContent(
         }
 
         // Check Display Over Other Apps permission on startup for car & bluetooth call redirection
-        if (!hasOverlayPermission && showOverlayPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+        if (!isCallScreenVisible && !hasOverlayPermission && showOverlayPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
             OverlayPermissionPromptDialog(
                 onRequestPermission = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -1265,7 +1283,7 @@ fun MainAppContent(
         }
 
         // Check Full Screen Intent permission (Android 14+ / API 34+) to wake screen for background calls
-        if (hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+        if (!isCallScreenVisible && hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
             FullScreenPermissionPromptDialog(
                 onRequestPermission = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
