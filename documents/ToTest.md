@@ -7,7 +7,7 @@ Items currently pending verification or undergoing testing. Verified items are a
 ## 📋 Active Items To Test
 
 ### 1. Task 15 (Phase 6): Favorites Reorder Persistence & Material Card Hairline Border
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. On **Favorites** (Tab 0), tap **Configure** and drag-and-drop cards to reorder them.
   2. Restart the app and verify custom card order.
@@ -17,7 +17,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Material card style maintains an ultra-thin hairline border without heavy dark outlines.
 
 ### 2. Task 32 (Phase 7): External Outgoing Call Redirection Service
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. Set OmniDial as Default Phone App.
   2. Ensure "Display over other apps" permission is granted.
@@ -26,7 +26,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - `OmniCallRedirectionService` intercepts the cellular call and routes it directly to WhatsApp VoIP.
 
 ### 3. Task 34 (Phase 8): Instant Keypad Switching & Zero Frame Drops (v1.1.5 Performance)
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. Navigate to **Contacts** (Tab 3) with dozens or hundreds of device contacts loaded.
   2. Tap the bottom navigation bar or swipe directly to **Keypad** (Tab 2).
@@ -37,7 +37,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Keypad renders pre-warmed instantly with all speed dials, T9 candidate contacts, and recent calls ready.
 
 ### 4. Task 35 (Phase 8): One-Tap Direct Backup Creation (v1.1.4)
-- [ ] **To Test**
+- [x] **Verified** TESTED (Note: Survives until reinstall; public storage persistence tracked in Issue #40)
 - **Test Steps**:
   1. Open **Rules / Settings** (Tab 4) and scroll to the **Backup & Restore** card.
   2. Tap the **"Backup Now"** action button.
@@ -112,6 +112,72 @@ Items currently pending verification or undergoing testing. Verified items are a
   - `TelecomManager.addCall()` cleanly integrates into the system-level audio endpoint router without dropping audio channels.
   - Bluetooth device transitions, mute state, and disconnect actions execute reliably and release system audio locks.
 
+### 11. Task 11.1 (Phase 11): Modernized Automation Pipeline & Quick-Start Gallery
+- [ ] **To Test**
+- **Test Steps**:
+  1. Navigate to **Rules** (Tab 4).
+  2. Inspect the horizontal **Quick-Start Recipes** carousel at the top (Gate Buzzer, Delivery Gate, SMS Responder).
+  3. Tap **"Gate Buzzer"** recipe. Verify dialog opens pre-filled with recommended actions (Auto-Answer 1s, Speakerphone ON, Mute Mic ON, DTMF 9#, Auto-Hangup 2s).
+  4. Enter a test phone number pattern (e.g. `+1555*`) and tap **Save**.
+  5. Inspect the saved rule card: verify the visual execution pipeline chips (`Ring` ➔ `Delay` ➔ `Answer` ➔ `Speaker` ➔ `Mute` ➔ `DTMF` ➔ `Hangup`).
+  6. Tap the **Duplicate** icon button on the rule card. Verify a cloned copy named `... (Copy)` appears immediately.
+  7. Tap the **History** icon button in the top app bar to view the execution log sheet.
+- **Expected Result**:
+  - Recipes pre-fill valid, tested automation pipelines in 1 tap.
+  - Rule card visualizes the sequence of triggers and actions with colored Material 3 chips.
+  - Rule duplication clones all actions and constraints accurately.
+  - History sheet opens cleanly and displays recent trigger activity.
+
+### 12. Task 11.2 (Phase 11): Interactive Dry-Run Rule Simulator
+- [ ] **To Test**
+- **Test Steps**:
+  1. On any rule card in **Rules** (Tab 4), tap the **"Test Rule"** (beaker/flask) action button.
+  2. In the Rule Simulation bottom sheet, review the listed execution steps.
+  3. Tap **"Start Simulation"**.
+  4. Watch the step-by-step simulated progress bar and real-time execution node highlights.
+  5. Observe simulated answering, speakerphone engagement, mic mute, DTMF tone delivery, and auto-hangup.
+- **Expected Result**:
+  - Simulator runs through all rule actions with visual countdown timers.
+  - DTMF tones play audibly if tone playback is supported.
+  - Successful dry-run displays a green completion banner and logs the simulated event into history.
+
+### 13. Task 11.3 (Phase 11): Ambient Geofencing (Wi-Fi SSID & Bluetooth Device Constraints)
+- [ ] **To Test**
+- **Test Steps**:
+  1. In **Rules** (Tab 4), tap **Edit** on a rule or create a new rule.
+  2. In the **"Ambient Geofence & Device Guards"** section, enter your current connected Wi-Fi SSID (e.g. `Home_WiFi`) in the Wi-Fi field.
+  3. Save the rule. Verify the rule card displays the `📶 Home_WiFi` badge.
+  4. Simulate or receive an incoming call while connected to that Wi-Fi network -> Verify rule executes.
+  5. Disconnect Wi-Fi (or edit rule to require an unmatched SSID like `Unknown_WiFi`) and receive/simulate a call -> Verify rule does **NOT** trigger.
+  6. Repeat with Bluetooth device name (e.g. `CarKit` or `AirPods`) and verify the rule only fires when connected to the designated Bluetooth peripheral.
+- **Expected Result**:
+  - Zero-battery ambient geofencing guards rule execution based on immediate physical environment.
+  - Rule conditions fail gracefully if ambient constraints are not satisfied, preventing unintended automation outside target locations.
+
+### 14. Task 11.4 (Phase 11): Dynamic Audio Routing (Auto-Speakerphone & Mic-Muting)
+- [ ] **To Test**
+- **Test Steps**:
+  1. Configure a rule with **Auto-Speakerphone** enabled and **Auto-Mute Mic** enabled.
+  2. Trigger the rule with an incoming call.
+  3. When the call is auto-answered, observe the in-call audio route.
+  4. Observe the microphone mute status while the DTMF sequence is transmitted.
+  5. Check that call auto-hangs up after the configured duration.
+- **Expected Result**:
+  - Call audio routes directly to speakerphone upon answer without requiring manual toggle.
+  - Microphone is automatically muted during DTMF transmission to prevent acoustic ambient noise interference at entry buzzers/IVRs.
+  - Call cleanly terminates automatically.
+
+### 15. Task 11.5 (Phase 11): Backup & Restore of Ambient Automation Fields
+- [ ] **To Test**
+- **Test Steps**:
+  1. In **Rules** (Tab 4), create rules with Wi-Fi SSID, Bluetooth Device, Auto-Speakerphone, and Auto-Mute Mic configured.
+  2. In **Backup & Restore**, tap **"Backup Now"**.
+  3. Delete the rule from the list.
+  4. Tap **"Restore"** on the created backup.
+- **Expected Result**:
+  - Backup file preserves all ambient geofence fields and audio routing flags.
+  - Restored rule retains all exact settings: Wi-Fi SSID, Bluetooth Device, Auto-Speakerphone, and Auto-Mute Mic.
+
 ---
 
 ## 🔍 Open Issues & Feedback Items Under Investigation
@@ -120,3 +186,5 @@ Items currently pending verification or undergoing testing. Verified items are a
 2. **Task 7 (Phase 3)**: Missed Call notification deep link navigation & active call entry auto-scroll highlighting.
 3. **Task 19 (Phase 6)**: WhatsApp outgoing call log entries in Recents — visual badge/icon differentiation.
 4. **Task 29 (Phase 6)**: Keyboard auto-opening behavior on app startup across different panels.
+5. **Issue #39: External Intent Outgoing Call UI State**: When an outgoing call is triggered from an external app (e.g. Browser, Maps) while a contact view or bottom sheet is open in OmniDial, OmniDial must dismiss any open sheets and immediately surface the active in-call screen.
+6. **Issue #40: Public Storage Backup Persistence**: Persist automatic backups to public Documents/OmniDial/ or Download/OmniDial/ (via MediaStore) so backups survive app uninstalls and rebuilds.

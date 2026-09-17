@@ -89,6 +89,42 @@ fun RuleCard(
                         color = if (rule.isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
                     )
+                    if (rule.requiredWifiSsid.isNotBlank() || rule.requiredBluetoothDevice.isNotBlank()) {
+                        Row(
+                            modifier = Modifier.padding(top = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (rule.requiredWifiSsid.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
+                                ) {
+                                    Text(
+                                        text = "📶 Wi-Fi: ${rule.requiredWifiSsid}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            if (rule.requiredBluetoothDevice.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                ) {
+                                    Text(
+                                        text = "🚗 BT: ${rule.requiredBluetoothDevice}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -230,10 +266,27 @@ private fun RuleExecutionPipeline(rule: CallerRule, isEnabled: Boolean) {
                 isEnabled = isEnabled
             )
             PipelineArrow(isEnabled = isEnabled)
+
+            if (rule.autoSpeakerphone) {
+                PipelineStepNode(
+                    icon = Icons.Default.VolumeUp,
+                    label = "Speaker",
+                    isEnabled = isEnabled
+                )
+                PipelineArrow(isEnabled = isEnabled)
+            }
         }
 
-        // Step 3: In-band DTMF transmission
+        // Step 3: In-band DTMF transmission & Mute
         if (rule.dtmfSequence.isNotBlank()) {
+            if (rule.autoMuteMic) {
+                PipelineStepNode(
+                    icon = Icons.Default.MicOff,
+                    label = "Mute Mic",
+                    isEnabled = isEnabled
+                )
+                PipelineArrow(isEnabled = isEnabled)
+            }
             PipelineStepNode(
                 icon = Icons.Default.Dialpad,
                 label = "DTMF '${rule.dtmfSequence}'",

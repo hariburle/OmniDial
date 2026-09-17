@@ -43,6 +43,10 @@ fun RuleEditDialog(
     var smsMessage by remember { mutableStateOf(initialRule.smsMessage) }
     var autoHangup by remember { mutableStateOf(initialRule.autoHangup) }
     var hangupDelaySec by remember { mutableStateOf(initialRule.hangupDelaySec.toString()) }
+    var autoSpeakerphone by remember { mutableStateOf(initialRule.autoSpeakerphone) }
+    var autoMuteMic by remember { mutableStateOf(initialRule.autoMuteMic) }
+    var requiredWifiSsid by remember { mutableStateOf(initialRule.requiredWifiSsid) }
+    var requiredBluetoothDevice by remember { mutableStateOf(initialRule.requiredBluetoothDevice) }
     var showContactPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -74,6 +78,8 @@ fun RuleEditDialog(
                             autoAnswer = true
                             answerDelaySec = "1"
                             dtmfSequence = "9#"
+                            autoSpeakerphone = true
+                            autoMuteMic = true
                             autoHangup = true
                             hangupDelaySec = "2"
                         },
@@ -243,6 +249,59 @@ fun RuleEditDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Auto-Route to Speakerphone")
+                    Switch(
+                        checked = autoSpeakerphone,
+                        onCheckedChange = { autoSpeakerphone = it }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Mute Mic during DTMF Tones")
+                    Switch(
+                        checked = autoMuteMic,
+                        onCheckedChange = { autoMuteMic = it }
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
+
+                Text(
+                    text = "Ambient Geofence Guards (Optional):",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                OutlinedTextField(
+                    value = requiredWifiSsid,
+                    onValueChange = { requiredWifiSsid = it },
+                    label = { Text("Required Wi-Fi SSID (Zero-Battery Guard)") },
+                    placeholder = { Text("e.g. Home_5G or Office_Wi-Fi") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = requiredBluetoothDevice,
+                    onValueChange = { requiredBluetoothDevice = it },
+                    label = { Text("Required Bluetooth Device (e.g. Car)") },
+                    placeholder = { Text("e.g. Tesla or Car Bluetooth") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {
@@ -258,7 +317,11 @@ fun RuleEditDialog(
                         sendSms = sendSms,
                         smsMessage = smsMessage.trim(),
                         autoHangup = autoHangup,
-                        hangupDelaySec = hangupDelaySec.toIntOrNull() ?: 2
+                        hangupDelaySec = hangupDelaySec.toIntOrNull() ?: 2,
+                        autoSpeakerphone = autoSpeakerphone,
+                        autoMuteMic = autoMuteMic,
+                        requiredWifiSsid = requiredWifiSsid.trim(),
+                        requiredBluetoothDevice = requiredBluetoothDevice.trim()
                     )
                     onSave(finalRule)
                 },

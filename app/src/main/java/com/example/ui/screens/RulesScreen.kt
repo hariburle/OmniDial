@@ -97,7 +97,9 @@ val standardAutomationTemplates = listOf(
             sendSms = false,
             smsMessage = "",
             autoHangup = true,
-            hangupDelaySec = 2
+            hangupDelaySec = 2,
+            autoSpeakerphone = true,
+            autoMuteMic = true
         )
     ),
     AutomationTemplate(
@@ -150,7 +152,9 @@ val standardAutomationTemplates = listOf(
             sendSms = true,
             smsMessage = "Lobby gate opened automatically.",
             autoHangup = true,
-            hangupDelaySec = 2
+            hangupDelaySec = 2,
+            autoSpeakerphone = true,
+            autoMuteMic = true
         )
     ),
     AutomationTemplate(

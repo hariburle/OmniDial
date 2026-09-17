@@ -636,6 +636,47 @@ object CallManager {
         return rawNumber.contains(cleanPattern, ignoreCase = true)
     }
 
+    private fun matchesRuleConditions(context: Context, rawNumber: String, rule: CallerRule): Boolean {
+        if (!rule.isEnabled) return false
+        if (!matchesRulePattern(rawNumber, rule.phoneNumberPattern)) return false
+
+        // Ambient Geofence Guard: Wi-Fi SSID
+        if (rule.requiredWifiSsid.isNotBlank()) {
+            val currentSsid = getCurrentWifiSsid(context)
+            if (currentSsid == null || !currentSsid.contains(rule.requiredWifiSsid.trim(), ignoreCase = true)) {
+                Log.d(TAG, "Rule '${rule.name}' skipped: required Wi-Fi '${rule.requiredWifiSsid}' not matched (current: $currentSsid)")
+                return false
+            }
+        }
+
+        // Ambient Geofence Guard: Bluetooth Device
+        if (rule.requiredBluetoothDevice.isNotBlank()) {
+            val activeBt = _bluetoothDeviceName.value ?: ""
+            val availableBt = _availableBluetoothDevices.value.map { it.name }
+            val targetBt = rule.requiredBluetoothDevice.trim()
+            val btMatched = activeBt.contains(targetBt, ignoreCase = true) ||
+                    availableBt.any { it.contains(targetBt, ignoreCase = true) }
+            if (!btMatched) {
+                Log.d(TAG, "Rule '${rule.name}' skipped: required Bluetooth '$targetBt' not active")
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private fun getCurrentWifiSsid(context: Context): String? {
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            val info = wifiManager?.connectionInfo
+            val ssid = info?.ssid
+            if (ssid != null && ssid != "<unknown ssid>" && ssid != "0x") {
+                return ssid.removePrefix("\"").removeSuffix("\"")
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
     fun checkAndExecuteAutomation(context: Context, rawNumber: String, isIncoming: Boolean) {
         if (!isIncoming) return
 
@@ -645,7 +686,13 @@ object CallManager {
 
             // 1. Evaluate user-configured automation rules FIRST (user rules take top priority)
             val rules = dao.getEnabledRules()
-            val matchedRule = rules.firstOrNull { rule -> matchesRulePattern(rawNumber, rule.phoneNumberPattern) }
+            val isSimulationTest = _activeCall.value?.callReason == "Rule Simulation Test"
+            val matchedRule = if (isSimulationTest) {
+                rules.firstOrNull { it.name.equals(_activeCall.value?.displayName, ignoreCase = true) }
+                    ?: rules.firstOrNull { rule -> matchesRuleConditions(context, rawNumber, rule) }
+            } else {
+                rules.firstOrNull { rule -> matchesRuleConditions(context, rawNumber, rule) }
+            }
 
             if (matchedRule != null) {
                 Log.d(TAG, "Matched automation rule '${matchedRule.name}' for caller $rawNumber")
@@ -699,6 +746,17 @@ object CallManager {
                 delay(300)
                 waitCount++
             }
+
+            // Step 2b: Auto Speakerphone Activation
+            if (rule.autoSpeakerphone) {
+                _automationState.value = AutomationStep(
+                    ruleName = rule.name,
+                    stepDescription = "Routing audio to Speakerphone..."
+                )
+                setAudioRoute(CallAudioState.ROUTE_SPEAKER)
+                actions.add("Speakerphone Activated")
+                delay(200)
+            }
         }
 
         // Step 3: DTMF Sequence Transmission
@@ -709,6 +767,11 @@ object CallManager {
                     stepDescription = "Waiting ${rule.dtmfDelayMs}ms before DTMF transmission..."
                 )
                 delay(rule.dtmfDelayMs)
+            }
+
+            if (rule.autoMuteMic) {
+                _isMuted.value = true
+                actions.add("Mic Muted")
             }
 
             _automationState.value = AutomationStep(
@@ -727,6 +790,10 @@ object CallManager {
             }
             _lastDtmfKey.value = null
             actions.add("Sent DTMF '${rule.dtmfSequence}'")
+
+            if (rule.autoMuteMic && !rule.autoHangup) {
+                _isMuted.value = false
+            }
         }
 
         // Step 4: Send Auto-SMS Reply

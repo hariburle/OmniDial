@@ -24,7 +24,11 @@ data class CallerRule(
     val sendSms: Boolean = false,
     val smsMessage: String = "",
     val autoHangup: Boolean = false,
-    val hangupDelaySec: Int = 2
+    val hangupDelaySec: Int = 2,
+    val autoSpeakerphone: Boolean = false,
+    val autoMuteMic: Boolean = false,
+    val requiredWifiSsid: String = "",
+    val requiredBluetoothDevice: String = ""
 )
 
 @Immutable

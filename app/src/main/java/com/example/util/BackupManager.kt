@@ -67,6 +67,10 @@ object BackupManager {
             obj.put("smsMessage", r.smsMessage)
             obj.put("autoHangup", r.autoHangup)
             obj.put("hangupDelaySec", r.hangupDelaySec)
+            obj.put("autoSpeakerphone", r.autoSpeakerphone)
+            obj.put("autoMuteMic", r.autoMuteMic)
+            obj.put("requiredWifiSsid", r.requiredWifiSsid)
+            obj.put("requiredBluetoothDevice", r.requiredBluetoothDevice)
             ruleArray.put(obj)
         }
         root.put("rules", ruleArray)
@@ -420,7 +424,11 @@ object BackupManager {
                         sendSms = obj.optBoolean("sendSms", false),
                         smsMessage = obj.optString("smsMessage", ""),
                         autoHangup = obj.optBoolean("autoHangup", false),
-                        hangupDelaySec = obj.optInt("hangupDelaySec", 2)
+                        hangupDelaySec = obj.optInt("hangupDelaySec", 2),
+                        autoSpeakerphone = obj.optBoolean("autoSpeakerphone", false),
+                        autoMuteMic = obj.optBoolean("autoMuteMic", false),
+                        requiredWifiSsid = obj.optString("requiredWifiSsid", ""),
+                        requiredBluetoothDevice = obj.optString("requiredBluetoothDevice", "")
                     )
                     dao.insertRule(rule)
                     restoredRules++
