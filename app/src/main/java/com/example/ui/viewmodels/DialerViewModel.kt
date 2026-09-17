@@ -5,7 +5,10 @@ import android.net.Uri
 import android.os.Bundle
 import android.telecom.TelecomManager
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.AppDatabase
+import com.example.data.AppRepository
 import com.example.domain.usecase.SearchT9ContactsUseCase
 import com.example.telecom.SimHelper
 import com.example.telecom.SimInfo
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.stateIn
  * and instant T9 predictive contact matching.
  */
 class DialerViewModel(
+    private val repository: AppRepository? = null,
     private val searchT9ContactsUseCase: SearchT9ContactsUseCase = SearchT9ContactsUseCase()
 ) : ViewModel() {
 
@@ -40,6 +44,9 @@ class DialerViewModel(
 
     private val _availableSims = MutableStateFlow<List<SimInfo>>(emptyList())
     val availableSims: StateFlow<List<SimInfo>> = _availableSims.asStateFlow()
+
+    private val _selectedCallReason = MutableStateFlow<String?>(null)
+    val selectedCallReason: StateFlow<String?> = _selectedCallReason.asStateFlow()
 
     fun updateContacts(contacts: List<DeviceContact>) {
         _allContacts.value = contacts
@@ -67,6 +74,17 @@ class DialerViewModel(
         _selectedSimSlot.value = slot
     }
 
+    fun toggleSimSlot() {
+        val sims = _availableSims.value
+        if (sims.size > 1) {
+            _selectedSimSlot.value = if (_selectedSimSlot.value == 0) 1 else 0
+        }
+    }
+
+    fun selectCallReason(reason: String?) {
+        _selectedCallReason.value = reason
+    }
+
     fun refreshSimCards(context: Context) {
         _availableSims.value = SimHelper.getActiveSimCards(context)
     }
@@ -85,5 +103,17 @@ class DialerViewModel(
                 android.util.Log.e("DialerViewModel", "Error placing call", e)
             }
         }
+    }
+
+    companion object {
+        fun provideFactory(context: Context): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    val db = AppDatabase.getInstance(context)
+                    val repo = AppRepository(db.appDao())
+                    return DialerViewModel(repo) as T
+                }
+            }
     }
 }

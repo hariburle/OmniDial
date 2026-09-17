@@ -26,7 +26,11 @@ data class DeviceContact(
     val nickname: String? = null,
     val isStarred: Boolean = false,
     val isAppOnly: Boolean = false,
-    val phoneNumbers: List<ContactPhoneNumber> = if (phoneNumber.isNotBlank()) listOf(ContactPhoneNumber(phoneNumber, label)) else emptyList()
+    val phoneNumbers: List<ContactPhoneNumber> = if (phoneNumber.isNotBlank()) listOf(ContactPhoneNumber(phoneNumber, label)) else emptyList(),
+    val t9Name: String = T9Helper.stringToT9(name),
+    val t9Words: List<String> = name.split(Regex("\\s+")).map { T9Helper.stringToT9(it) }.filter { it.isNotBlank() },
+    val t9Nickname: String? = nickname?.trim()?.takeIf { it.isNotBlank() }?.let { T9Helper.stringToT9(it) },
+    val t9NicknameWords: List<String> = nickname?.trim()?.takeIf { it.isNotBlank() }?.split(Regex("\\s+"))?.map { T9Helper.stringToT9(it) }?.filter { it.isNotBlank() } ?: emptyList()
 )
 
 object ContactHelper {
@@ -1529,12 +1533,38 @@ object ContactHelper {
                 android.provider.CallLog.Calls.DURATION,
                 android.provider.CallLog.Calls.PHONE_ACCOUNT_ID
             )
+            val selectionClauses = mutableListOf<String>()
+            val selectionArgs = mutableListOf<String>()
+
+            if (numbers.isNotEmpty()) {
+                val cleanNumbers = numbers.filter { it.isNotBlank() }.distinct()
+                if (cleanNumbers.isNotEmpty()) {
+                    val placeholders = cleanNumbers.map { "?" }.joinToString(",")
+                    selectionClauses.add("${android.provider.CallLog.Calls.NUMBER} IN ($placeholders)")
+                    selectionArgs.addAll(cleanNumbers)
+
+                    val last10List = cleanNumbers.map { it.filter { c -> c.isDigit() }.takeLast(10) }.filter { it.length >= 7 }.distinct()
+                    for (last10 in last10List) {
+                        selectionClauses.add("${android.provider.CallLog.Calls.NUMBER} LIKE ?")
+                        selectionArgs.add("%$last10")
+                    }
+                }
+            }
+
+            if (!name.isNullOrBlank()) {
+                selectionClauses.add("${android.provider.CallLog.Calls.CACHED_NAME} = ?")
+                selectionArgs.add(name)
+            }
+
+            val selection = if (selectionClauses.isNotEmpty()) selectionClauses.joinToString(" OR ") else null
+            val selectionArgsArray = if (selectionArgs.isNotEmpty()) selectionArgs.toTypedArray() else null
+
             val cursor = context.contentResolver.query(
                 android.provider.CallLog.Calls.CONTENT_URI,
                 projection,
-                null,
-                null,
-                "${android.provider.CallLog.Calls.DATE} DESC"
+                selection,
+                selectionArgsArray,
+                "${android.provider.CallLog.Calls.DATE} DESC LIMIT 50"
             )
             cursor?.use {
                 val numIdx = it.getColumnIndex(android.provider.CallLog.Calls.NUMBER)

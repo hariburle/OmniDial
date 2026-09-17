@@ -84,6 +84,26 @@ class CallForegroundService : Service() {
     private fun startForegroundWithCall() {
         val currentCall = CallManager.activeCall.value
         if (currentCall == null || currentCall.state == Call.STATE_DISCONNECTED) {
+            // Android 8+ strictly requires startForeground to be called if launched via startForegroundService
+            try {
+                val fallbackNotification = androidx.core.app.NotificationCompat.Builder(this, OngoingCallNotificationHelper.CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_menu_call)
+                    .setContentTitle("Call Ended")
+                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MIN)
+                    .build()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ServiceCompat.startForeground(
+                        this,
+                        OngoingCallNotificationHelper.NOTIFICATION_ID,
+                        fallbackNotification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+                    )
+                } else {
+                    startForeground(OngoingCallNotificationHelper.NOTIFICATION_ID, fallbackNotification)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Fallback startForeground failed: ${e.message}")
+            }
             stopServiceInternal()
             return
         }

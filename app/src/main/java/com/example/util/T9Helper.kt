@@ -47,45 +47,27 @@ object T9Helper {
 
         for (contact in contacts) {
             // 1. Check if name matches T9
-            val words = contact.name.split(Regex("\\s+"))
             var matchedName = false
             var matchSnippet = ""
 
-            // Check full name T9
-            val fullT9 = stringToT9(contact.name)
-            if (fullT9.contains(cleanQuery)) {
+            if (contact.t9Name.contains(cleanQuery)) {
                 matchedName = true
                 matchSnippet = "Name match"
-            } else {
-                // Check word-by-word
-                for (word in words) {
-                    val wordT9 = stringToT9(word)
-                    if (wordT9.startsWith(cleanQuery)) {
-                        matchedName = true
-                        matchSnippet = "Matched '$word'"
-                        break
-                    }
-                }
+            } else if (contact.t9Words.any { it.startsWith(cleanQuery) }) {
+                matchedName = true
+                val matchedWord = contact.name.split(Regex("\\s+")).firstOrNull { stringToT9(it).startsWith(cleanQuery) } ?: contact.name
+                matchSnippet = "Matched '$matchedWord'"
             }
 
             // 2. Check if nickname matches T9
             var matchedNickname = false
-            if (!contact.nickname.isNullOrBlank()) {
-                val nick = contact.nickname.trim()
-                val nickT9 = stringToT9(nick)
-                if (nickT9.contains(cleanQuery)) {
+            if (contact.t9Nickname != null) {
+                if (contact.t9Nickname.contains(cleanQuery)) {
                     matchedNickname = true
-                    matchSnippet = "Nickname: $nick"
-                } else {
-                    val nickWords = nick.split(Regex("\\s+"))
-                    for (nw in nickWords) {
-                        val nwT9 = stringToT9(nw)
-                        if (nwT9.startsWith(cleanQuery)) {
-                            matchedNickname = true
-                            matchSnippet = "Nickname: $nw"
-                            break
-                        }
-                    }
+                    matchSnippet = "Nickname: ${contact.nickname}"
+                } else if (contact.t9NicknameWords.any { it.startsWith(cleanQuery) }) {
+                    matchedNickname = true
+                    matchSnippet = "Nickname: ${contact.nickname}"
                 }
             }
 

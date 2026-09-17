@@ -1,9 +1,13 @@
 package com.example.ui.viewmodels
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.AppDatabase
 import com.example.data.AppRepository
 import com.example.data.RecentCall
+import com.example.util.ContactHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -72,6 +76,12 @@ class CallLogViewModel(
         }
     }
 
+    fun deleteRecentCallsForNumber(phoneNumber: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteRecentCallsForNumber(phoneNumber)
+        }
+    }
+
     fun updateCallNote(call: RecentCall, note: String?) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.updateRecentCall(call.copy(note = note))
@@ -82,5 +92,46 @@ class CallLogViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             repository.updateRecentCall(call.copy(reminderTime = reminderTimeMillis))
         }
+    }
+
+    fun updateCallNoteAndReminder(call: RecentCall, note: String?, reminderTimeMillis: Long?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateRecentCall(call.copy(note = note, reminderTime = reminderTimeMillis))
+        }
+    }
+
+    fun refreshRecentCalls(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val calls = ContactHelper.fetchDeviceCallHistory(context, limit = 200)
+                val existing = repository.getAllRecentCallsList()
+                val existingNotesAndReminders = existing.associateBy(
+                    { "${it.phoneNumber}_${it.timestamp}" },
+                    { Pair(it.note, it.reminderTime) }
+                )
+                for (call in calls) {
+                    val key = "${call.phoneNumber}_${call.timestamp}"
+                    val noteAndRem = existingNotesAndReminders[key]
+                    val enriched = if (noteAndRem != null) {
+                        call.copy(note = noteAndRem.first, reminderTime = noteAndRem.second)
+                    } else call
+                    repository.insertRecentCall(enriched)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("CallLogViewModel", "Error refreshing recent calls", e)
+            }
+        }
+    }
+
+    companion object {
+        fun provideFactory(context: Context): ViewModelProvider.Factory =
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    val db = AppDatabase.getInstance(context)
+                    val repo = AppRepository(db.appDao())
+                    return CallLogViewModel(repo) as T
+                }
+            }
     }
 }

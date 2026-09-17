@@ -85,48 +85,159 @@
       margin-top: 2px;
     }
 
-    /* Screen Elements */
-    .mock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .mock-title { font-weight: 800; font-size: 14px; letter-spacing: -0.01em; }
-    .mock-search { background: #1e293b; border-radius: 20px; padding: 7px 12px; display: flex; align-items: center; gap: 8px; color: #94a3b8; font-size: 10px; margin-bottom: 12px; border: 1px solid #334155; }
     
-    /* Dialer Keypad Mock */
-    .mock-number-display { font-size: 18px; font-weight: 800; text-align: center; letter-spacing: 2px; height: 26px; color: #60a5fa; margin-bottom: 8px; }
-    .mock-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; padding: 0 10px 10px; }
-    .mock-key { aspect-ratio: 1; border-radius: 50%; background: #1e293b; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #e2e8f0; border: 1px solid #334155; }
-    .mock-key span { font-size: 7px; color: #94a3b8; font-weight: 500; letter-spacing: 1px; }
-    .mock-call-actions { display: flex; justify-content: center; gap: 14px; margin-top: 6px; }
-    .mock-call-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-    .mock-call-cellular { background: #2563eb; }
-    .mock-call-wa { background: #25D366; }
+    /* Interactive Phone Frame & Zoom Hint */
+    .phone-frame {
+      cursor: pointer;
+    }
+    .preview-hint {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      opacity: 0;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .phone-frame:hover .preview-hint, .cap-phone-preview:hover .preview-hint {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-2px);
+    }
 
-    /* Contacts & Recents Mock */
-    .mock-contact-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; background: rgba(30, 41, 59, 0.7); border-radius: 10px; margin-bottom: 6px; border: 1px solid rgba(51, 65, 85, 0.4); }
-    .mock-avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0; }
-    .mock-contact-info { flex: 1; min-width: 0; }
-    .mock-contact-name { font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .mock-contact-sub { font-size: 9px; color: #94a3b8; }
-    .mock-actions { display: flex; gap: 4px; }
-    .mock-icon-btn { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; background: #334155; color: #cbd5e1; }
-    .mock-icon-btn.wa { background: rgba(37, 211, 102, 0.2); color: #25D366; }
-    .mock-icon-btn.phone { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    /* Capabilities Card Visual Phone Mockup */
+    .cap-visual-container {
+      margin-top: 22px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+    .cap-phone-preview {
+      width: 100%;
+      max-width: 250px;
+      background: #020617;
+      border: 6px solid #1e293b;
+      border-radius: 32px;
+      box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .cap-phone-preview:hover {
+      transform: translateY(-6px) scale(1.02);
+      border-color: #3b82f6;
+      box-shadow: 0 22px 48px -10px rgba(0, 0, 0, 0.8), 0 0 25px rgba(59, 130, 246, 0.3);
+    }
+    .cap-phone-preview img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 26px;
+    }
 
-    /* Incoming Call Screen Mock */
-    .mock-incall { display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 100%; padding: 20px 10px; }
-    .mock-caller-avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: grid; place-items: center; font-size: 26px; font-weight: 800; margin-top: 16px; border: 3px solid rgba(255,255,255,0.15); box-shadow: 0 0 25px rgba(59, 130, 246, 0.4); }
-    .mock-caller-name { font-size: 17px; font-weight: 800; margin-top: 12px; }
-    .mock-caller-num { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-    .mock-caller-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(37, 211, 102, 0.15); color: #25D366; padding: 2px 8px; border-radius: 9999px; font-size: 8px; font-weight: 700; margin-top: 6px; }
-    .mock-slider-track { width: 100%; height: 46px; background: rgba(30, 41, 59, 0.9); border-radius: 26px; border: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; position: relative; margin-top: auto; }
-    .mock-slider-pill { width: 34px; height: 34px; border-radius: 50%; background: #25D366; display: grid; place-items: center; font-size: 14px; box-shadow: 0 0 12px rgba(37, 211, 102, 0.6); }
-    .mock-slider-text { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-
-    /* Rules Screen Mock */
-    .mock-rule-card { background: #1e293b; border-radius: 10px; padding: 10px; margin-bottom: 8px; border-left: 3px solid #3b82f6; }
-    .mock-rule-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .mock-rule-title { font-weight: 700; font-size: 11px; }
-    .mock-badge { background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
-    .mock-rule-desc { font-size: 9px; color: #94a3b8; line-height: 1.3; }
+    /* Lightbox Modal */
+    .lightbox-modal {
+      display: none;
+      position: fixed;
+      z-index: 10000;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.9);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      padding: 24px;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    .lightbox-modal.active {
+      display: flex;
+      opacity: 1;
+    }
+    .lightbox-container {
+      position: relative;
+      max-width: 440px;
+      width: 100%;
+      max-height: 94vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalPop {
+      from { transform: scale(0.92); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .lightbox-frame {
+      width: 100%;
+      max-height: 82vh;
+      border: 8px solid #1e293b;
+      border-radius: 38px;
+      background: #020617;
+      overflow: hidden;
+      box-shadow: 0 30px 70px -15px rgba(0,0,0,0.95), 0 0 45px rgba(59, 130, 246, 0.35);
+      display: flex;
+      justify-content: center;
+    }
+    .lightbox-frame img {
+      width: 100%;
+      height: auto;
+      max-height: 80vh;
+      object-fit: contain;
+      display: block;
+    }
+    .lightbox-caption {
+      margin-top: 14px;
+      text-align: center;
+      color: #f8fafc;
+      font-weight: 800;
+      font-size: 1.1rem;
+    }
+    .lightbox-subcaption {
+      color: #94a3b8;
+      font-size: 0.88rem;
+      margin-top: 4px;
+      text-align: center;
+      max-width: 90%;
+    }
+    .lightbox-close {
+      position: absolute;
+      top: -16px;
+      right: -16px;
+      width: 40px;
+      height: 40px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 1.3rem;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      z-index: 10;
+    }
+    .lightbox-close:hover {
+      background: #ef4444;
+      transform: scale(1.1);
+    }
 
     /* Features Grid */
     .section-title { text-align: center; margin: 60px 0 36px; }
@@ -237,7 +348,7 @@
           <a href="#releases" class="nav-link">Releases</a>
           <a href="#setup" class="nav-link">Setup</a>
         </div>
-        <span class="version-tag">v1.4.0 Release</span>
+        <span class="version-tag">v1.4.1 Release</span>
       </div>
     </header>
 
@@ -246,9 +357,9 @@
       <h1>Unified Voice & Messaging<br><span>The OmniDial Experience</span></h1>
       <p>The intelligent Android dialer that adapts to how you communicate. Seamlessly unify Cellular & WhatsApp calling, automate gate buzzers, route dual-SIM numbers, and screen spam.</p>
       <div class="cta-group">
-        <a href="apks/OmniDial-v1.4.0.apk" download="OmniDial-v1.4.0.apk" class="btn btn-primary">
+        <a href="apks/OmniDial-v1.4.1.apk" download="OmniDial-v1.4.1.apk" class="btn btn-primary">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          Download OmniDial v1.4.0 APK
+          Download OmniDial v1.4.1 APK
         </a>
         <a href="#comparison" class="btn btn-secondary">Feature Comparison</a>
         <a href="#capabilities" class="btn btn-secondary">Unique Capabilities</a>
@@ -260,35 +371,38 @@
     <section class="showcase-section">
       <div class="section-title">
         <h2>Experience the Interface</h2>
-        <p>Built exclusively for Android with Jetpack Compose & Material Design 3.</p>
+        <p>Built exclusively for Android with Jetpack Compose & Material Design 3. Tap any screen to inspect full resolution.</p>
       </div>
 
       <div class="mockup-grid">
         <!-- Panel 1: Favorites -->
         <div>
-          <div class="phone-frame">
+          <div class="phone-frame" onclick="openLightbox('screenshots/panel_1_favorites.png', 'Speed Dial & VIP Favorites', '8-slot instant access grid with speed dial badges (#2 through #9), caller avatars, and recents summary')">
             <img src="screenshots/panel_1_favorites.png" alt="Favorites & Speed Dial Panel" loading="lazy">
+            <div class="preview-hint">🔍 Tap to Zoom</div>
           </div>
-          <div class="phone-title">Speed Dial & Favorites</div>
-          <div class="phone-subtitle">Quick Access Grid with Visual Badges</div>
+          <div class="phone-title">Speed Dial & VIP Favorites</div>
+          <div class="phone-subtitle">8 Dedicated Speed Dials & Direct Action Badges</div>
         </div>
 
         <!-- Panel 2: Keypad -->
         <div>
-          <div class="phone-frame">
+          <div class="phone-frame" onclick="openLightbox('screenshots/panel_2_keypad.png', 'Smart T9 & Dual-SIM Keypad', 'Top recents list, speed dial contact tags directly on keys, SIM selector toggle, call reason chip, and dual WhatsApp/Cellular actions')">
             <img src="screenshots/panel_2_keypad.png" alt="Smart T9 Keypad Panel" loading="lazy">
+            <div class="preview-hint">🔍 Tap to Zoom</div>
           </div>
-          <div class="phone-title">Dual-Action Dialer</div>
-          <div class="phone-subtitle">Predictive T9 + Instant WhatsApp Button</div>
+          <div class="phone-title">Smart T9 & Dual-SIM Keypad</div>
+          <div class="phone-subtitle">Recents, Speed Dial Keys & Instant WhatsApp Hub</div>
         </div>
 
         <!-- Panel 3: Contacts -->
         <div>
-          <div class="phone-frame">
+          <div class="phone-frame" onclick="openLightbox('screenshots/panel_3_contacts.png', 'Contacts Directory & Quick Actions', 'Full searchable contact roster with instant phone call, SMS, and WhatsApp actions')">
             <img src="screenshots/panel_3_contacts.png" alt="Contacts Management Panel" loading="lazy">
+            <div class="preview-hint">🔍 Tap to Zoom</div>
           </div>
           <div class="phone-title">Contacts Directory</div>
-          <div class="phone-subtitle">Direct Call & Message Actions per Contact</div>
+          <div class="phone-subtitle">Direct Phone, SMS & WhatsApp per Contact</div>
         </div>
       </div>
     </section>
@@ -401,98 +515,131 @@
     <section id="capabilities" class="capabilities-section">
       <div class="section-title">
         <h2>Unique Capabilities & Architectural Innovations</h2>
-        <p>Built for users who demand power, precision, and streamlined communication from their phone app.</p>
+        <p>Built for users who demand power, precision, and streamlined communication from their Android dialer. Tap any screen mockup to inspect.</p>
       </div>
 
       <div class="capabilities-grid">
-        <!-- Card 1 -->
+        <!-- Card 1: Preferred Channels & Per-Number SIM Routing -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">🔀</div>
             <span class="cap-tag">Telecom & OTT</span>
           </div>
-          <h3>Dual-Channel Calling & Car Redirection</h3>
-          <p>Unify Cellular GSM and WhatsApp calling into one frictionless interface. In "Ask & Learn" mode, OmniDial learns how you communicate with each contact and highlights your preferred route.</p>
+          <h3>Preferred Channels & Per-Number SIM</h3>
+          <p>Assign preferred channels (Phone or WhatsApp) and designated SIM cards (Personal or Business) at the individual phone number level. Initiating calls from speed dial, Android Auto, or voice assistants automatically honors your preferences.</p>
           <ul class="cap-highlights">
-            <li><strong>Automated Car Redirection:</strong> Calls initiated from Android Auto or Bluetooth headsets auto-route via WhatsApp when preferred.</li>
-            <li><strong>Smart Country Prefixing:</strong> Automatically prepends country codes so overseas messaging never fails.</li>
+            <li><strong>Per-Number Preferred Channel:</strong> Route specific numbers over GSM cellular or WhatsApp voice.</li>
+            <li><strong>Granular SIM Assignment:</strong> Choose Personal (Default), Business, or Auto SIM per number under any contact.</li>
+            <li><strong>Car & Wearable Redirection:</strong> Android Auto and Bluetooth head units automatically route through the preferred channel.</li>
           </ul>
+          <div class="cap-visual-container">
+            <div class="cap-phone-preview" onclick="openLightbox('screenshots/feature_contact_details.png', 'Contact Details: Preferred Channel & SIM', 'Set Cellular vs. WhatsApp calling and Personal vs. Business SIM directly under each individual phone number.')">
+              <img src="screenshots/feature_contact_details.png" alt="Per-Number Preferred Channel and SIM Configuration" loading="lazy">
+              <div class="preview-hint">🔍 Tap to Zoom</div>
+            </div>
+          </div>
         </div>
 
-        <!-- Card 2 -->
+        <!-- Card 2: Pre-Answer Audio Route Selector -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">🎧</div>
             <span class="cap-tag">In-Call Audio</span>
           </div>
           <h3>Pre-Answer Audio Route Selector</h3>
-          <p>Take complete command of where sound goes before accepting an incoming call. Never accidentally answer on speaker in public or scramble to pair your car headset mid-conversation.</p>
+          <p>Take complete command of where sound goes before accepting an incoming call. Never accidentally blast a private conversation on speakerphone in public or scramble to pair a headset mid-sentence.</p>
           <ul class="cap-highlights">
-            <li><strong>Pre-Answer HUD:</strong> Select Handset Earpiece, Speakerphone, or paired Bluetooth devices right on the incoming ring screen.</li>
-            <li><strong>Bluetooth Device Recognition:</strong> Instant routing to AirPods, Galaxy Buds, hearing aids, or vehicle dashboards.</li>
+            <li><strong>Pre-Answer Audio HUD:</strong> Select Handset (earpiece), Speaker, or Bluetooth device right on the incoming ring screen.</li>
+            <li><strong>Instant Device Switching:</strong> Seamless handoff to AirPods, Galaxy Buds, hearing aids, or vehicle dashboards.</li>
+            <li><strong>Trust Badges & SMS Decline:</strong> Verified Business badges and one-tap quick decline SMS options.</li>
           </ul>
+          <div class="cap-visual-container">
+            <div class="cap-phone-preview" onclick="openLightbox('screenshots/feature_incoming_audio.png', 'Incoming Call: Pre-Answer Audio Selector', 'Choose Handset, Speaker, or Bluetooth audio route BEFORE picking up the call.')">
+              <img src="screenshots/feature_incoming_audio.png" alt="Pre-Answer Audio Route Selector on Incoming Call Screen" loading="lazy">
+              <div class="preview-hint">🔍 Tap to Zoom</div>
+            </div>
+          </div>
         </div>
 
-        <!-- Card 3 -->
+        <!-- Card 3: Automated Gate & Intercom Buzzer Rules -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">🤖</div>
             <span class="cap-tag">Smart Automation</span>
           </div>
           <h3>Automated Gate & Intercom Buzzer Rules</h3>
-          <p>A dedicated automation engine tailored for apartment buzzers, security gates, and delivery intercoms. Never get locked out or miss delivery packages again.</p>
+          <p>A dedicated automation engine tailored for apartment buzzers, community gates, delivery intercoms, and automated call handling. Program numbers to auto-answer, transmit touch-tone unlock sequences, and hang up.</p>
           <ul class="cap-highlights">
             <li><strong>Auto-Answer Delay:</strong> Answers gate calls automatically after a configured delay (e.g. 1 second).</li>
             <li><strong>Automated DTMF Key Sequence:</strong> Transmits touch tones (e.g. <code>9#</code> or <code>*#</code>) to buzz open the door.</li>
-            <li><strong>Carrier Spam Bypass:</strong> Whitelists intercom numbers so STIR/SHAKEN filters never drop deliveries.</li>
+            <li><strong>Auto-Hangup:</strong> Ends the call automatically after unlocking without touching the screen.</li>
           </ul>
+          <div class="cap-visual-container">
+            <div class="cap-phone-preview" onclick="openLightbox('screenshots/feature_gate_rules.png', 'Caller Rules: Gate & Intercom DTMF Automation', 'Program automatic answer delays, DTMF touch-tone sequences (9#), and auto-hangup rules.')">
+              <img src="screenshots/feature_gate_rules.png" alt="Caller Rules Engine for Gate DTMF Unlock" loading="lazy">
+              <div class="preview-hint">🔍 Tap to Zoom</div>
+            </div>
+          </div>
         </div>
 
-        <!-- Card 4 -->
+        <!-- Card 4: Quick Actions for Unsaved Numbers -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">🎹</div>
             <span class="cap-tag">Dialer Keypad</span>
           </div>
           <h3>Quick Actions for Unsaved Numbers</h3>
-          <p>Dial any number—temporary contractors, local businesses, or delivery couriers not in your phonebook—and immediately access a structured 4-action hub.</p>
+          <p>Dial any number—delivery couriers, temporary service contractors, or overseas inquiries not in your contacts—and immediately access an all-in-one 4-action communication hub without polluting your phonebook.</p>
           <ul class="cap-highlights">
-            <li><strong>4 Instant Actions:</strong> Regular Phone Call, Send Text (SMS), WhatsApp Chat, or WhatsApp Voice Call.</li>
-            <li><strong>No Address Book Clutter:</strong> Message or VoIP-call anyone on WhatsApp without saving them to contacts first.</li>
+            <li><strong>4 Instant Actions:</strong> Regular Phone Call, Send SMS Text, WhatsApp Chat, or WhatsApp Voice Call.</li>
+            <li><strong>No Address Book Clutter:</strong> Message or VoIP-call anyone on WhatsApp without saving them as a contact.</li>
+            <li><strong>Country Prefix Awareness:</strong> Smart dialing formats international numbers cleanly.</li>
           </ul>
-        </div>
-
-        <!-- Card 5 -->
-        <div class="cap-card">
-          <div class="cap-header">
-            <div class="cap-icon">📶</div>
-            <span class="cap-tag">Dual-SIM & Travel</span>
+          <div class="cap-visual-container">
+            <div class="cap-phone-preview" onclick="openLightbox('screenshots/feature_unsaved_actions.png', 'Dialer Keypad: Unsaved Number Action Hub', 'Instant Phone Call, SMS, WhatsApp Chat, and WhatsApp Voice Call for any unsaved number.')">
+              <img src="screenshots/feature_unsaved_actions.png" alt="Quick 4-Action Hub for Unsaved Numbers on Keypad" loading="lazy">
+              <div class="preview-hint">🔍 Tap to Zoom</div>
+            </div>
           </div>
-          <h3>Dual-SIM Intelligence & Roaming Guard</h3>
-          <p>Master multi-SIM devices with granular per-number routing and real-time international travel protection against unexpected roaming fees.</p>
-          <ul class="cap-highlights">
-            <li><strong>Per-Number Preferred SIM:</strong> Assign SIM 1, SIM 2, Auto, or Always Ask to specific numbers within multi-number contacts.</li>
-            <li><strong>Roaming-Aware Protection:</strong> Detects network roaming and automatically routes calls to local eSIMs or VoIP channels.</li>
-            <li><strong>Call Log SIM Badges:</strong> Visual <code>SIM 1</code> and <code>SIM 2</code> badges displayed directly on past call entries.</li>
-          </ul>
         </div>
 
-        <!-- Card 6 -->
+        <!-- Card 5: Post-Call Notes & Scheduled Reminders -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">📝</div>
             <span class="cap-tag">Productivity</span>
           </div>
           <h3>Post-Call Notes & Scheduled Reminders</h3>
-          <p>Capture key discussion points and action items right when a call finishes, with seamless reminders that keep your follow-ups on track.</p>
+          <p>Never forget a task or key discussion point. Immediately upon call completion, OmniDial presents an unintrusive note sheet to capture takeaways while fresh and schedule callback reminder notifications.</p>
           <ul class="cap-highlights">
-            <li><strong>Instant Post-Call Sheet:</strong> Quick note entry appears after hanging up to record meeting items while fresh.</li>
-            <li><strong>Scheduled Notification Alarms:</strong> Set 15-minute, 1-hour, or next-morning reminders with one-tap callback buttons.</li>
-            <li><strong>Persistent Log Attachments:</strong> Notes remain permanently attached to call history records.</li>
+            <li><strong>Instant Post-Call Sheet:</strong> Quick note entry appears right after hanging up.</li>
+            <li><strong>1-Tap Reminder Presets:</strong> Schedule callback reminders for 15m, 30m, 1h, 2h, 4h, or Tomorrow.</li>
+            <li><strong>Persistent Log Attachments:</strong> Notes remain permanently attached to call history records with one-tap callbacks.</li>
+          </ul>
+          <div class="cap-visual-container">
+            <div class="cap-phone-preview" onclick="openLightbox('screenshots/feature_post_call_note.png', 'Post-Call HUD: Notes & Scheduled Reminders', 'Record action items immediately after hanging up and set scheduled callback reminders.')">
+              <img src="screenshots/feature_post_call_note.png" alt="Post-Call Note Entry and Scheduled Reminders Sheet" loading="lazy">
+              <div class="preview-hint">🔍 Tap to Zoom</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 6: Dual-SIM Intelligence & Roaming Guard -->
+        <div class="cap-card">
+          <div class="cap-header">
+            <div class="cap-icon">📶</div>
+            <span class="cap-tag">Dual-SIM & Travel</span>
+          </div>
+          <h3>Dual-SIM Intelligence & Roaming Guard</h3>
+          <p>Master multi-SIM devices with intelligent global policies, proactive roaming notifications, and real-time carrier bill-shock protection during international travel.</p>
+          <ul class="cap-highlights">
+            <li><strong>3 Smart SIM Modes:</strong> System default, Ask & Learn per-contact, or International custom routing.</li>
+            <li><strong>Roaming Cost Alerts:</strong> Warns when placing cellular calls on active roaming networks to prevent unexpected fees.</li>
+            <li><strong>Call Log SIM Badges:</strong> Visual SIM badges displayed directly on past call history entries.</li>
           </ul>
         </div>
 
-        <!-- Card 7 -->
+        <!-- Card 7: Smart Screen-Off Ear Detection -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">👂</div>
@@ -506,7 +653,7 @@
           </ul>
         </div>
 
-        <!-- Card 8 -->
+        <!-- Card 8: STIR/SHAKEN Spam Defense & Screening -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">🛡️</div>
@@ -521,7 +668,7 @@
           </ul>
         </div>
 
-        <!-- Card 10 -->
+        <!-- Card 9: Cryptographic One-Tap Verified Backup -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">💾</div>
@@ -536,7 +683,7 @@
           </ul>
         </div>
 
-        <!-- Card 11 -->
+        <!-- Card 10: Pause (,) & Wait (;) IVR Touch-Tone Dialing -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">⏳</div>
@@ -550,7 +697,7 @@
           </ul>
         </div>
 
-        <!-- Card 12 -->
+        <!-- Card 11: Discovery Filters & Deep Search -->
         <div class="cap-card">
           <div class="cap-header">
             <div class="cap-icon">🔍</div>
@@ -572,21 +719,49 @@
         <p>Review change logs and download current or prior releases for your Android device.</p>
       </div>
 
-      <!-- Version 1.4.0 (Latest) -->
+      <!-- Version 1.4.1 (Latest) -->
       <details class="release-card latest" open>
         <summary class="release-header">
           <div>
             <div class="release-title-group">
-              <span class="release-version">OmniDial v1.4.0</span>
+              <span class="release-version">OmniDial v1.4.1</span>
               <span class="release-badge latest">Latest Release</span>
+              <span class="release-toggle-indicator">▼</span>
+            </div>
+            <div class="release-date">Build 14 • Released September 2026</div>
+          </div>
+          <div class="release-actions" onclick="event.stopPropagation();">
+            <a href="apks/OmniDial-v1.4.1.apk" download="OmniDial-v1.4.1.apk" class="release-btn primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download APK (v1.4.1)
+            </a>
+          </div>
+        </summary>
+        <div class="release-content">
+          <ul class="release-notes-list">
+            <li><strong>Visual Feature Previews & High-Res Lightbox:</strong> Interactive in-app visual representation cards embedded directly into the capabilities showcase—highlighting per-number preferred channels & SIM routing, pre-answer audio routing HUD, automated gate DTMF rules, unsaved number 4-action hub, and post-call notes—paired with an instant full-screen zoom lightbox.</li>
+            <li><strong>Enhanced UI Showcase:</strong> Refreshed all showcase captures with high-fidelity Material 3 dark-mode screens featuring realistic speed dials, recent calls preview, direct speed dial keys, and active dual-SIM indicator tags.</li>
+            <li><strong>Caller Rules Default Navigation:</strong> Fixed the automation engine screen to immediately open the active Caller Rules roster by default.</li>
+            <li><strong>Keypad & Dialing Stability:</strong> Improved keypad speed dial bindings and dual-SIM account selection indicators.</li>
+          </ul>
+        </div>
+      </details>
+
+      <!-- Version 1.4.0 (Prior Release) -->
+      <details class="release-card">
+        <summary class="release-header">
+          <div>
+            <div class="release-title-group">
+              <span class="release-version">OmniDial v1.4.0</span>
+              <span class="release-badge prior">Prior Release</span>
               <span class="release-toggle-indicator">▼</span>
             </div>
             <div class="release-date">Build 13 • Released September 2026</div>
           </div>
           <div class="release-actions" onclick="event.stopPropagation();">
-            <a href="apks/OmniDial-v1.4.0.apk" download="OmniDial-v1.4.0.apk" class="release-btn primary">
+            <a href="apks/OmniDial-v1.4.0.apk" download="OmniDial-v1.4.0.apk" class="release-btn secondary">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              Download APK (v1.4.0)
+              Download Prior APK (v1.4.0)
             </a>
           </div>
         </summary>
@@ -969,5 +1144,47 @@
       <p>OmniDial • Built with Kotlin & Jetpack Compose • Send feedback to <a href="mailto:hariburle@gmail.com">hariburle@gmail.com</a></p>
     </footer>
   </div>
+  <!-- Lightbox Modal for High-Resolution Screenshot Inspection -->
+  <div id="lightbox" class="lightbox-modal" onclick="closeLightbox(event)">
+    <div class="lightbox-container" onclick="event.stopPropagation()">
+      <button class="lightbox-close" onclick="closeLightbox(event)" title="Close (Esc)">&times;</button>
+      <div class="lightbox-frame">
+        <img id="lightbox-img" src="" alt="Screenshot">
+      </div>
+      <div id="lightbox-title" class="lightbox-caption"></div>
+      <div id="lightbox-desc" class="lightbox-subcaption"></div>
+    </div>
+  </div>
+
+  <script>
+    function openLightbox(src, title, desc) {
+      var modal = document.getElementById('lightbox');
+      var img = document.getElementById('lightbox-img');
+      var t = document.getElementById('lightbox-title');
+      var d = document.getElementById('lightbox-desc');
+      if (!modal || !img) return;
+      img.src = src;
+      img.alt = title || 'Screenshot Preview';
+      t.textContent = title || '';
+      d.textContent = desc || '';
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox(e) {
+      if (e) e.stopPropagation();
+      var modal = document.getElementById('lightbox');
+      if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeLightbox();
+      }
+    });
+  </script>
 </body>
 </html>

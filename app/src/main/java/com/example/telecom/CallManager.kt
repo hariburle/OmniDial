@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 @Immutable
 data class ActiveCallInfo(
@@ -196,134 +195,40 @@ object CallManager {
         this.appContext = context.applicationContext
         val number = extractPhoneNumber(call)
         val isVoicemail = ContactHelper.isVoicemailNumber(context, number)
-        val lookedUp = ContactHelper.lookupContactByNumber(context, number)
-        val favContact = try {
-            runBlocking {
-                val dao = AppDatabase.getInstance(context).appDao()
-                dao.getAllFavoritesList().firstOrNull {
-                    ContactHelper.isSamePhoneNumber(it.phoneNumber, number)
-                }
-            }
-        } catch (_: Exception) { null }
-
-        val communityInfo = if (lookedUp == null && favContact == null && !isVoicemail) com.example.util.CommunityCallerIdService.lookup(number) else null
         val isIncoming = call.state == Call.STATE_RINGING
 
-        val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
-        val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
-
-        val name = when {
+        val callerDisplayName = call.details?.callerDisplayName
+        val preliminaryName = when {
             isVoicemail -> "Voicemail"
-            lookedUp != null -> lookedUp.name
-            favContact != null -> favContact.name
-            communityInfo != null -> communityInfo.name
-            !call.details?.callerDisplayName.isNullOrBlank() -> call.details!!.callerDisplayName
+            !callerDisplayName.isNullOrBlank() -> callerDisplayName
             isIncoming -> "Incoming Caller"
             number.isNotBlank() -> number
             else -> "Outgoing Call"
         }
-        val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
-
-        val isWhitelisted = isWhitelistedOrRuleMatched(context, number)
-        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val autoBlockCarrier = prefs.getBoolean("auto_block_carrier_spam", true)
-        val blockSpamPreset = prefs.getBoolean("block_telemarketers_robocalls", true)
-        val silenceUnknownPrivate = prefs.getBoolean("silence_unknown_private", false)
-
-        val normalizedNumber = PhoneNumberNormalizer.toE164(number)
-        val matchedSpamNumber = if (isIncoming && !isWhitelisted) {
-            try {
-                runBlocking {
-                    val dao = AppDatabase.getInstance(context).appDao()
-                    dao.getSpamByNormalizedNumber(normalizedNumber) ?: dao.getSpamByNumber(number, normalizedNumber)
-                }
-            } catch (_: Exception) { null }
-        } else null
-
-        val isDatabaseSpam = matchedSpamNumber != null
-        val isCarrierSpamThreat = isIncoming && !isWhitelisted && autoBlockCarrier && isCarrierSpam(call, number, name)
-        val shouldAutoDeclineSpam = (isCarrierSpamThreat || (isDatabaseSpam && blockSpamPreset))
 
         val resolvedSimSlot = SimHelper.resolveSimSlot(
             context = context,
             accountHandle = call.details?.accountHandle
         )
 
-        if (shouldAutoDeclineSpam) {
-            val spamReason = when {
-                matchedSpamNumber != null -> matchedSpamNumber.label.ifBlank { "Known Spam Number" }
-                isCarrierSpamThreat -> "Carrier Spam Filter"
-                else -> "Spam Block Preset"
-            }
-            Log.w(TAG, "Spam blocked ($spamReason) for incoming call from $number. Auto-rejecting before ringing.")
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    call.reject(Call.REJECT_REASON_DECLINED)
-                } else {
-                    @Suppress("DEPRECATION")
-                    call.reject(false, null)
-                }
-            } catch (_: Exception) {
-                call.disconnect()
-            }
-            scope.launch(Dispatchers.IO) {
-                try {
-                    val dao = AppDatabase.getInstance(context).appDao()
-                    dao.insertAutomationLog(
-                        AutomationLog(
-                            phoneNumber = number,
-                            ruleName = spamReason,
-                            actionsSummary = "Auto-rejected incoming spam call ($spamReason) before ringing device",
-                            status = "BLOCKED"
-                        )
-                    )
-                    dao.insertRecentCall(
-                        RecentCall(
-                            phoneNumber = number,
-                            callerName = name.ifBlank { "Spam Threat" },
-                            callType = 3,
-                            timestamp = System.currentTimeMillis(),
-                            durationSeconds = 0,
-                            ruleMatched = spamReason,
-                            isSpam = true,
-                            callReason = "$spamReason auto-dropped",
-                            note = null,
-                            simSlot = resolvedSimSlot
-                        )
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error writing spam log", e)
-                }
-            }
-            SpamNotificationHelper.showBlockedSpamNotification(context, number, name)
-            return
-        }
-
-        val trustBadge = resolveTrustBadge(
-            isVoicemail = isVoicemail,
-            hasContact = lookedUp != null,
-            hasFav = favContact != null,
-            isSpam = isDatabaseSpam || isCarrierSpamThreat,
-            communityInfo = communityInfo
-        )
-
-        val callInfo = ActiveCallInfo(
+        // Instant UI Presentation (<16ms): Post placeholder call state immediately before any disk/Room queries
+        val initialCallInfo = ActiveCallInfo(
             id = call.hashCode().toString(),
             phoneNumber = number,
-            displayName = name,
+            displayName = preliminaryName,
             state = call.state,
             isIncoming = isIncoming,
             connectTimeMillis = if (call.state == Call.STATE_ACTIVE) System.currentTimeMillis() else 0L,
             isSimulated = false,
-            photoUri = photoUri,
-            communityInfo = communityInfo,
-            nickname = resolvedNickname,
-            numberLabel = resolvedLabel,
-            trustTier = trustBadge.first,
-            trustBadgeLabel = trustBadge.second,
+            photoUri = null,
+            communityInfo = null,
+            nickname = null,
+            numberLabel = "Mobile",
+            trustTier = if (isVoicemail) com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS else com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
+            trustBadgeLabel = if (isVoicemail) "Voicemail" else null,
             simSlot = resolvedSimSlot
         )
-        _activeCall.value = callInfo
+        _activeCall.value = initialCallInfo
 
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(call: Call, state: Int) {
@@ -347,34 +252,173 @@ object CallManager {
                     updateProximitySensor(context)
                 }
             }
-        })
 
-        CallForegroundService.start(context)
-        OngoingCallNotificationHelper.showCallNotification(context, callInfo)
-        updateProximitySensor(context)
-
-        // Check Do Not Disturb (DND) or Silence Unknown/Private status
-        try {
-            val isKnownCaller = (lookedUp != null || favContact != null)
-            if (isIncoming && silenceUnknownPrivate && !isKnownCaller && !isWhitelisted) {
-                Log.d(TAG, "Incoming call from unknown caller $number silenced by Silence Unknown/Private preset")
-                FlipToShhhManager.silenceIncomingCallIfRinging(context)
-            } else {
-                val isFavoriteCaller = lookedUp?.isStarred == true
-                if (FlipToShhhManager.isDndActive(context)) {
-                    val allowed = FlipToShhhManager.isCallerAllowedUnderCurrentDnd(context, isFavoriteCaller)
-                    if (!allowed) {
-                        Log.d(TAG, "Incoming call from $number silenced by Do Not Disturb")
-                        FlipToShhhManager.silenceIncomingCallIfRinging(context)
+            override fun onDetailsChanged(call: Call, details: Call.Details) {
+                Log.d(TAG, "Call details changed")
+                val current = _activeCall.value
+                if (current != null) {
+                    val updatedSlot = SimHelper.resolveSimSlot(context, details.accountHandle)
+                    if (updatedSlot != current.simSlot) {
+                        _activeCall.value = current.copy(simSlot = updatedSlot)
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error checking DND / silence policy for caller", e)
-        }
+        })
 
-        // Check if selective automation rule matches
-        checkAndExecuteAutomation(context, number, isIncoming)
+        CallForegroundService.start(context)
+        OngoingCallNotificationHelper.showCallNotification(context, initialCallInfo)
+        updateProximitySensor(context)
+
+        // Asynchronous Metadata Enrichment, DND, Whitelist, & Spam Evaluation on Dispatchers.IO
+        scope.launch(Dispatchers.IO) {
+            try {
+                val lookedUp = ContactHelper.lookupContactByNumber(context, number)
+                val dao = AppDatabase.getInstance(context).appDao()
+                val favContact = try {
+                    dao.getAllFavoritesList().firstOrNull {
+                        ContactHelper.isSamePhoneNumber(it.phoneNumber, number)
+                    }
+                } catch (_: Exception) { null }
+
+                val communityInfo = if (lookedUp == null && favContact == null && !isVoicemail) {
+                    com.example.util.CommunityCallerIdService.lookup(number)
+                } else null
+
+                val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
+                val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
+
+                val enrichedName = when {
+                    isVoicemail -> "Voicemail"
+                    lookedUp != null -> lookedUp.name
+                    favContact != null -> favContact.name
+                    communityInfo != null -> communityInfo.name
+                    !callerDisplayName.isNullOrBlank() -> callerDisplayName
+                    isIncoming -> "Incoming Caller"
+                    number.isNotBlank() -> number
+                    else -> "Outgoing Call"
+                }
+                val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
+
+                val isWhitelisted = isWhitelistedOrRuleMatched(context, number)
+                val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                val autoBlockCarrier = prefs.getBoolean("auto_block_carrier_spam", true)
+                val blockSpamPreset = prefs.getBoolean("block_telemarketers_robocalls", true)
+                val silenceUnknownPrivate = prefs.getBoolean("silence_unknown_private", false)
+
+                val normalizedNumber = PhoneNumberNormalizer.toE164(number)
+                val matchedSpamNumber = if (isIncoming && !isWhitelisted) {
+                    try {
+                        dao.getSpamByNormalizedNumber(normalizedNumber) ?: dao.getSpamByNumber(number, normalizedNumber)
+                    } catch (_: Exception) { null }
+                } else null
+
+                val isDatabaseSpam = matchedSpamNumber != null
+                val isCarrierSpamThreat = isIncoming && !isWhitelisted && autoBlockCarrier && isCarrierSpam(call, number, enrichedName)
+                val shouldAutoDeclineSpam = (isCarrierSpamThreat || (isDatabaseSpam && blockSpamPreset))
+
+                if (shouldAutoDeclineSpam) {
+                    val spamReason = when {
+                        matchedSpamNumber != null -> matchedSpamNumber.label.ifBlank { "Known Spam Number" }
+                        isCarrierSpamThreat -> "Carrier Spam Filter"
+                        else -> "Spam Block Preset"
+                    }
+                    Log.w(TAG, "Spam blocked ($spamReason) for incoming call from $number. Auto-rejecting before ringing.")
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            call.reject(Call.REJECT_REASON_DECLINED)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            call.reject(false, null)
+                        }
+                    } catch (_: Exception) {
+                        call.disconnect()
+                    }
+                    try {
+                        dao.insertAutomationLog(
+                            AutomationLog(
+                                phoneNumber = number,
+                                ruleName = spamReason,
+                                actionsSummary = "Auto-rejected incoming spam call ($spamReason) before ringing device",
+                                status = "BLOCKED"
+                            )
+                        )
+                        dao.insertRecentCall(
+                            RecentCall(
+                                phoneNumber = number,
+                                callerName = enrichedName.ifBlank { "Spam Threat" },
+                                callType = 3,
+                                timestamp = System.currentTimeMillis(),
+                                durationSeconds = 0,
+                                ruleMatched = spamReason,
+                                isSpam = true,
+                                callReason = "$spamReason auto-dropped",
+                                note = null,
+                                simSlot = resolvedSimSlot
+                            )
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error writing spam log", e)
+                    }
+                    SpamNotificationHelper.showBlockedSpamNotification(context, number, enrichedName)
+                    _activeCall.value = null
+                    return@launch
+                }
+
+                val trustBadge = resolveTrustBadge(
+                    isVoicemail = isVoicemail,
+                    hasContact = lookedUp != null,
+                    hasFav = favContact != null,
+                    isSpam = isDatabaseSpam || isCarrierSpamThreat,
+                    communityInfo = communityInfo
+                )
+
+                val enrichedCallInfo = ActiveCallInfo(
+                    id = call.hashCode().toString(),
+                    phoneNumber = number,
+                    displayName = enrichedName,
+                    state = call.state,
+                    isIncoming = isIncoming,
+                    connectTimeMillis = if (call.state == Call.STATE_ACTIVE) System.currentTimeMillis() else 0L,
+                    isSimulated = false,
+                    photoUri = photoUri,
+                    communityInfo = communityInfo,
+                    nickname = resolvedNickname,
+                    numberLabel = resolvedLabel,
+                    trustTier = trustBadge.first,
+                    trustBadgeLabel = trustBadge.second,
+                    simSlot = resolvedSimSlot
+                )
+                _activeCall.value = enrichedCallInfo
+
+                if (!isCallUiForegrounded) {
+                    OngoingCallNotificationHelper.showCallNotification(context, enrichedCallInfo)
+                }
+
+                // Check Do Not Disturb (DND) or Silence Unknown/Private status
+                try {
+                    val isKnownCaller = (lookedUp != null || favContact != null)
+                    if (isIncoming && silenceUnknownPrivate && !isKnownCaller && !isWhitelisted) {
+                        Log.d(TAG, "Incoming call from unknown caller $number silenced by Silence Unknown/Private preset")
+                        FlipToShhhManager.silenceIncomingCallIfRinging(context)
+                    } else {
+                        val isFavoriteCaller = lookedUp?.isStarred == true
+                        if (FlipToShhhManager.isDndActive(context)) {
+                            val allowed = FlipToShhhManager.isCallerAllowedUnderCurrentDnd(context, isFavoriteCaller)
+                            if (!allowed) {
+                                Log.d(TAG, "Incoming call from $number silenced by Do Not Disturb")
+                                FlipToShhhManager.silenceIncomingCallIfRinging(context)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error checking DND / silence policy for caller", e)
+                }
+
+                checkAndExecuteAutomation(context, number, isIncoming)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in background call metadata enrichment", e)
+            }
+        }
     }
 
     fun onCallRemoved(call: Call, context: Context) {
@@ -515,7 +559,7 @@ object CallManager {
         return false
     }
 
-    private fun isWhitelistedOrRuleMatched(context: Context, number: String): Boolean {
+    private suspend fun isWhitelistedOrRuleMatched(context: Context, number: String): Boolean {
         if (number.isBlank()) return false
         try {
             val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -526,7 +570,7 @@ object CallManager {
             }
 
             val dao = AppDatabase.getInstance(context).appDao()
-            val rules = runBlocking { dao.getEnabledRules() }
+            val rules = dao.getEnabledRules()
             val ruleMatched = rules.any { rule ->
                 rule.isEnabled && matchesRulePattern(rule.phoneNumberPattern, number)
             }
@@ -535,7 +579,7 @@ object CallManager {
                 return true
             }
 
-            val favs = runBlocking { dao.getAllFavoritesList() }
+            val favs = dao.getAllFavoritesList()
             val isFav = favs.any { f ->
                 ContactHelper.isSamePhoneNumber(f.phoneNumber, number)
             }
@@ -1025,103 +1069,143 @@ object CallManager {
         appContext = context.applicationContext
         automationJob?.cancel()
         updateBluetoothDevicesForSimulation(context)
-        val lookedUp = ContactHelper.lookupContactByNumber(context, number)
-        val favContact = try {
-            runBlocking {
-                val dao = AppDatabase.getInstance(context).appDao()
-                dao.getAllFavoritesList().firstOrNull {
-                    ContactHelper.isSamePhoneNumber(it.phoneNumber, number)
-                }
-            }
-        } catch (_: Exception) { null }
-        val communityInfo = if (lookedUp == null && favContact == null) com.example.util.CommunityCallerIdService.lookup(number) else null
-        val resolvedName = lookedUp?.name ?: favContact?.name ?: communityInfo?.name ?: name
-        val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
-        val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
-        val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
-        val trustBadge = resolveTrustBadge(
-            isVoicemail = ContactHelper.isVoicemailNumber(context, number),
-            hasContact = lookedUp != null,
-            hasFav = favContact != null,
-            isSpam = communityInfo?.verificationType?.contains("Spam", ignoreCase = true) == true || (communityInfo?.spamScore ?: 0) >= 50,
-            communityInfo = communityInfo
-        )
-        val callInfo = ActiveCallInfo(
+
+        val isVoicemail = ContactHelper.isVoicemailNumber(context, number)
+        val initialCallInfo = ActiveCallInfo(
             id = "sim_${System.currentTimeMillis()}",
             phoneNumber = number,
-            displayName = resolvedName,
+            displayName = if (isVoicemail) "Voicemail" else name.ifBlank { "Incoming Caller" },
             state = Call.STATE_RINGING,
             isIncoming = true,
             connectTimeMillis = 0L,
             isSimulated = true,
-            photoUri = photoUri,
-            callReason = reason ?: communityInfo?.defaultCallReason,
-            communityInfo = communityInfo,
-            nickname = resolvedNickname,
-            numberLabel = resolvedLabel,
-            trustTier = trustBadge.first,
-            trustBadgeLabel = trustBadge.second
+            photoUri = null,
+            callReason = reason,
+            communityInfo = null,
+            nickname = null,
+            numberLabel = "Mobile",
+            trustTier = if (isVoicemail) com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS else com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
+            trustBadgeLabel = if (isVoicemail) "Voicemail" else null
         )
-        _activeCall.value = callInfo
-        TelecomVoipHelper.startVoipCall(context, number, resolvedName, isIncoming = true)
+        _activeCall.value = initialCallInfo
+        TelecomVoipHelper.startVoipCall(context, number, initialCallInfo.displayName, isIncoming = true)
         CallForegroundService.start(context)
-        OngoingCallNotificationHelper.showCallNotification(context, callInfo)
-        checkAndExecuteAutomation(context, number, true)
+        OngoingCallNotificationHelper.showCallNotification(context, initialCallInfo)
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val lookedUp = ContactHelper.lookupContactByNumber(context, number)
+                val dao = AppDatabase.getInstance(context).appDao()
+                val favContact = try {
+                    dao.getAllFavoritesList().firstOrNull {
+                        ContactHelper.isSamePhoneNumber(it.phoneNumber, number)
+                    }
+                } catch (_: Exception) { null }
+                val communityInfo = if (lookedUp == null && favContact == null && !isVoicemail) com.example.util.CommunityCallerIdService.lookup(number) else null
+                val resolvedName = lookedUp?.name ?: favContact?.name ?: communityInfo?.name ?: name
+                val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
+                val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
+                val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
+                val trustBadge = resolveTrustBadge(
+                    isVoicemail = isVoicemail,
+                    hasContact = lookedUp != null,
+                    hasFav = favContact != null,
+                    isSpam = communityInfo?.verificationType?.contains("Spam", ignoreCase = true) == true || (communityInfo?.spamScore ?: 0) >= 50,
+                    communityInfo = communityInfo
+                )
+                val enrichedCall = initialCallInfo.copy(
+                    displayName = resolvedName,
+                    photoUri = photoUri,
+                    callReason = reason ?: communityInfo?.defaultCallReason,
+                    communityInfo = communityInfo,
+                    nickname = resolvedNickname,
+                    numberLabel = resolvedLabel,
+                    trustTier = trustBadge.first,
+                    trustBadgeLabel = trustBadge.second
+                )
+                _activeCall.value = enrichedCall
+                if (!isCallUiForegrounded) {
+                    OngoingCallNotificationHelper.showCallNotification(context, enrichedCall)
+                }
+                checkAndExecuteAutomation(context, number, true)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error enriching simulated incoming call", e)
+            }
+        }
     }
 
     fun startSimulatedOutgoingCall(context: Context, number: String, reason: String? = null) {
         appContext = context.applicationContext
         automationJob?.cancel()
         updateBluetoothDevicesForSimulation(context)
+
         val isVoicemail = ContactHelper.isVoicemailNumber(context, number)
-        val lookedUp = ContactHelper.lookupContactByNumber(context, number)
-        val favContact = try {
-            runBlocking {
-                val dao = AppDatabase.getInstance(context).appDao()
-                dao.getAllFavoritesList().firstOrNull {
-                    ContactHelper.isSamePhoneNumber(it.phoneNumber, number)
-                }
-            }
-        } catch (_: Exception) { null }
-        val communityInfo = if (lookedUp == null && favContact == null && !isVoicemail) com.example.util.CommunityCallerIdService.lookup(number) else null
-        val resolvedName = when {
-            isVoicemail -> "Voicemail"
-            lookedUp != null -> lookedUp.name
-            favContact != null -> favContact.name
-            communityInfo != null -> communityInfo.name
-            number.isNotBlank() -> number
-            else -> "Outgoing Call"
-        }
-        val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
-        val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
-        val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
-        val trustBadge = resolveTrustBadge(
-            isVoicemail = isVoicemail,
-            hasContact = lookedUp != null,
-            hasFav = favContact != null,
-            isSpam = communityInfo?.verificationType?.contains("Spam", ignoreCase = true) == true || (communityInfo?.spamScore ?: 0) >= 50,
-            communityInfo = communityInfo
-        )
-        val callInfo = ActiveCallInfo(
+        val initialCallInfo = ActiveCallInfo(
             id = "sim_out_${System.currentTimeMillis()}",
             phoneNumber = number,
-            displayName = resolvedName,
+            displayName = if (isVoicemail) "Voicemail" else number.ifBlank { "Outgoing Call" },
             state = Call.STATE_DIALING,
             isIncoming = false,
             connectTimeMillis = 0L,
             isSimulated = true,
-            photoUri = photoUri,
+            photoUri = null,
             callReason = reason,
-            communityInfo = communityInfo,
-            nickname = resolvedNickname,
-            numberLabel = resolvedLabel,
-            trustTier = trustBadge.first,
-            trustBadgeLabel = trustBadge.second
+            communityInfo = null,
+            nickname = null,
+            numberLabel = "Mobile",
+            trustTier = if (isVoicemail) com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS else com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
+            trustBadgeLabel = if (isVoicemail) "Voicemail" else null
         )
-        _activeCall.value = callInfo
-        TelecomVoipHelper.startVoipCall(context, number, resolvedName, isIncoming = false)
+        _activeCall.value = initialCallInfo
+        TelecomVoipHelper.startVoipCall(context, number, initialCallInfo.displayName, isIncoming = false)
         CallForegroundService.start(context)
-        OngoingCallNotificationHelper.showCallNotification(context, callInfo)
+        OngoingCallNotificationHelper.showCallNotification(context, initialCallInfo)
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val lookedUp = ContactHelper.lookupContactByNumber(context, number)
+                val dao = AppDatabase.getInstance(context).appDao()
+                val favContact = try {
+                    dao.getAllFavoritesList().firstOrNull {
+                        ContactHelper.isSamePhoneNumber(it.phoneNumber, number)
+                    }
+                } catch (_: Exception) { null }
+                val communityInfo = if (lookedUp == null && favContact == null && !isVoicemail) com.example.util.CommunityCallerIdService.lookup(number) else null
+                val resolvedName = when {
+                    isVoicemail -> "Voicemail"
+                    lookedUp != null -> lookedUp.name
+                    favContact != null -> favContact.name
+                    communityInfo != null -> communityInfo.name
+                    number.isNotBlank() -> number
+                    else -> "Outgoing Call"
+                }
+                val resolvedNickname = lookedUp?.nickname?.ifBlank { null } ?: favContact?.nickname?.ifBlank { null }
+                val resolvedLabel = lookedUp?.label?.ifBlank { null } ?: favContact?.label?.ifBlank { null } ?: "Mobile"
+                val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
+                val trustBadge = resolveTrustBadge(
+                    isVoicemail = isVoicemail,
+                    hasContact = lookedUp != null,
+                    hasFav = favContact != null,
+                    isSpam = communityInfo?.verificationType?.contains("Spam", ignoreCase = true) == true || (communityInfo?.spamScore ?: 0) >= 50,
+                    communityInfo = communityInfo
+                )
+                val enrichedCall = initialCallInfo.copy(
+                    displayName = resolvedName,
+                    photoUri = photoUri,
+                    communityInfo = communityInfo,
+                    nickname = resolvedNickname,
+                    numberLabel = resolvedLabel,
+                    trustTier = trustBadge.first,
+                    trustBadgeLabel = trustBadge.second
+                )
+                _activeCall.value = enrichedCall
+                if (!isCallUiForegrounded) {
+                    OngoingCallNotificationHelper.showCallNotification(context, enrichedCall)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error enriching simulated outgoing call", e)
+            }
+        }
 
         scope.launch {
             delay(1500)
@@ -1129,7 +1213,6 @@ object CallManager {
             if (current != null && current.state == Call.STATE_DIALING) {
                 val updated = current.copy(
                     state = Call.STATE_ACTIVE,
-                    displayName = resolvedName,
                     connectTimeMillis = System.currentTimeMillis()
                 )
                 _activeCall.value = updated

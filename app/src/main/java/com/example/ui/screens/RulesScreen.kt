@@ -109,7 +109,7 @@ fun RulesScreen(
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by rememberSaveable { mutableIntStateOf(1) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<CallerRule?>(null) }
@@ -126,7 +126,7 @@ fun RulesScreen(
 
     val coroutineScope = rememberCoroutineScope()
 
-    val subPagerState = rememberPagerState(initialPage = 1) { 2 }
+    val subPagerState = rememberPagerState(initialPage = 0) { 2 }
 
     LaunchedEffect(initiallyShowAddRuleWithNumber) {
         if (!initiallyShowAddRuleWithNumber.isNullOrBlank()) {

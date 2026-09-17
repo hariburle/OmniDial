@@ -120,7 +120,13 @@ import kotlinx.coroutines.delay
 import com.example.telecom.CallManager
 import com.example.telecom.RoleHelper
 import com.example.ui.MainViewModel
+import com.example.ui.components.CloudContactSyncDialog
 import com.example.ui.components.ContactSaveDestination
+import com.example.ui.components.DefaultAppPromptDialog
+import com.example.ui.components.FullScreenPermissionPromptDialog
+import com.example.ui.components.OverlayPermissionPromptDialog
+import com.example.ui.components.SimChoiceDialog
+import com.example.ui.components.WhatsAppChoiceDialog
 import com.example.ui.components.WhatsAppIcon
 import com.example.ui.screens.CallLogScreen
 import com.example.ui.screens.ContactsScreen
@@ -129,11 +135,37 @@ import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.InCallScreen
 import com.example.ui.screens.RulesScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.viewmodels.CallLogViewModel
+import com.example.ui.viewmodels.ContactsViewModel
+import com.example.ui.viewmodels.DialerViewModel
+import com.example.ui.viewmodels.FavoritesViewModel
+import com.example.ui.viewmodels.RulesViewModel
+import com.example.ui.viewmodels.ViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels {
         MainViewModel.provideFactory(this)
+    }
+
+    private val dialerViewModel: DialerViewModel by viewModels {
+        ViewModelFactory(this)
+    }
+
+    private val callLogViewModel: CallLogViewModel by viewModels {
+        ViewModelFactory(this)
+    }
+
+    private val contactsViewModel: ContactsViewModel by viewModels {
+        ViewModelFactory(this)
+    }
+
+    private val favoritesViewModel: FavoritesViewModel by viewModels {
+        ViewModelFactory(this)
+    }
+
+    private val rulesViewModel: RulesViewModel by viewModels {
+        ViewModelFactory(this)
     }
 
     private var isInPipMode by mutableStateOf(false)
@@ -1142,444 +1174,107 @@ fun MainAppContent(
 
         // Explicit Confirmation Dialog before making any changes to Google Account Contacts in the Cloud
         pendingCloudConfirmation?.let { conf ->
-            AlertDialog(
-                onDismissRequest = {
-                    conf.onDismissOrCancel()
+            CloudContactSyncDialog(
+                confirmation = conf,
+                onConfirm = {
+                    conf.onConfirmCloudAction()
                     viewModel.clearCloudConfirmation()
                 },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Cloud,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                },
-                title = {
-                    Text(
-                        text = conf.title,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
-                text = {
-                    Text(
-                        text = conf.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            conf.onConfirmCloudAction()
-                            viewModel.clearCloudConfirmation()
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text(conf.confirmButtonText)
+                onSecondary = conf.onSecondaryAction?.let { sec ->
+                    {
+                        sec.invoke()
+                        viewModel.clearCloudConfirmation()
                     }
                 },
-                dismissButton = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        if (conf.secondaryButtonText != null && conf.onSecondaryAction != null) {
-                            FilledTonalButton(
-                                onClick = {
-                                    conf.onSecondaryAction.invoke()
-                                    viewModel.clearCloudConfirmation()
-                                }
-                            ) {
-                                Text(conf.secondaryButtonText)
-                            }
-                        }
-                        TextButton(
-                            onClick = {
-                                conf.onDismissOrCancel()
-                                viewModel.clearCloudConfirmation()
-                            }
-                        ) {
-                            Text(conf.dismissButtonText)
-                        }
-                    }
+                onDismiss = {
+                    conf.onDismissOrCancel()
+                    viewModel.clearCloudConfirmation()
                 }
             )
         }
 
         // WhatsApp vs Cellular Call Choice Dialog (Ask Always & Ask and Learn)
         pendingCallMethodChoice?.let { prompt ->
-            var rememberChoice by remember(prompt) { mutableStateOf(prompt.isLearnMode) }
-            AlertDialog(
-                onDismissRequest = { viewModel.dismissCallMethodChoice() },
-                title = {
-                    Text(
-                        text = "Choose Calling Method",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+            WhatsAppChoiceDialog(
+                prompt = prompt,
+                onChooseMethod = { method, rememberChoice ->
+                    viewModel.chooseCallMethod(context, method, rememberChoice)
                 },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Column {
-                            if (!prompt.contactName.isNullOrBlank()) {
-                                Text(
-                                    text = prompt.contactName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Text(
-                                text = prompt.number,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    viewModel.chooseCallMethod(context, "cellular", rememberChoice)
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
-                            ) {
-                                Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Cellular")
-                            }
-
-                            Button(
-                                onClick = {
-                                    viewModel.chooseCallMethod(context, "whatsapp", rememberChoice)
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
-                            ) {
-                                WhatsAppIcon(modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("WhatsApp", color = Color.White)
-                            }
-                        }
-
-                        if (prompt.isLearnMode) {
-                            Row(
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                modifier = Modifier.clickable { rememberChoice = !rememberChoice }
-                            ) {
-                                Checkbox(
-                                    checked = rememberChoice,
-                                    onCheckedChange = { rememberChoice = it }
-                                )
-                                Text(
-                                    text = "Remember choice for this contact",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { viewModel.dismissCallMethodChoice() }) {
-                        Text("Cancel")
-                    }
-                }
+                onDismiss = { viewModel.dismissCallMethodChoice() }
             )
         }
 
         // Dual-SIM Outgoing Call Choice Dialog (Always Ask)
         pendingSimChoice?.let { prompt ->
-            AlertDialog(
-                onDismissRequest = { viewModel.cancelSimChoice() },
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SimCard,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Text(
-                            text = "Choose SIM for Call",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
+            SimChoiceDialog(
+                prompt = prompt,
+                activeSims = activeSims,
+                onSelectSim = { slot ->
+                    viewModel.confirmSimChoiceAndPlaceCall(context, slot)
                 },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        val nameOrNum = prompt.contactName ?: prompt.number
-                        Text(
-                            text = "Call $nameOrNum (${prompt.number}) using:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            val sim1 = activeSims.firstOrNull { it.slotIndex == 0 }
-                            val sim2 = activeSims.firstOrNull { it.slotIndex == 1 }
-
-                            val sim1Title = sim1?.displayName?.takeIf { it.isNotBlank() } ?: "SIM 1"
-                            val sim2Title = sim2?.displayName?.takeIf { it.isNotBlank() } ?: "SIM 2"
-
-                            // SIM 1 Button
-                            Button(
-                                onClick = { viewModel.confirmSimChoiceAndPlaceCall(context, 1) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(sim1Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    if (sim1 != null && sim1.carrierName.isNotBlank() && sim1.carrierName != sim1Title) {
-                                        Text(
-                                            text = sim1.carrierName,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-
-                            // SIM 2 Button
-                            Button(
-                                onClick = { viewModel.confirmSimChoiceAndPlaceCall(context, 2) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondary
-                                )
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(sim2Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    if (sim2 != null && sim2.carrierName.isNotBlank() && sim2.carrierName != sim2Title) {
-                                        Text(
-                                            text = sim2.carrierName,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { viewModel.cancelSimChoice() }) {
-                        Text("Cancel")
-                    }
-                }
+                onDismiss = { viewModel.cancelSimChoice() }
             )
         }
 
         // Check if OmniDial is the default app on startup, and prompt user if not
         if (!isDefaultDialer && showDefaultAppPrompt) {
-            AlertDialog(
-                onDismissRequest = {
+            DefaultAppPromptDialog(
+                onRequestSetDefault = {
+                    val intent = RoleHelper.createDefaultDialerIntent(context)
+                    if (intent != null) {
+                        defaultDialerLauncher.launch(intent)
+                    }
                     showDefaultAppPrompt = false
                 },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Phone,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                },
-                title = {
-                    Text(
-                        text = "Set as Default Phone App",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
-                text = {
-                    Text(
-                        text = "OmniDial is not your default phone app. To answer calls, screen spam, and use speed dials seamlessly, please set OmniDial as your default app.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            val intent = RoleHelper.createDefaultDialerIntent(context)
-                            if (intent != null) {
-                                defaultDialerLauncher.launch(intent)
-                            }
-                            showDefaultAppPrompt = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text("Set as Default")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showDefaultAppPrompt = false
-                        }
-                    ) {
-                        Text("Later")
-                    }
-                }
+                onDismiss = { showDefaultAppPrompt = false }
             )
         }
 
         // Check Display Over Other Apps permission on startup for car & bluetooth call redirection
         if (!hasOverlayPermission && showOverlayPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
-            AlertDialog(
-                onDismissRequest = {
+            OverlayPermissionPromptDialog(
+                onRequestPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            overlayPermissionLauncher.launch(intent)
+                        } catch (_: Exception) {
+                            try {
+                                val fallback = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                                overlayPermissionLauncher.launch(fallback)
+                            } catch (_: Exception) {}
+                        }
+                    }
                     showOverlayPrompt = false
                 },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.SmartToy,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                },
-                title = {
-                    Text(
-                        text = "Display Over Other Apps",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
-                text = {
-                    Text(
-                        text = "OmniDial requires 'Display over other apps' permission to redirect car and Bluetooth calls to WhatsApp in the background.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                try {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                    overlayPermissionLauncher.launch(intent)
-                                } catch (_: Exception) {
-                                    try {
-                                        val fallback = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                                        overlayPermissionLauncher.launch(fallback)
-                                    } catch (_: Exception) {}
-                                }
-                            }
-                            showOverlayPrompt = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text("Allow")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showOverlayPrompt = false
-                        }
-                    ) {
-                        Text("Later")
-                    }
-                }
+                onDismiss = { showOverlayPrompt = false }
             )
         }
 
         // Check Full Screen Intent permission (Android 14+ / API 34+) to wake screen for background calls
         if (hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
-            AlertDialog(
-                onDismissRequest = {
+            FullScreenPermissionPromptDialog(
+                onRequestPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            fullScreenPermissionLauncher.launch(intent)
+                        } catch (_: Exception) {
+                            try {
+                                val fallback = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                                fullScreenPermissionLauncher.launch(fallback)
+                            } catch (_: Exception) {}
+                        }
+                    }
                     showFullScreenPrompt = false
                 },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Phone,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                },
-                title = {
-                    Text(
-                        text = "Full Screen Wake Permission",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                },
-                text = {
-                    Text(
-                        text = "OmniDial requires full-screen intent permission to wake the screen and display incoming calls and background call redirection alerts on Android 14+.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                                try {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                    fullScreenPermissionLauncher.launch(intent)
-                                } catch (_: Exception) {
-                                    try {
-                                        val fallback = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
-                                        fullScreenPermissionLauncher.launch(fallback)
-                                    } catch (_: Exception) {}
-                                }
-                            }
-                            showFullScreenPrompt = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text("Allow")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showFullScreenPrompt = false
-                        }
-                    ) {
-                        Text("Later")
-                    }
-                }
+                onDismiss = { showFullScreenPrompt = false }
             )
         }
     }
