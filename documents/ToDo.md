@@ -63,6 +63,23 @@
 
 ---
 
+### ⚡ Phase 11 (Minor Release — v1.4.0): Context-Aware Automation & Geofenced IFTTT Recipes
+*Location guards, ambient Wi-Fi/Bluetooth triggers, visual execution pipeline, and simulated test mode (documented in [`documents/AUTOMATION_RECIPES_BLUEPRINT.md`](AUTOMATION_RECIPES_BLUEPRINT.md)).*
+- [ ] **Task 11.1: Visual Rule Pipeline & Template Gallery UX**
+  - *Goal*: Replace static tag chips with an interactive step-by-step pipeline (`Ringing` ➔ `Delay` ➔ `Answer` ➔ `DTMF` ➔ `Hangup`) and add low-density template starter cards (Gate, Office, Car, Voicemail).
+  - *Deliverable*: Modernized `RulesScreen`, updated `RuleCard`, and top-bar history icon.
+- [ ] **Task 11.2: Zero-Battery Ambient Geofencing (Wi-Fi SSID & Bluetooth Triggers)**
+  - *Goal*: Guard gate buzzer and auto-answer rules so they only execute when the user is actually at home or in vehicle, with 0% extra battery drain.
+  - *Deliverable*: Ambient context evaluator checking active Wi-Fi SSID and paired Bluetooth device in `CallManager.checkAndExecuteAutomation()`.
+- [ ] **Task 11.3: Audio Routing & Auto-Mute in Automation Engine**
+  - *Goal*: Automatically route auto-answered calls to speakerphone and auto-mute the mic while DTMF tones play.
+  - *Deliverable*: `autoSpeakerphone` and `autoMuteMic` flags in `CallerRule` executed in `CallManager.executeAutomationWorkflow()`.
+- [ ] **Task 11.4: In-App Simulated Rule Dry-Run ("Test Rule")**
+  - *Goal*: Allow users to test and verify DTMF sequences and delay timings in real time without placing actual phone calls.
+  - *Deliverable*: Interactive simulation trigger on `RuleCard` dispatching test events through `CallManager`.
+
+---
+
 ## 📋 Historical Implementation Archive
 All prior implemented features, architectural specifications, and releases have been archived in their respective project documents:
 - **System Specifications & Architecture**: See [`documents/ARCHITECTURE.md`](ARCHITECTURE.md) and [`documents/DESIGN.md`](DESIGN.md).

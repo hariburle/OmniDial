@@ -41,12 +41,13 @@ Use these sections to update the official OmniDial website (`index.html`), creat
 
 ---
 
-### 3. 🤖 Automated Gate & Intercom Buzzer Rules
+### 3. 🤖 Automated Gate & Intercom Buzzer Rules (Context-Aware IFTTT Engine)
 * **The Capability**: A dedicated automation recipe engine designed for gate buzzers, building intercoms, and delivery gates:
   - **Auto-Answer Delay**: Answers incoming calls from gate numbers after a set delay (e.g. 1 second).
   - **Automated DTMF Key Sequence**: Plays in-band touch tones (e.g., `9#` or `*#`) to unlock the lobby door or gate.
   - **Auto-Hangup & SMS Confirmation**: Disconnects after 2 seconds and can send a confirmation SMS.
   - **Carrier Spam Bypass**: Automatically whitelists your gate and intercom numbers so carrier STIR/SHAKEN spam filters never auto-drop your deliveries.
+  - **Location-Guarded Geofencing & Wi-Fi Context**: Only triggers buzzer execution when the device is at home or connected to home Wi-Fi; if away, sends an instant delivery instruction SMS instead (full blueprint in [`documents/AUTOMATION_RECIPES_BLUEPRINT.md`](AUTOMATION_RECIPES_BLUEPRINT.md)).
 
 ---
 
