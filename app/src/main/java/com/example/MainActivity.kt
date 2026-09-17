@@ -1109,6 +1109,16 @@ fun MainAppContent(
                         onSaveRule = { viewModel.saveRule(it) },
                         onDeleteRule = { viewModel.deleteRule(it) },
                         onClearLogs = { viewModel.clearLogs() },
+                        onTestRule = { rule ->
+                            val targetNumber = when {
+                                rule.phoneNumberPattern.isNotBlank() && rule.phoneNumberPattern != "*" -> rule.phoneNumberPattern
+                                else -> "+15550199"
+                            }
+                            viewModel.simulateIncomingCall(context, targetNumber, rule.name, "Rule Simulation Test")
+                        },
+                        onDuplicateRule = { rule ->
+                            viewModel.saveRule(rule.copy(id = 0L, name = "${rule.name} (Copy)"))
+                        },
                         initiallyShowAddRuleWithNumber = ruleNumberToCreate,
                         onConsumeAddRuleNumber = { ruleNumberToCreate = null },
                         deviceContacts = deviceContacts,

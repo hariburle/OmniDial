@@ -1,9 +1,11 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -20,15 +23,25 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Voicemail
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -44,10 +57,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.AutomationLog
 import com.example.data.CallerRule
 import com.example.data.FavoriteContact
@@ -58,6 +73,104 @@ import com.example.ui.components.RuleEditDialog
 import com.example.util.BackupRestoreResult
 import com.example.util.DeviceContact
 import kotlinx.coroutines.launch
+
+data class AutomationTemplate(
+    val title: String,
+    val description: String,
+    val icon: ImageVector,
+    val defaultRule: CallerRule
+)
+
+val standardAutomationTemplates = listOf(
+    AutomationTemplate(
+        title = "Apartment Gate Buzzer",
+        description = "Auto-answer intercom & send 9# unlock tone",
+        icon = Icons.Default.Lock,
+        defaultRule = CallerRule(
+            name = "Gate Buzzer",
+            phoneNumberPattern = "",
+            isEnabled = true,
+            autoAnswer = true,
+            answerDelaySec = 1,
+            dtmfSequence = "9#",
+            dtmfDelayMs = 800,
+            sendSms = false,
+            smsMessage = "",
+            autoHangup = true,
+            hangupDelaySec = 2
+        )
+    ),
+    AutomationTemplate(
+        title = "Office Extension IVR",
+        description = "Auto-dial department or room extension 104#",
+        icon = Icons.Default.Business,
+        defaultRule = CallerRule(
+            name = "Office Extension",
+            phoneNumberPattern = "",
+            isEnabled = true,
+            autoAnswer = true,
+            answerDelaySec = 2,
+            dtmfSequence = "104#",
+            dtmfDelayMs = 1000,
+            sendSms = false,
+            smsMessage = "",
+            autoHangup = false
+        )
+    ),
+    AutomationTemplate(
+        title = "SMS Auto-Responder",
+        description = "Auto-reply when busy and drop the call",
+        icon = Icons.AutoMirrored.Filled.Chat,
+        defaultRule = CallerRule(
+            name = "Auto SMS Responder",
+            phoneNumberPattern = "",
+            isEnabled = true,
+            autoAnswer = false,
+            answerDelaySec = 0,
+            dtmfSequence = "",
+            dtmfDelayMs = 0,
+            sendSms = true,
+            smsMessage = "I am currently in a meeting. I will call you back shortly.",
+            autoHangup = true,
+            hangupDelaySec = 1
+        )
+    ),
+    AutomationTemplate(
+        title = "Delivery Gate Access",
+        description = "Send buzzer 4# and delivery confirmation SMS",
+        icon = Icons.Default.Home,
+        defaultRule = CallerRule(
+            name = "Delivery Gate",
+            phoneNumberPattern = "",
+            isEnabled = true,
+            autoAnswer = true,
+            answerDelaySec = 1,
+            dtmfSequence = "4#",
+            dtmfDelayMs = 800,
+            sendSms = true,
+            smsMessage = "Lobby gate opened automatically.",
+            autoHangup = true,
+            hangupDelaySec = 2
+        )
+    ),
+    AutomationTemplate(
+        title = "Voicemail PIN",
+        description = "Auto-enter keypad PIN touch-tones",
+        icon = Icons.Default.Voicemail,
+        defaultRule = CallerRule(
+            name = "Voicemail PIN",
+            phoneNumberPattern = "",
+            isEnabled = true,
+            autoAnswer = false,
+            answerDelaySec = 0,
+            dtmfSequence = "1234#",
+            dtmfDelayMs = 500,
+            sendSms = false,
+            smsMessage = "",
+            autoHangup = false
+        )
+    )
+)
 
 @Composable
 fun RulesScreen(
@@ -95,6 +208,8 @@ fun RulesScreen(
     onSaveRule: (CallerRule) -> Unit,
     onDeleteRule: (CallerRule) -> Unit,
     onClearLogs: () -> Unit,
+    onTestRule: (CallerRule) -> Unit = {},
+    onDuplicateRule: (CallerRule) -> Unit = {},
     initiallyShowAddRuleWithNumber: String? = null,
     onConsumeAddRuleNumber: () -> Unit = {},
     deviceContacts: List<DeviceContact> = emptyList(),
@@ -125,7 +240,6 @@ fun RulesScreen(
     }
 
     val coroutineScope = rememberCoroutineScope()
-
     val subPagerState = rememberPagerState(initialPage = 0) { 2 }
 
     LaunchedEffect(initiallyShowAddRuleWithNumber) {
@@ -191,66 +305,202 @@ fun RulesScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
                     ) {
+                        // Top Action Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Call Automation",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "In-band DTMF buzzer & auto-actions",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = { showHistoryDialog = true },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .height(34.dp)
+                                    .testTag("rules_history_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "History (${automationLogs.size})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
                         if (rules.isEmpty()) {
-                            Box(
+                            // Zero-state: Display Quick-Start Recipe Templates Gallery
+                            Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(24.dp),
-                                contentAlignment = Alignment.Center
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SmartToy,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(56.dp),
-                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                    )
-                                    Text(
-                                        text = "No Automation Rules Created Yet",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Create rules to auto-answer intercoms, dial DTMF extension codes, or auto-reply with SMS.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Button(
-                                        onClick = {
-                                            editingRule = CallerRule(
-                                                name = "New Automation Rule",
-                                                phoneNumberPattern = "",
-                                                isEnabled = true,
-                                                autoAnswer = true,
-                                                answerDelaySec = 1,
-                                                dtmfSequence = "9#",
-                                                dtmfDelayMs = 800,
-                                                sendSms = false,
-                                                smsMessage = "Automated reply sent.",
-                                                autoHangup = true,
-                                                hangupDelaySec = 2
-                                            )
-                                            showDialog = true
-                                        },
+                                Icon(
+                                    imageVector = Icons.Default.SmartToy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Quick-Start Automation Recipes",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "Select a pre-configured template below to set up in 1-tap, or create a custom recipe.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                standardAutomationTemplates.forEach { template ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                editingRule = template.defaultRule.copy()
+                                                showDialog = true
+                                            },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        ),
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
-                                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Create First Rule", fontWeight = FontWeight.Bold)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = template.icon,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = template.title,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = template.description,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Text(
+                                                text = "+ Use",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Button(
+                                    onClick = {
+                                        editingRule = CallerRule(
+                                            name = "New Automation Rule",
+                                            phoneNumberPattern = "",
+                                            isEnabled = true,
+                                            autoAnswer = true,
+                                            answerDelaySec = 1,
+                                            dtmfSequence = "9#",
+                                            dtmfDelayMs = 800,
+                                            sendSms = false,
+                                            smsMessage = "Automated reply sent.",
+                                            autoHangup = true,
+                                            hangupDelaySec = 2
+                                        )
+                                        showDialog = true
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Create Custom Rule", fontWeight = FontWeight.Bold)
+                                }
+
+                                Spacer(modifier = Modifier.height(72.dp))
+                            }
+                        } else {
+                            // Quick-Start Templates horizontal carousel for discoverability
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = "QUICK-START RECIPES",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                                )
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(standardAutomationTemplates) { template ->
+                                        SuggestionChip(
+                                            onClick = {
+                                                editingRule = template.defaultRule.copy()
+                                                showDialog = true
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = template.title,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            },
+                                            icon = {
+                                                Icon(
+                                                    imageVector = template.icon,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(14.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        )
                                     }
                                 }
                             }
-                        } else {
+
+                            // Rules List with enhanced visual cards
                             LazyColumn(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(16.dp),
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 items(rules, key = { it.id }) { rule ->
@@ -262,11 +512,13 @@ fun RulesScreen(
                                             editingRule = rule
                                             showDialog = true
                                         },
-                                        onDelete = { onDeleteRule(rule) }
+                                        onDelete = { onDeleteRule(rule) },
+                                        onTest = { onTestRule(rule) },
+                                        onDuplicate = { onDuplicateRule(rule) }
                                     )
                                 }
                                 item {
-                                    Spacer(modifier = Modifier.height(72.dp))
+                                    Spacer(modifier = Modifier.height(84.dp))
                                 }
                             }
                         }
@@ -315,49 +567,37 @@ fun RulesScreen(
             }
         }
 
-        // Bottom Action Row for Add Rule and Execution History in Rules Page (Page 0)
+        // Clean, Anchored Single Extended Floating Action Button on Rules Page
         if (subPagerState.currentPage == 0) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 16.dp, end = 16.dp),
+                    .padding(bottom = 20.dp, end = 20.dp),
                 contentAlignment = Alignment.BottomEnd
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ExtendedFloatingActionButton(
-                        onClick = { showHistoryDialog = true },
-                        icon = { Icon(Icons.Default.History, contentDescription = null) },
-                        text = { Text("History (${automationLogs.size})") },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            editingRule = CallerRule(
-                                name = "New Automation Rule",
-                                phoneNumberPattern = "",
-                                isEnabled = true,
-                                autoAnswer = true,
-                                answerDelaySec = 1,
-                                dtmfSequence = "9#",
-                                dtmfDelayMs = 800,
-                                sendSms = false,
-                                smsMessage = "Automated reply sent.",
-                                autoHangup = true,
-                                hangupDelaySec = 2
-                            )
-                            showDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                        text = { Text("Create Rule", fontWeight = FontWeight.Bold) },
-                        modifier = Modifier.testTag("add_rule_fab"),
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        editingRule = CallerRule(
+                            name = "New Automation Rule",
+                            phoneNumberPattern = "",
+                            isEnabled = true,
+                            autoAnswer = true,
+                            answerDelaySec = 1,
+                            dtmfSequence = "9#",
+                            dtmfDelayMs = 800,
+                            sendSms = false,
+                            smsMessage = "Automated reply sent.",
+                            autoHangup = true,
+                            hangupDelaySec = 2
+                        )
+                        showDialog = true
+                    },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New Rule", fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.testTag("add_rule_fab"),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
 
@@ -381,7 +621,7 @@ fun RulesScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Recent logs", style = MaterialTheme.typography.titleSmall)
+                                Text("Recent trigger logs", style = MaterialTheme.typography.titleSmall)
                                 TextButton(onClick = onClearLogs) {
                                     Text("Clear")
                                 }
