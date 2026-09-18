@@ -62,7 +62,7 @@ fun SpamManagementDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    val prefs = remember { context.getSharedPreferences("kishan_dialer_prefs", android.content.Context.MODE_PRIVATE) }
 
     var searchQuery by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }

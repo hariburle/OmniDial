@@ -30,7 +30,8 @@ fun SpeedDialActionDialog(
     onDismiss: () -> Unit
 ) {
     val isFavWaPreferred = preferredCallingMode == "whatsapp"
-    val displayName = fav.name.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: fav.name
+    val displayName = fav.nickname?.ifBlank { null } ?: fav.name.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: fav.name
+    val fullDisplayName = fav.nickname?.ifBlank { null } ?: fav.name
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -55,7 +56,7 @@ fun SpeedDialActionDialog(
                 }
                 Column {
                     Text(
-                        text = fav.name,
+                        text = fullDisplayName,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleLarge
                     )

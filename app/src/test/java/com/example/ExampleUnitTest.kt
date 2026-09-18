@@ -68,4 +68,22 @@ class ExampleUnitTest {
         assertTrue(ContactHelper.isSamePhoneNumber("*86", " *86 "))
         assertTrue(ContactHelper.isSamePhoneNumber("911", "911"))
     }
+
+    @Test
+    fun testSmartContactSortNicknames() {
+        val c1 = DeviceContact(name = "Alice Smith", phoneNumber = "111", nickname = "Ali")
+        val c2 = DeviceContact(name = "Bob Jones", phoneNumber = "222", nickname = null)
+        val c3 = DeviceContact(name = "Charlie Brown", phoneNumber = "333", nickname = "Chuck")
+        val c4 = DeviceContact(name = "David Miller", phoneNumber = "444", nickname = "")
+
+        val list = listOf(c1, c2, c3, c4)
+        val filtered = list.filter { !it.nickname.isNullOrBlank() }
+        assertEquals(2, filtered.size)
+        assertEquals(listOf("Ali", "Chuck"), filtered.map { it.nickname })
+
+        // Check SmartContactSort enum
+        val nicknamesSort = com.example.ui.models.SmartContactSort.NICKNAMES
+        assertEquals("Nicknames", nicknamesSort.label)
+        assertEquals("Contacts with Nicknames", nicknamesSort.description)
+    }
 }

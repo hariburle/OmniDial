@@ -42,8 +42,30 @@ fun DialerSuggestionsList(
     t9Matches: List<T9SearchResult>,
     matchedContact: DeviceContact?,
     onSelectContactNumber: (String) -> Unit,
+    contacts: List<DeviceContact> = emptyList(),
     modifier: Modifier = Modifier
 ) {
+    val contactsByDigits = remember(contacts) {
+        val map = mutableMapOf<String, DeviceContact>()
+        contacts.forEach { dc ->
+            val digits = dc.phoneNumber.filter { it.isDigit() }.takeLast(10)
+            if (digits.isNotBlank()) map[digits] = dc
+            dc.phoneNumbers.forEach { pn ->
+                val pnDigits = pn.number.filter { it.isDigit() }.takeLast(10)
+                if (pnDigits.isNotBlank()) map[pnDigits] = dc
+            }
+        }
+        map
+    }
+    val contactsByName = remember(contacts) {
+        val map = mutableMapOf<String, DeviceContact>()
+        contacts.forEach { dc ->
+            if (dc.name.isNotBlank()) map[dc.name.trim().lowercase()] = dc
+            if (!dc.nickname.isNullOrBlank()) map[dc.nickname.trim().lowercase()] = dc
+        }
+        map
+    }
+
     if (number.isEmpty()) {
         val uniqueRecents = remember(recentCalls) {
             recentCalls
@@ -73,8 +95,12 @@ fun DialerSuggestionsList(
                 reverseLayout = false
             ) {
                 items(uniqueRecents, key = { it.id }) { call ->
+                    val callDigits = call.phoneNumber.filter { it.isDigit() }.takeLast(10)
+                    val dc = (if (callDigits.isNotBlank()) contactsByDigits[callDigits] else null)
+                        ?: call.callerName?.takeIf { it.isNotBlank() }?.let { contactsByName[it.trim().lowercase()] }
                     DialerRecentSuggestionCard(
                         call = call,
+                        matchedContact = dc,
                         onClick = { onSelectContactNumber(call.phoneNumber) }
                     )
                 }
@@ -90,6 +116,7 @@ fun DialerSuggestionsList(
                         phoneNumber = matchedContact.phoneNumber,
                         label = matchedContact.label,
                         photoUri = matchedContact.photoUri,
+                        nickname = matchedContact.nickname,
                         matchedByName = true,
                         matchSnippet = "Matched Contact"
                     )
@@ -173,6 +200,7 @@ fun DialerSuggestionsList(
 @Composable
 private fun DialerRecentSuggestionCard(
     call: RecentCall,
+    matchedContact: DeviceContact? = null,
     onClick: () -> Unit
 ) {
     val callTypeIcon = when (call.callType) {
@@ -186,9 +214,14 @@ private fun DialerRecentSuggestionCard(
         else -> Color(0xFFDC2626)
     }
 
-    val displayName = call.callerName?.takeIf { it.isNotBlank() && it != call.phoneNumber }
-    val primaryText = displayName ?: call.phoneNumber
-    val secondaryText = if (displayName != null) call.phoneNumber else null
+    val formalName = matchedContact?.name?.ifBlank { null } ?: call.callerName?.takeIf { it.isNotBlank() && it != call.phoneNumber }
+    val nickname = matchedContact?.nickname?.ifBlank { null }
+    val primaryText = nickname ?: formalName ?: call.phoneNumber
+    val secondaryText = if (nickname != null && formalName != null && !nickname.equals(formalName, ignoreCase = true)) {
+        "$formalName • ${call.phoneNumber}"
+    } else if (formalName != null) {
+        call.phoneNumber
+    } else null
 
     Surface(
         onClick = onClick,
@@ -296,8 +329,9 @@ private fun DialerMatchSuggestionCard(
                     )
                 } else {
                     Box(contentAlignment = Alignment.Center) {
+                        val primaryInitial = (match.nickname?.ifBlank { null } ?: match.name).filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" }
                         Text(
-                            text = match.name.filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" },
+                            text = primaryInitial,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -310,7 +344,7 @@ private fun DialerMatchSuggestionCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 val hasNick = !match.nickname.isNullOrBlank() && !match.nickname.equals(match.name, ignoreCase = true)
-                val displayName = if (hasNick) "${match.name} (${match.nickname})" else match.name
+                val displayName = if (hasNick) "${match.nickname} (${match.name})" else match.name
                 Text(
                     text = displayName,
                     style = MaterialTheme.typography.bodyMedium,

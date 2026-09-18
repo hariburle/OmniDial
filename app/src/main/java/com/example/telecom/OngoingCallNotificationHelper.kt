@@ -107,19 +107,26 @@ object OngoingCallNotificationHelper {
         val seconds = elapsedSec % 60
         val timerFormatted = String.format("%02d:%02d", minutes, seconds)
 
+        val simLabel = if (!callInfo.simDisplayName.isNullOrBlank()) {
+            "SIM ${callInfo.simSlot} (${callInfo.simDisplayName})"
+        } else {
+            "SIM ${callInfo.simSlot}"
+        }
+        val roamingTag = if (callInfo.isRoaming) " • ⚠️ ROAMING" else ""
+
         val statusText = when (callInfo.state) {
-            Call.STATE_RINGING -> "Incoming call"
-            Call.STATE_DIALING, Call.STATE_CONNECTING -> "Calling..."
-            Call.STATE_ACTIVE -> "Active call • $timerFormatted"
-            Call.STATE_HOLDING -> "On hold"
-            else -> "Call"
+            Call.STATE_RINGING -> "Incoming call • $simLabel$roamingTag"
+            Call.STATE_DIALING, Call.STATE_CONNECTING -> "Calling via $simLabel$roamingTag"
+            Call.STATE_ACTIVE -> "Active call • $timerFormatted • $simLabel$roamingTag"
+            Call.STATE_HOLDING -> "On hold • $simLabel"
+            else -> "Call • $simLabel"
         }
 
         val labelPrefix = if (!callInfo.numberLabel.isNullOrBlank()) "${callInfo.numberLabel} • " else ""
         val contentText = when (callInfo.state) {
-            Call.STATE_ACTIVE -> "$labelPrefix${callInfo.phoneNumber} • $timerFormatted"
-            Call.STATE_RINGING -> "Incoming call • $labelPrefix${callInfo.phoneNumber}"
-            Call.STATE_DIALING, Call.STATE_CONNECTING -> "Calling • $labelPrefix${callInfo.phoneNumber}"
+            Call.STATE_ACTIVE -> "$labelPrefix${callInfo.phoneNumber} • $simLabel$roamingTag • $timerFormatted"
+            Call.STATE_RINGING -> "Incoming on $simLabel$roamingTag • $labelPrefix${callInfo.phoneNumber}"
+            Call.STATE_DIALING, Call.STATE_CONNECTING -> "Calling via $simLabel$roamingTag • $labelPrefix${callInfo.phoneNumber}"
             else -> "$labelPrefix${callInfo.phoneNumber} • $statusText"
         }
 

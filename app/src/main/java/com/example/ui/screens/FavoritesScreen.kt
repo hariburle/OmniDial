@@ -968,15 +968,17 @@ fun FavoritesScreen(
                                         }
                                     },
                                     onCall = {
+                                        val displayName = contact.nickname?.ifBlank { null } ?: contact.name
                                         if (confirmFavoritesCall) {
-                                            pendingCallConfirmation = Triple(contact.name, contact.phoneNumber, false)
+                                            pendingCallConfirmation = Triple(displayName, contact.phoneNumber, false)
                                         } else {
                                             onCallNumber(contact.phoneNumber)
                                         }
                                     },
                                     onCallWhatsApp = {
+                                        val displayName = contact.nickname?.ifBlank { null } ?: contact.name
                                         if (confirmFavoritesCall) {
-                                            pendingCallConfirmation = Triple(contact.name, contact.phoneNumber, true)
+                                            pendingCallConfirmation = Triple(displayName, contact.phoneNumber, true)
                                         } else {
                                             onCallWhatsApp(contact.phoneNumber)
                                         }

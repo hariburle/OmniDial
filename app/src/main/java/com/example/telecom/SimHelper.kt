@@ -120,6 +120,24 @@ object SimHelper {
     }
 
     /**
+     * Resolves complete SimInfo (including display name, carrier name, and roaming status) for a PhoneAccountHandle or account ID.
+     */
+    fun resolveSimInfo(context: Context, accountHandle: PhoneAccountHandle? = null, accountId: String? = null): SimInfo? {
+        val simCards = getActiveSimCards(context)
+        if (simCards.isEmpty()) return null
+        val targetId = accountHandle?.id ?: accountId
+        if (targetId != null) {
+            for (sim in simCards) {
+                if (targetId.contains(sim.subscriptionId.toString())) {
+                    return sim
+                }
+            }
+        }
+        val slot = resolveSimSlot(context, accountHandle, accountId)
+        return simCards.firstOrNull { it.slotIndex == (slot - 1) } ?: simCards.firstOrNull()
+    }
+
+    /**
      * Resolves the Telecom PhoneAccountHandle associated with a given SIM slot index.
      */
     fun getPhoneAccountForSimSlot(context: Context, slotIndex: Int): PhoneAccountHandle? {

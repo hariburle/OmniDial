@@ -13,9 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -38,10 +39,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.AutomationLog
 import com.example.data.CallerRule
 import com.example.data.FavoriteContact
@@ -232,21 +234,25 @@ fun RulesScreen(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
+    var showRecipesModal by rememberSaveable { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<CallerRule?>(null) }
 
     LaunchedEffect(dismissModalsTrigger) {
         if (dismissModalsTrigger > 0L) {
             showDialog = false
             showHistoryDialog = false
+            showRecipesModal = false
             editingRule = null
         }
     }
 
-    BackHandler(enabled = showDialog || showHistoryDialog || editingRule != null) {
+    BackHandler(enabled = showDialog || showHistoryDialog || showRecipesModal || editingRule != null) {
         if (showDialog) {
             showDialog = false
         } else if (showHistoryDialog) {
             showHistoryDialog = false
+        } else if (showRecipesModal) {
+            showRecipesModal = false
         } else if (editingRule != null) {
             editingRule = null
         }
@@ -339,25 +345,47 @@ fun RulesScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            OutlinedButton(
-                                onClick = { showHistoryDialog = true },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .height(34.dp)
-                                    .testTag("rules_history_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.History,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "History (${automationLogs.size})",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedButton(
+                                    onClick = { showRecipesModal = true },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .height(34.dp)
+                                        .testTag("rules_recipes_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Recipes",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = { showHistoryDialog = true },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .height(34.dp)
+                                        .testTag("rules_history_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "History (${automationLogs.size})",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
 
@@ -468,47 +496,6 @@ fun RulesScreen(
                                 Spacer(modifier = Modifier.height(72.dp))
                             }
                         } else {
-                            // Quick-Start Templates horizontal carousel for discoverability
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "QUICK-START RECIPES",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                                )
-                                LazyRow(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    contentPadding = PaddingValues(horizontal = 16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(standardAutomationTemplates) { template ->
-                                        SuggestionChip(
-                                            onClick = {
-                                                editingRule = template.defaultRule.copy()
-                                                showDialog = true
-                                            },
-                                            label = {
-                                                Text(
-                                                    text = template.title,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            },
-                                            icon = {
-                                                Icon(
-                                                    imageVector = template.icon,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(14.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-
                             // Rules List with enhanced visual cards
                             LazyColumn(
                                 modifier = Modifier
@@ -612,6 +599,101 @@ fun RulesScreen(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             }
+        }
+
+        // Recipe Templates Modal Dialog
+        if (showRecipesModal) {
+            AlertDialog(
+                onDismissRequest = { showRecipesModal = false },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    decorFitsSystemWindows = false
+                ),
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .padding(vertical = 16.dp)
+                    .systemBarsPadding(),
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text("Automation Recipe Templates")
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Tap a pre-configured template to load and customize it:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        standardAutomationTemplates.forEach { template ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        editingRule = template.defaultRule.copy()
+                                        showRecipesModal = false
+                                        showDialog = true
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = template.icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = template.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = template.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        text = "+ Use",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showRecipesModal = false }) {
+                        Text("Close")
+                    }
+                }
+            )
         }
 
         // Execution History Dialog

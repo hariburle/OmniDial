@@ -107,9 +107,10 @@ fun ContactRowItem(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
+                            val primaryInitial = (contact.nickname?.ifBlank { null } ?: contact.name).take(1).uppercase()
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = contact.name.take(1).uppercase(),
+                                    text = primaryInitial,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -140,12 +141,15 @@ fun ContactRowItem(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
+                    val formalName = contact.name
+                    val nickname = contact.nickname?.ifBlank { null }
+                    val primaryName = nickname ?: formalName
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = contact.name,
+                            text = primaryName,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,

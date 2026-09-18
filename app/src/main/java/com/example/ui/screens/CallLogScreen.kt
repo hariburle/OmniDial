@@ -419,22 +419,22 @@ fun CallLogScreen(
         result
     }
 
-    var activeHighlightNumber by remember(highlightNumber) { mutableStateOf(highlightNumber) }
+    var activeHighlightedCallId by remember(highlightNumber) { mutableStateOf<Long?>(null) }
     var hasScrolledToHighlight by remember(highlightNumber) { mutableStateOf(false) }
 
     androidx.compose.runtime.LaunchedEffect(highlightNumber, filteredGroupedCalls) {
         if (!highlightNumber.isNullOrBlank() && filteredGroupedCalls.isNotEmpty() && !hasScrolledToHighlight) {
-            activeHighlightNumber = highlightNumber
             val targetDigits = highlightNumber.filter { it.isDigit() }.takeLast(10)
             val index = filteredGroupedCalls.indexOfFirst {
                 val callDigits = it.primaryCall.phoneNumber.filter { c -> c.isDigit() }.takeLast(10)
                 (targetDigits.isNotBlank() && callDigits == targetDigits) || it.primaryCall.phoneNumber == highlightNumber
             }
             if (index >= 0) {
+                activeHighlightedCallId = filteredGroupedCalls[index].primaryCall.id
                 hasScrolledToHighlight = true
                 listState.animateScrollToItem(index)
                 kotlinx.coroutines.delay(3500L)
-                activeHighlightNumber = null
+                activeHighlightedCallId = null
             }
         }
     }
@@ -789,7 +789,7 @@ fun CallLogScreen(
                 CallLogItem(
                     group = group,
                     isFavorite = isFav,
-                    highlightNumber = activeHighlightNumber,
+                    highlightNumber = if (activeHighlightedCallId == group.primaryCall.id) group.primaryCall.phoneNumber else null,
                     hasMultipleNumbers = hasMultipleNumbers,
                     numberLabel = numberLabel,
                     matchedDc = matchedDc,

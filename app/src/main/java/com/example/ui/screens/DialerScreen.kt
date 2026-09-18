@@ -122,7 +122,6 @@ import com.example.util.ContactHelper
 import com.example.util.DeviceContact
 import com.example.util.T9Helper
 import com.example.util.T9SearchResult
-import com.example.ui.components.QuickRecentsSection
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -265,7 +264,7 @@ fun DialerScreen(
             val cleanNum = number.filter { it.isDigit() }
             val fav = favorites.firstOrNull { it.phoneNumber.filter { c -> c.isDigit() } == cleanNum }
             if (fav != null) {
-                matchedContact = DeviceContact(fav.name, fav.phoneNumber, fav.label, fav.photoUri)
+                matchedContact = DeviceContact(fav.name, fav.phoneNumber, fav.label, fav.photoUri, nickname = fav.nickname)
             } else {
                 val directMatch = allSearchContacts.firstOrNull { dc ->
                     val dcClean = dc.phoneNumber.filter { it.isDigit() }
@@ -340,6 +339,7 @@ fun DialerScreen(
                 t9Matches = filteredT9Matches,
                 matchedContact = matchedContact,
                 onSelectContactNumber = { onSelectContactNumber(it) },
+                contacts = allSearchContacts,
                 modifier = Modifier.fillMaxSize()
             )
         }

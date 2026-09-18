@@ -369,12 +369,16 @@ fun ContactDetailsBottomSheet(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    val hasNickname = currentDisplayNickname.isNotBlank()
+                    val primaryHeadline = contact.name
+                    val subtitleText = if (hasNickname) "($currentDisplayNickname)" else "+ Add Nickname"
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = contact.name,
+                            text = primaryHeadline,
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
@@ -401,23 +405,13 @@ fun ContactDetailsBottomSheet(
                             }
                             .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        if (currentDisplayNickname.isNotBlank()) {
-                            Text(
-                                text = "\"$currentDisplayNickname\"",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.Center
-                            )
-                        } else {
-                            Text(
-                                text = "+ Add Nickname",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        Text(
+                            text = subtitleText,
+                            style = if (hasNickname) MaterialTheme.typography.titleSmall else MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = if (hasNickname) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center
+                        )
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit Nickname",

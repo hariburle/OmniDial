@@ -64,7 +64,7 @@ fun CallRedirectionCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "External Call Interception",
+                    text = "System Redirection Status",
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.bodyMedium
                 )

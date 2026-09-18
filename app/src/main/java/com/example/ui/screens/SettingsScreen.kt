@@ -181,7 +181,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "WhatsApp Audio Calls",
+            text = "Calling Channels",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -191,7 +191,6 @@ fun SettingsScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "WhatsApp Call Integration Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                 val options = listOf(
                     listOf(
                         Triple("ask_learn", "Ask & Learn", "Prompts once & memorizes choice") to Icons.Default.Psychology,
@@ -304,7 +303,6 @@ fun SettingsScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "Cellular SIM Preference Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                 val simModeOptions = listOf(
                     Triple("system", "System", "Highlights default SIM across contacts without clutter") to Icons.Default.PhoneAndroid,
                     Triple("ask_learn", "Ask & Learn", "Highlights default SIM and allows customizing SIM per contact") to Icons.Default.Psychology,
@@ -373,7 +371,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Bluetooth & Car Call Redirection",
+            text = "Bluetooth & Car Redirection",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -383,7 +381,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Call Protection & Start Screen",
+            text = "Dialer & Gestures",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -1065,14 +1063,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Protection & Spam",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         Surface(
             shape = RoundedCornerShape(12.dp),
@@ -1150,14 +1141,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Backup & Data Management",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         BackupManagementCard(
             localBackups = localBackups,

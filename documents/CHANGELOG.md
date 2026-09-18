@@ -2,6 +2,51 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v1.4.3] — Build 16 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Dedicated Nicknames Filter**: Added a top-level "Nicknames" filter tab with a clear face icon to the Contacts directory, enabling 1-tap filtering of all contacts with saved nicknames.
+- **Nickname-Aware Keypad Suggestions**: Predictive suggestions and recent calls in the dialer panel now prominently display contact nicknames alongside their formal names.
+- **Bi-Directional Recents Name & Number Resolution**: Keypad recent call suggestions now resolve contacts via both digits and names to reliably surface nicknames for incoming and outgoing records.
+
+### 🔧 Technical / Architecture Notes
+- **SmartContactSort Enum**: Added `NICKNAMES` to `SmartContactSort` in `ContactSortModels.kt` and integrated filter and sorting routines in `ContactsScreen.kt`.
+- **DialerSuggestionsList Enhancement**: Added `contactsByName` map alongside `contactsByDigits` for caller name fallback lookup in `DialerSuggestionsList.kt`.
+- **Unit Test Coverage**: Added `testSmartContactSortNicknames` in `ExampleUnitTest.kt` validating nickname filtering and enum properties.
+- Incremented `versionCode` to 16 and `versionName` to `"1.4.3"` in `app/build.gradle.kts`.
+
+---
+
+## 🚀 [v1.4.2] — Build 15 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Always-Accessible Automation Recipes**: Browse and apply pre-configured automation templates (such as Gate Buzzer, Auto-Answer, and VIP Ringing) at any time from the top "Recipes" header button or the "Automation Recipes Gallery" banner, even when rules already exist.
+- **Auto-Scrolling Rule Editor Keyboard**: Editing rule details or custom DTMF tones now smoothly and automatically scrolls focused text fields above the on-screen keyboard to prevent blocked inputs.
+- **Conflict-Free Presets Grid**: Replaced horizontal preset chip scrollers with an adaptive wrapping layout, preventing accidental swipe conflicts when editing rules.
+- **Unified & Complete Settings Backup**: SharedPreferences and configuration settings (including multi-SIM preferences and spam filters) now backup and restore with complete fidelity.
+
+### 🔧 Technical / Architecture Notes
+- **RuleEditDialog IME Insets**: Added `DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)` with `Modifier.systemBarsPadding().imePadding()` and `FlowRow` presets layout in `RuleEditDialog.kt`.
+- **Recipes Bottom Sheet**: Extracted recipe templates into a modal bottom sheet accessible via `showRecipeSheet` in `RulesScreen.kt`.
+- **Purged Orphan Sub-ViewModels**: Deleted unused legacy sub-ViewModels and unified state management across `MainViewModel.kt` and `MainActivity.kt`.
+- **Preferences Storage Unification**: Unified SharedPreferences under `"kishan_dialer_prefs"` across `MainViewModel`, `CallManager`, `CallNotificationReceiver`, `SpamManagementDialog`, and `BackupManager`.
+- **Telecom Subsystem Test Coverage**: Added Robolectric unit tests for `OmniCallRedirectionService`, `SimHelper`, and `ReminderScheduler`.
+- Incremented `versionCode` to 15 and `versionName` to `"1.4.2"` in `app/build.gradle.kts`.
+
+---
+
+## 🚀 [v1.4.1] — Build 14 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Visual Capabilities Showcase & High-Res Lightbox**: Interactive visual capability cards embedded into documentation and showcase highlighting per-number SIM routing, HUD routing, automated DTMF, and post-call notes.
+- **Default Navigation Fix**: Caller Rules tab opens directly to active rules roster by default.
+
+### 🔧 Technical / Architecture Notes
+- Refactored `index.html` capabilities grid with phone frame mockups and interactive lightbox modal.
+- Incremented `versionCode` to 14 and `versionName` to `"1.4.1"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.4.0] — Build 13 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

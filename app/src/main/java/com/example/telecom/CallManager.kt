@@ -27,8 +27,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -48,7 +51,9 @@ data class ActiveCallInfo(
     val numberLabel: String? = null,
     val trustTier: com.example.domain.usecase.TrustTier = com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
     val trustBadgeLabel: String? = null,
-    val simSlot: Int = 1
+    val simSlot: Int = 1,
+    val simDisplayName: String? = null,
+    val isRoaming: Boolean = false
 )
 
 @Immutable
@@ -68,6 +73,16 @@ data class BluetoothDeviceItem(
     val isHeadphone: Boolean = false
 )
 
+/**
+ * Central state machine and telephony coordinator for OmniDial.
+ *
+ * Responsibilities:
+ * - Bridges Android's native Telecom [InCallService] ([TelecomCallService]) with Compose UI StateFlows.
+ * - Reactive, non-blocking incoming call lifecycle evaluation (spam check, contact resolution, rules engine).
+ * - Multi-device audio routing (Earpiece, Speakerphone, Wired Headset, Bluetooth SCO/A2DP).
+ * - Touch-tone DTMF tone generation and interactive call automation pipelines.
+ * - Call duration tracking and persistent call log synchronizations.
+ */
 object CallManager {
     private const val TAG = "CallManager"
 
@@ -81,6 +96,9 @@ object CallManager {
     // Call UI State
     private val _activeCall = MutableStateFlow<ActiveCallInfo?>(null)
     val activeCall: StateFlow<ActiveCallInfo?> = _activeCall.asStateFlow()
+
+    private val _callLoggedEvent = MutableSharedFlow<Long>(extraBufferCapacity = 5)
+    val callLoggedEvent: SharedFlow<Long> = _callLoggedEvent.asSharedFlow()
 
     private val _isMuted = MutableStateFlow(false)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
@@ -206,10 +224,13 @@ object CallManager {
             else -> "Outgoing Call"
         }
 
-        val resolvedSimSlot = SimHelper.resolveSimSlot(
+        val resolvedSimInfo = SimHelper.resolveSimInfo(context, accountHandle = call.details?.accountHandle)
+        val resolvedSimSlot = resolvedSimInfo?.slotIndex?.plus(1) ?: SimHelper.resolveSimSlot(
             context = context,
             accountHandle = call.details?.accountHandle
         )
+        val resolvedSimName = resolvedSimInfo?.displayName
+        val isRoaming = resolvedSimInfo?.isRoaming == true
 
         // Instant UI Presentation (<16ms): Post placeholder call state immediately before any disk/Room queries
         val initialCallInfo = ActiveCallInfo(
@@ -226,7 +247,9 @@ object CallManager {
             numberLabel = "Mobile",
             trustTier = if (isVoicemail) com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS else com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
             trustBadgeLabel = if (isVoicemail) "Voicemail" else null,
-            simSlot = resolvedSimSlot
+            simSlot = resolvedSimSlot,
+            simDisplayName = resolvedSimName,
+            isRoaming = isRoaming
         )
         _activeCall.value = initialCallInfo
 
@@ -257,9 +280,16 @@ object CallManager {
                 Log.d(TAG, "Call details changed")
                 val current = _activeCall.value
                 if (current != null) {
-                    val updatedSlot = SimHelper.resolveSimSlot(context, details.accountHandle)
-                    if (updatedSlot != current.simSlot) {
-                        _activeCall.value = current.copy(simSlot = updatedSlot)
+                    val updatedSim = SimHelper.resolveSimInfo(context, details.accountHandle)
+                    val updatedSlot = updatedSim?.slotIndex?.plus(1) ?: SimHelper.resolveSimSlot(context, details.accountHandle)
+                    val updatedName = updatedSim?.displayName
+                    val updatedRoaming = updatedSim?.isRoaming == true
+                    if (updatedSlot != current.simSlot || updatedName != current.simDisplayName || updatedRoaming != current.isRoaming) {
+                        _activeCall.value = current.copy(
+                            simSlot = updatedSlot,
+                            simDisplayName = updatedName,
+                            isRoaming = updatedRoaming
+                        )
                     }
                 }
             }
@@ -300,7 +330,7 @@ object CallManager {
                 val photoUri = lookedUp?.photoUri ?: favContact?.photoUri
 
                 val isWhitelisted = isWhitelistedOrRuleMatched(context, number)
-                val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
                 val autoBlockCarrier = prefs.getBoolean("auto_block_carrier_spam", true)
                 val blockSpamPreset = prefs.getBoolean("block_telemarketers_robocalls", true)
                 val silenceUnknownPrivate = prefs.getBoolean("silence_unknown_private", false)
@@ -356,6 +386,7 @@ object CallManager {
                                 simSlot = resolvedSimSlot
                             )
                         )
+                        _callLoggedEvent.tryEmit(System.currentTimeMillis())
                     } catch (e: Exception) {
                         Log.e(TAG, "Error writing spam log", e)
                     }
@@ -386,7 +417,9 @@ object CallManager {
                     numberLabel = resolvedLabel,
                     trustTier = trustBadge.first,
                     trustBadgeLabel = trustBadge.second,
-                    simSlot = resolvedSimSlot
+                    simSlot = resolvedSimSlot,
+                    simDisplayName = resolvedSimName,
+                    isRoaming = isRoaming
                 )
                 _activeCall.value = enrichedCallInfo
 
@@ -487,6 +520,7 @@ object CallManager {
                             )
                         )
                         lastInsertedCallId = insertedId
+                        _callLoggedEvent.tryEmit(System.currentTimeMillis())
 
                         if (callType == 3) {
                             OngoingCallNotificationHelper.showMissedCallNotification(
@@ -562,7 +596,7 @@ object CallManager {
     private suspend fun isWhitelistedOrRuleMatched(context: Context, number: String): Boolean {
         if (number.isBlank()) return false
         try {
-            val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
             val notSpamSet = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()
             if (notSpamSet.any { ContactHelper.isSamePhoneNumber(it, number) }) {
                 Log.d(TAG, "Number $number is in user Not-Spam Whitelist. Whitelisted from carrier spam filter.")
@@ -1138,6 +1172,7 @@ object CallManager {
         updateBluetoothDevicesForSimulation(context)
 
         val isVoicemail = ContactHelper.isVoicemailNumber(context, number)
+        val simInfo = SimHelper.resolveSimInfo(context)
         val initialCallInfo = ActiveCallInfo(
             id = "sim_${System.currentTimeMillis()}",
             phoneNumber = number,
@@ -1152,7 +1187,10 @@ object CallManager {
             nickname = null,
             numberLabel = "Mobile",
             trustTier = if (isVoicemail) com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS else com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
-            trustBadgeLabel = if (isVoicemail) "Voicemail" else null
+            trustBadgeLabel = if (isVoicemail) "Voicemail" else null,
+            simSlot = simInfo?.slotIndex?.plus(1) ?: 1,
+            simDisplayName = simInfo?.displayName,
+            isRoaming = simInfo?.isRoaming == true
         )
         _activeCall.value = initialCallInfo
         TelecomVoipHelper.startVoipCall(context, number, initialCallInfo.displayName, isIncoming = true)
@@ -1207,6 +1245,7 @@ object CallManager {
         updateBluetoothDevicesForSimulation(context)
 
         val isVoicemail = ContactHelper.isVoicemailNumber(context, number)
+        val simInfo = SimHelper.resolveSimInfo(context)
         val initialCallInfo = ActiveCallInfo(
             id = "sim_out_${System.currentTimeMillis()}",
             phoneNumber = number,
@@ -1221,7 +1260,10 @@ object CallManager {
             nickname = null,
             numberLabel = "Mobile",
             trustTier = if (isVoicemail) com.example.domain.usecase.TrustTier.VERIFIED_BUSINESS else com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN,
-            trustBadgeLabel = if (isVoicemail) "Voicemail" else null
+            trustBadgeLabel = if (isVoicemail) "Voicemail" else null,
+            simSlot = simInfo?.slotIndex?.plus(1) ?: 1,
+            simDisplayName = simInfo?.displayName,
+            isRoaming = simInfo?.isRoaming == true
         )
         _activeCall.value = initialCallInfo
         TelecomVoipHelper.startVoipCall(context, number, initialCallInfo.displayName, isIncoming = false)

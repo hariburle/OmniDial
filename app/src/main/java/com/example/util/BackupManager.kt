@@ -84,13 +84,20 @@ object BackupManager {
         val prefsObj = JSONObject()
         prefsObj.put("theme_mode", prefs.getString("theme_mode", "system"))
         prefsObj.put("whatsapp_call_mode", prefs.getString("whatsapp_call_mode", "ask_learn"))
+        prefsObj.put("global_sim_pref_mode", prefs.getString("global_sim_pref_mode", "system"))
         prefsObj.put("call_answer_style", prefs.getString("call_answer_style", "swipe_slider"))
         prefsObj.put("favorite_card_style", prefs.getString("favorite_card_style", "bento"))
         prefsObj.put("confirm_fav_calls", prefs.getBoolean("confirm_fav_calls", true))
         prefsObj.put("confirm_speed_dial_call", prefs.getBoolean("confirm_speed_dial_call", true))
         prefsObj.put("ask_assign_unassigned_speed_dial", prefs.getBoolean("ask_assign_unassigned_speed_dial", true))
+        prefsObj.put("speed_dial_keypad_display", prefs.getString("speed_dial_keypad_display", "speed_dial_above"))
+        prefsObj.put("show_dialer_quick_actions", prefs.getBoolean("show_dialer_quick_actions", true))
         prefsObj.put("default_start_tab", prefs.getInt("default_start_tab", 0))
         prefsObj.put("swipe_to_switch_panels", prefs.getBoolean("swipe_to_switch_panels", true))
+        prefsObj.put("nav_bar_style", prefs.getString("nav_bar_style", "full"))
+        prefsObj.put("auto_block_carrier_spam", prefs.getBoolean("auto_block_carrier_spam", true))
+        prefsObj.put("block_telemarketers_robocalls", prefs.getBoolean("block_telemarketers_robocalls", true))
+        prefsObj.put("silence_unknown_private", prefs.getBoolean("silence_unknown_private", false))
 
         fun stringSetToJson(key: String): JSONArray {
             val arr = JSONArray()
@@ -99,6 +106,8 @@ object BackupManager {
         }
 
         prefsObj.put("whatsapp_learned_choices", stringSetToJson("whatsapp_learned_choices"))
+        prefsObj.put("learned_call_modes", stringSetToJson("learned_call_modes"))
+        prefsObj.put("contact_sim_preferences", stringSetToJson("contact_sim_preferences"))
         prefsObj.put("not_spam_whitelist", stringSetToJson("not_spam_whitelist"))
         prefsObj.put("favorite_sort_orders", stringSetToJson("favorite_sort_orders"))
         prefsObj.put("speed_dial_assignments", stringSetToJson("speed_dial_assignments"))
@@ -254,12 +263,6 @@ object BackupManager {
     suspend fun restoreBackupFromUri(context: Context, uri: Uri): BackupRestoreResult = withContext(Dispatchers.IO) {
         try {
             val fileName = getUriFileName(context, uri)
-            if (fileName != null && !fileName.contains("omnidial_backup_") && !fileName.endsWith(".bak") && !fileName.endsWith(".json")) {
-                return@withContext BackupRestoreResult(
-                    success = false,
-                    message = "Selected file is not a valid OmniDial backup."
-                )
-            }
 
             val jsonContent = StringBuilder()
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -272,8 +275,36 @@ object BackupManager {
                 }
             }
 
+            if (jsonContent.isBlank()) {
+                return@withContext BackupRestoreResult(
+                    success = false,
+                    message = "Selected file is empty."
+                )
+            }
+
             val root = JSONObject(jsonContent.toString())
-            restoreBackupFromJsonRoot(context, root)
+            val restoreResult = restoreBackupFromJsonRoot(context, root)
+            if (restoreResult.success) {
+                try {
+                    val key = root.optLong("timestamp", 0L).let {
+                        if (it > 0L) SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(it)) else ""
+                    }
+                    val targetName = if (fileName != null && fileName.contains("omnidial_backup_")) {
+                        val base = fileName.substringBefore(".bak.json")
+                        if (base.endsWith(".bak")) base else "$base.bak"
+                    } else if (key.isNotEmpty()) {
+                        "omnidial_backup_$key.bak"
+                    } else {
+                        generateBackupFileName()
+                    }
+
+                    unmarkDeletedBackup(context, targetName)
+                    val internalDir = getLocalBackupsDir(context)
+                    val cachedFile = File(internalDir, targetName)
+                    cachedFile.writeText(jsonContent.toString())
+                } catch (_: Throwable) {}
+            }
+            restoreResult
         } catch (e: Exception) {
             e.printStackTrace()
             BackupRestoreResult(
@@ -287,11 +318,14 @@ object BackupManager {
         try {
             // Validate application identity and schema version
             val appName = root.optString("appName", "")
-            if (appName.isNotBlank() && appName != "OmniDial") {
-                return@withContext BackupRestoreResult(
-                    success = false,
-                    message = "Unrecognized backup source: $appName"
-                )
+            val validAppNames = setOf("", "OmniDial", "OmniDialer", "Kishan Dialer", "Kishan-Dialer", "Dialer")
+            if (appName.isNotBlank() && !validAppNames.contains(appName)) {
+                if (!root.has("preferences") && !root.has("rules") && !root.has("favorites") && !root.has("localContacts")) {
+                    return@withContext BackupRestoreResult(
+                        success = false,
+                        message = "Unrecognized backup source: $appName"
+                    )
+                }
             }
 
             val schemaVersion = root.optInt("schemaVersion", root.optInt("version", 1))
@@ -330,13 +364,20 @@ object BackupManager {
                 val editor = prefs.edit()
                 if (prefsObj.has("theme_mode")) editor.putString("theme_mode", prefsObj.getString("theme_mode"))
                 if (prefsObj.has("whatsapp_call_mode")) editor.putString("whatsapp_call_mode", prefsObj.getString("whatsapp_call_mode"))
+                if (prefsObj.has("global_sim_pref_mode")) editor.putString("global_sim_pref_mode", prefsObj.getString("global_sim_pref_mode"))
                 if (prefsObj.has("call_answer_style")) editor.putString("call_answer_style", prefsObj.getString("call_answer_style"))
                 if (prefsObj.has("favorite_card_style")) editor.putString("favorite_card_style", prefsObj.getString("favorite_card_style"))
                 if (prefsObj.has("confirm_fav_calls")) editor.putBoolean("confirm_fav_calls", prefsObj.getBoolean("confirm_fav_calls"))
                 if (prefsObj.has("confirm_speed_dial_call")) editor.putBoolean("confirm_speed_dial_call", prefsObj.getBoolean("confirm_speed_dial_call"))
                 if (prefsObj.has("ask_assign_unassigned_speed_dial")) editor.putBoolean("ask_assign_unassigned_speed_dial", prefsObj.getBoolean("ask_assign_unassigned_speed_dial"))
+                if (prefsObj.has("speed_dial_keypad_display")) editor.putString("speed_dial_keypad_display", prefsObj.getString("speed_dial_keypad_display"))
+                if (prefsObj.has("show_dialer_quick_actions")) editor.putBoolean("show_dialer_quick_actions", prefsObj.getBoolean("show_dialer_quick_actions"))
                 if (prefsObj.has("default_start_tab")) editor.putInt("default_start_tab", prefsObj.getInt("default_start_tab"))
                 if (prefsObj.has("swipe_to_switch_panels")) editor.putBoolean("swipe_to_switch_panels", prefsObj.getBoolean("swipe_to_switch_panels"))
+                if (prefsObj.has("nav_bar_style")) editor.putString("nav_bar_style", prefsObj.getString("nav_bar_style"))
+                if (prefsObj.has("auto_block_carrier_spam")) editor.putBoolean("auto_block_carrier_spam", prefsObj.getBoolean("auto_block_carrier_spam"))
+                if (prefsObj.has("block_telemarketers_robocalls")) editor.putBoolean("block_telemarketers_robocalls", prefsObj.getBoolean("block_telemarketers_robocalls"))
+                if (prefsObj.has("silence_unknown_private")) editor.putBoolean("silence_unknown_private", prefsObj.getBoolean("silence_unknown_private"))
 
                 fun jsonToStringSet(key: String): Set<String> {
                     if (!prefsObj.has(key)) return emptySet()
@@ -349,6 +390,8 @@ object BackupManager {
                 }
 
                 editor.putStringSet("whatsapp_learned_choices", jsonToStringSet("whatsapp_learned_choices"))
+                editor.putStringSet("learned_call_modes", jsonToStringSet("learned_call_modes"))
+                editor.putStringSet("contact_sim_preferences", jsonToStringSet("contact_sim_preferences"))
                 editor.putStringSet("not_spam_whitelist", jsonToStringSet("not_spam_whitelist"))
                 editor.putStringSet("favorite_sort_orders", jsonToStringSet("favorite_sort_orders"))
                 editor.putStringSet("speed_dial_assignments", jsonToStringSet("speed_dial_assignments"))
@@ -541,20 +584,36 @@ object BackupManager {
                 // Secondary external write is best-effort
             }
 
-            // 3. Persist to Public Documents/OmniDial via MediaStore (Android 10+ / API 29+) or direct file API (< API 29)
-            // This guarantees backup files SURVIVE app uninstalls, rebuilds, and clear data!
+            // 3. Persist to Public Documents/OmniDial and Downloads/OmniDial via MediaStore (survives uninstalls)
             try {
+                unmarkDeletedBackup(context, fileName)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     val resolver = context.contentResolver
-                    val contentValues = ContentValues().apply {
+                    val mime = if (fileName.endsWith(".json")) "application/json" else "application/octet-stream"
+
+                    // Save to Documents/OmniDial
+                    val docValues = ContentValues().apply {
                         put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                        put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+                        put(MediaStore.MediaColumns.MIME_TYPE, mime)
                         put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOCUMENTS}/OmniDial")
                     }
-                    val targetUri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
-                        ?: resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                    if (targetUri != null) {
-                        resolver.openOutputStream(targetUri)?.use { os ->
+                    val docUri = resolver.insert(MediaStore.Files.getContentUri("external"), docValues)
+                    if (docUri != null) {
+                        resolver.openOutputStream(docUri)?.use { os ->
+                            os.write(json.toByteArray(Charsets.UTF_8))
+                            os.flush()
+                        }
+                    }
+
+                    // Also save to Downloads/OmniDial so it is immediately visible in default Downloads picker
+                    val dlValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniDial")
+                    }
+                    val dlUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, dlValues)
+                    if (dlUri != null) {
+                        resolver.openOutputStream(dlUri)?.use { os ->
                             os.write(json.toByteArray(Charsets.UTF_8))
                             os.flush()
                         }
@@ -562,8 +621,11 @@ object BackupManager {
                 } else {
                     val pubDocs = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "OmniDial")
                     if (!pubDocs.exists()) pubDocs.mkdirs()
-                    val pubFile = File(pubDocs, fileName)
-                    pubFile.writeText(json)
+                    File(pubDocs, fileName).writeText(json)
+
+                    val pubDl = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "OmniDial")
+                    if (!pubDl.exists()) pubDl.mkdirs()
+                    File(pubDl, fileName).writeText(json)
                 }
             } catch (e: Exception) {
                 // Public storage persistence is best-effort fallback
@@ -578,9 +640,14 @@ object BackupManager {
 
     fun listLocalBackups(context: Context): List<File> {
         val internalDir = getLocalBackupsDir(context)
-        val discoveredFiles = mutableListOf<File>()
+        val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+        val deletedKeys = prefs.getStringSet("deleted_backup_keys", emptySet()) ?: emptySet()
 
         fun isBackupFile(name: String): Boolean {
+            val key = getBackupKey(name)
+            if (deletedKeys.contains(key) || deletedKeys.contains(name)) {
+                return false
+            }
             val lower = name.lowercase()
             return lower.endsWith(".bak") || lower.endsWith(".json") || lower.contains("backup") || lower.contains("omnidial")
         }
@@ -627,11 +694,9 @@ object BackupManager {
             } catch (_: Throwable) {}
         }
 
-        // 2. Scan standard and public directories (internal, app external, public Documents/Downloads)
+        // 2. Scan standard candidate directories and mirror into internalDir
         val candidateDirs = mutableListOf<File>()
-        candidateDirs.add(internalDir)
         candidateDirs.add(context.filesDir)
-
         getExternalBackupsDir(context)?.let { candidateDirs.add(it) }
         context.getExternalFilesDir(null)?.let { candidateDirs.add(it) }
         context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)?.let { candidateDirs.add(it) }
@@ -656,8 +721,7 @@ object BackupManager {
                     val files = dir.listFiles() ?: continue
                     for (file in files) {
                         if (file.isFile && isBackupFile(file.name)) {
-                            discoveredFiles.add(file)
-                            // If found in another location, mirror it into internalDir so it remains visible
+                            // Mirror into internalDir
                             if (file.parentFile?.absolutePath != internalDir.absolutePath) {
                                 try {
                                     val target = File(internalDir, file.name)
@@ -672,20 +736,48 @@ object BackupManager {
             } catch (_: Throwable) {}
         }
 
-        // Also add files currently in internalDir
+        // 3. Scan internalDir and return only internal valid files, deduplicated by key
+        val internalFiles = mutableListOf<File>()
         if (internalDir.exists()) {
             internalDir.listFiles()?.forEach { f ->
-                if (f.isFile && isBackupFile(f.name)) {
-                    discoveredFiles.add(f)
+                if (f.isFile && isBackupFile(f.name) && f.length() > 0L) {
+                    internalFiles.add(f)
                 }
             }
         }
 
-        // Return deduplicated by file name, newest first
-        return discoveredFiles
-            .groupBy { it.name }
-            .map { entry -> entry.value.maxByOrNull { it.lastModified() } ?: entry.value.first() }
-            .sortedByDescending { it.lastModified() }
+        val grouped = internalFiles.groupBy { getBackupKey(it.name) }
+        val result = mutableListOf<File>()
+
+        for ((_, group) in grouped) {
+            val primary = group.maxWithOrNull(
+                compareBy<File> { it.name.endsWith(".bak") && !it.name.contains(" (") && !it.name.endsWith(".bak.json") }
+                    .thenBy { it.length() }
+                    .thenBy { it.lastModified() }
+            ) ?: group.first()
+
+            result.add(primary)
+
+            // Clean up redundant duplicate files with mangled names in internalDir
+            for (dup in group) {
+                if (dup != primary) {
+                    try {
+                        dup.delete()
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        return result.sortedByDescending { it.lastModified() }
+    }
+
+    fun getBackupKey(fileName: String): String {
+        val timestampRegex = Regex("""\d{8}_\d{6}""")
+        val match = timestampRegex.find(fileName)
+        if (match != null) {
+            return match.value
+        }
+        return fileName.substringBeforeLast(".")
     }
 
     suspend fun restoreBackupFromFile(context: Context, file: File): BackupRestoreResult = withContext(Dispatchers.IO) {
@@ -705,12 +797,75 @@ object BackupManager {
         }
     }
 
+    fun unmarkDeletedBackup(context: Context, fileName: String) {
+        try {
+            val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+            val key = getBackupKey(fileName)
+            val existing = prefs.getStringSet("deleted_backup_keys", emptySet())?.toMutableSet() ?: mutableSetOf()
+            val removed = existing.removeAll { it == key || it == fileName || (key.isNotEmpty() && it.contains(key)) || getBackupKey(it) == key }
+            if (removed || existing.isEmpty()) {
+                prefs.edit().putStringSet("deleted_backup_keys", existing).commit()
+            }
+        } catch (_: Throwable) {}
+    }
+
     suspend fun deleteLocalBackup(file: File, context: Context? = null): Boolean = withContext(Dispatchers.IO) {
         try {
             var deleted = false
+            val key = getBackupKey(file.name)
+
+            // 1. Record in persistent deleted set so Scoped Storage ghosts cannot reappear
+            if (context != null) {
+                try {
+                    val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+                    val existing = prefs.getStringSet("deleted_backup_keys", emptySet())?.toMutableSet() ?: mutableSetOf()
+                    existing.add(key)
+                    existing.add(file.name)
+                    prefs.edit().putStringSet("deleted_backup_keys", existing).apply()
+                } catch (_: Throwable) {}
+            }
+
+            // 2. Delete file object itself
             if (file.exists()) {
                 deleted = file.delete()
             }
+
+            // 3. Clean up any copies or aliases across all standard backup directories
+            val candidateDirs = mutableListOf<File>()
+            if (context != null) {
+                candidateDirs.add(getLocalBackupsDir(context))
+                getExternalBackupsDir(context)?.let { candidateDirs.add(it) }
+                context.getExternalFilesDir(null)?.let { candidateDirs.add(it) }
+                context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)?.let { candidateDirs.add(it) }
+                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { candidateDirs.add(it) }
+                try {
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)?.let {
+                        candidateDirs.add(it)
+                        candidateDirs.add(File(it, "OmniDial"))
+                    }
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)?.let {
+                        candidateDirs.add(it)
+                        candidateDirs.add(File(it, "OmniDial"))
+                    }
+                } catch (_: Throwable) {}
+            } else {
+                file.parentFile?.let { candidateDirs.add(it) }
+            }
+
+            for (dir in candidateDirs) {
+                try {
+                    if (dir.exists() && dir.isDirectory) {
+                        dir.listFiles()?.forEach { f ->
+                            if (f.isFile && (f.name == file.name || getBackupKey(f.name) == key)) {
+                                f.delete()
+                                deleted = true
+                            }
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+
+            // 4. Delete from MediaStore (both Files and Downloads)
             if (context != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {
                     val resolver = context.contentResolver
@@ -719,24 +874,17 @@ object BackupManager {
                         MediaStore.Downloads.EXTERNAL_CONTENT_URI
                     )
                     for (qUri in urisToQuery) {
-                        resolver.delete(
-                            qUri,
-                            "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
-                            arrayOf(file.name)
-                        )
+                        try {
+                            resolver.delete(
+                                qUri,
+                                "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?",
+                                arrayOf("%$key%")
+                            )
+                        } catch (_: Throwable) {}
                     }
                 } catch (_: Throwable) {}
             }
-            try {
-                val pubDocs = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "OmniDial")
-                val pubFile = File(pubDocs, file.name)
-                if (pubFile.exists()) pubFile.delete()
-            } catch (_: Throwable) {}
-            try {
-                val pubDownloads = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "OmniDial")
-                val pubFile = File(pubDownloads, file.name)
-                if (pubFile.exists()) pubFile.delete()
-            } catch (_: Throwable) {}
+
             deleted
         } catch (e: Exception) {
             e.printStackTrace()

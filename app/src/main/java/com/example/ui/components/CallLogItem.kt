@@ -244,16 +244,6 @@ fun CallLogItem(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (effectiveNickname != null && formalName != null && !effectiveNickname.equals(formalName, ignoreCase = true)) {
-                            Text(
-                                text = "($formalName)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                        }
                         if (group.count > 1) {
                             Surface(
                                 shape = RoundedCornerShape(10.dp),

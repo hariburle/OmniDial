@@ -47,7 +47,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - The new backup entry appears immediately in the "Available Backups" list with its timestamp and file size.
 
 ### 5. Task 36 (Phase 8): Automatic Backup Scan & One-Tap Restore (v1.1.4)
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. In the **Backup & Restore** card under "Available Backups", locate an existing backup entry.
   2. Tap the **"Restore"** icon button next to that backup.
@@ -58,7 +58,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - A confirmation notification confirms the successful restore.
 
 ### 6. Task 37 (Phase 8): Backup Deletion & Storage Management (v1.1.4)
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. In the **Backup & Restore** card, tap the **Delete (Trash)** icon on a listed backup.
   2. Confirm deletion in the safety prompt.
@@ -67,7 +67,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - The item vanishes immediately from the list with zero orphaned files left behind.
 
 ### 7. Task 38 (Phase 8): External Backup File Import & Cross-Device Transfer (v1.1.4)
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. In the **Backup & Restore** card, tap **"Browse Files"**.
   2. Select an `omnidial_backup_*.json` file from device Downloads or cloud drive.
@@ -113,7 +113,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Bluetooth device transitions, mute state, and disconnect actions execute reliably and release system audio locks.
 
 ### 11. Task 11.1 (Phase 11): Modernized Automation Pipeline & Quick-Start Gallery
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. Navigate to **Rules** (Tab 4).
   2. Inspect the horizontal **Quick-Start Recipes** carousel at the top (Gate Buzzer, Delivery Gate, SMS Responder).
@@ -129,7 +129,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - History sheet opens cleanly and displays recent trigger activity.
 
 ### 12. Task 11.2 (Phase 11): Interactive Dry-Run Rule Simulator
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. On any rule card in **Rules** (Tab 4), tap the **"Test Rule"** (beaker/flask) action button.
   2. In the Rule Simulation bottom sheet, review the listed execution steps.
@@ -168,7 +168,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Call cleanly terminates automatically.
 
 ### 15. Task 11.5 (Phase 11): Backup & Restore of Ambient Automation Fields
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. In **Rules** (Tab 4), create rules with Wi-Fi SSID, Bluetooth Device, Auto-Speakerphone, and Auto-Mute Mic configured.
   2. In **Backup & Restore**, tap **"Backup Now"**.
@@ -190,7 +190,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Active `InCallScreen` is surfaced with 100% priority and zero visual obstruction.
 
 ### 17. Task 10.6 (Issue #40): Public Storage MediaStore Backup Persistence (Survive Clean Reinstalls)
-- [ ] **To Test**
+- [x] **Verified** TESTED
 - **Test Steps**:
   1. In **Rules / Settings** (Tab 4), scroll to **Backup & Restore** and tap **"Backup Now"**.
   2. Confirm the backup file appears in "Available Backups".
@@ -214,6 +214,54 @@ Items currently pending verification or undergoing testing. Verified items are a
 - **Expected Result**:
   - Tapping missed call notification navigates to Recents, smoothly scrolls to the exact entry, and pulses the highlight before fading back cleanly.
 
+### 19. Task 19 (v1.4.2): Rule Editor Keyboard Insets & Soft Keyboard Auto-Scroll
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. Open **Rules** (Tab 4) and tap **+** or edit an existing rule.
+  2. Tap into lower text fields (e.g. "DTMF Start Delay", "SMS Message Content", or "Required Wi-Fi SSID").
+  3. Observe soft keyboard opening.
+- **Expected Result**:
+  - Dialog smoothly resizes and scrolls the focused input field upward above the keyboard with zero obscured text inputs.
+
+### 20. Task 20 (v1.4.2): Redesigned Rule Editor UX & Sticky Action Bar
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. Open **Rule Editor** dialog.
+  2. Inspect the live **Workflow Pipeline Preview** indicator at the top as you toggle Auto-Answer, Auto-Mute, DTMF, SMS, and Auto-Hangup switches.
+  3. Inspect the categorized section cards and quick preset chips.
+  4. Edit rule parameters and tap the prominent bottom **"Create Rule" / "Save Changes"** button.
+- **Expected Result**:
+  - Live pipeline preview updates reactively.
+  - Section cards (Identification, Call Actions, Audio Routing, SMS, Geofence) present a clean visual hierarchy.
+  - Prominent sticky bottom action bar provides instant one-tap save without scrolling to bottom.
+
+### 21. Task 21 (v1.4.2): Top Header Recipes Gallery & Conflict-Free Presets Grid
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. In **Rules** (Tab 4), tap the top header **"Recipes"** button when rules are present.
+  2. Select any template (Gate Buzzer, Delivery Gate, SMS Responder, Voicemail PIN).
+  3. Observe rule dialog opening pre-filled with the selected template.
+- **Expected Result**:
+  - Recipe templates gallery opens cleanly in a bottom sheet anytime.
+  - Active rules list begins immediately below the header without redundant banner cards taking up screen space.
+
+### 22. Task 22 (v1.4.2): Unified Multi-SIM & Carrier Spam Settings Backup
+- [x] **Verified** TESTED
+- **Test Steps**:
+  1. In **Settings** (Tab 4), set Global SIM Preference to **"International"** or **"Ask & Learn"**.
+  2. In Spam Management, enable Carrier Spam Defense toggles.
+  3. Tap **"Backup Now"** in Backup & Restore.
+  4. Reset app settings or delete preferences, then tap **"Restore"**.
+- **Expected Result**:
+  - All multi-SIM preference modes and carrier spam defense switches restore accurately with full fidelity.
+
+### 23. Task 23 (v1.4.2): Automated Telecom Subsystem Unit Tests
+- [x] **Verified** TESTED (Executed via `./gradlew testDebugUnitTest` with 100% pass rate)
+- **Test Coverage**:
+  - `OmniCallRedirectionServiceTest`: External outgoing call interception, voicemail bypassing, SIM account binding, WhatsApp routing fallback.
+  - `SimHelperTest`: Multi-SIM subscription resolution, direct carrier display names, roaming status queries.
+  - `ReminderSchedulerTest`: Post-call AlarmManager callback scheduling, exact timing, alarm cancelation.
+
 ---
 
 ## 🔍 Open Issues & Feedback Items Under Investigation
@@ -222,3 +270,4 @@ Items currently pending verification or undergoing testing. Verified items are a
 2. [x] **Task 7 (Phase 3) / Task 10.7**: Missed Call notification deep link navigation & auto-scroll highlighting — **VERIFIED FIXED** (auto-target, smooth scroll, and 3.5s pulse fade implemented).
 3. [x] **Task 19 (Phase 6)**: WhatsApp outgoing call log entries in Recents visual badge/icon — **VERIFIED FIXED** (green WhatsApp indicator displays cleanly).
 4. [x] **Task 29 (Phase 6)**: Keyboard auto-opening behavior on app startup — **VERIFIED FIXED** (stays dismissed on launch).
+5. [x] **Task 20 (v1.4.2)**: Rule Editor UX overhaul, sticky Save button, and IME auto-scroll — **VERIFIED FIXED**.

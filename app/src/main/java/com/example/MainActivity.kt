@@ -135,38 +135,22 @@ import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.InCallScreen
 import com.example.ui.screens.RulesScreen
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.viewmodels.CallLogViewModel
-import com.example.ui.viewmodels.ContactsViewModel
-import com.example.ui.viewmodels.DialerViewModel
-import com.example.ui.viewmodels.FavoritesViewModel
-import com.example.ui.viewmodels.RulesViewModel
-import com.example.ui.viewmodels.ViewModelFactory
 
+/**
+ * Main application window and root coordinator for OmniDial.
+ *
+ * Architecture & Features:
+ * - Single-Activity architecture with 5 primary tabs (Favorites, Recents, Keypad, Contacts, Rules/Settings).
+ * - Manages Telecom Default Dialer role requests, system overlay permissions, and lockscreen wake flags.
+ * - Dynamically overlays [InCallScreen] when an active call is present, with Picture-in-Picture (PiP) support.
+ * - Handles incoming notification deep links (e.g. Missed Call high-priority scrolling).
+ */
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels {
         MainViewModel.provideFactory(this)
     }
 
-    private val dialerViewModel: DialerViewModel by viewModels {
-        ViewModelFactory(this)
-    }
-
-    private val callLogViewModel: CallLogViewModel by viewModels {
-        ViewModelFactory(this)
-    }
-
-    private val contactsViewModel: ContactsViewModel by viewModels {
-        ViewModelFactory(this)
-    }
-
-    private val favoritesViewModel: FavoritesViewModel by viewModels {
-        ViewModelFactory(this)
-    }
-
-    private val rulesViewModel: RulesViewModel by viewModels {
-        ViewModelFactory(this)
-    }
 
     private var isInPipMode by mutableStateOf(false)
 

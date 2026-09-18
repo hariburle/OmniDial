@@ -302,8 +302,9 @@ fun InCallScreen(
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             } else if (callInfo.displayName.isNotBlank() && callInfo.displayName != "Incoming Caller" && callInfo.displayName != "Calling...") {
+                                val primaryInitial = (callInfo.nickname?.ifBlank { null } ?: callInfo.displayName).take(1).uppercase()
                                 Text(
-                                    text = callInfo.displayName.take(1).uppercase(),
+                                    text = primaryInitial,
                                     style = MaterialTheme.typography.displaySmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -325,41 +326,26 @@ fun InCallScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
+                    val formalName = callInfo.displayName
+                    val nickname = callInfo.nickname?.ifBlank { null }
+                    val primaryNameToDisplay = nickname ?: formalName
                     Text(
-                        text = callInfo.displayName,
+                        text = primaryNameToDisplay,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
 
-                    // Nickname badge if available and distinct from displayName
-                    if (!callInfo.nickname.isNullOrBlank() && !callInfo.nickname.equals(callInfo.displayName, ignoreCase = true)) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                            modifier = Modifier.padding(top = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Nickname",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = "\"${callInfo.nickname}\"",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
+                    // If nickname is primary, display the formal full name below
+                    if (nickname != null && formalName.isNotBlank() && !nickname.equals(formalName, ignoreCase = true) && formalName != callInfo.phoneNumber && formalName != "Incoming Caller") {
+                        Text(
+                            text = formalName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
                     }
 
                     // Label and Number
@@ -383,6 +369,68 @@ fun InCallScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
+                    }
+
+                    // SIM & Roaming Indicator Badge
+                    val simLabel = if (!callInfo.simDisplayName.isNullOrBlank()) {
+                        "SIM ${callInfo.simSlot} (${callInfo.simDisplayName})"
+                    } else {
+                        "SIM ${callInfo.simSlot}"
+                    }
+
+                    if (callInfo.isRoaming) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color(0xFFFEF3C7),
+                            border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Roaming Warning",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color(0xFFD97706)
+                                )
+                                Text(
+                                    text = "$simLabel • ROAMING",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF92400E)
+                                )
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PhoneAndroid,
+                                    contentDescription = "SIM Card",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = simLabel,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
 
                     // Trust Badge (Verified Business, Priority Logistics, Spam Risk)

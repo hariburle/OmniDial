@@ -64,7 +64,6 @@ import com.example.ui.models.ContactSortOrder
 import com.example.ui.models.ContactSourceFilter
 import com.example.ui.models.SmartContactSort
 import com.example.ui.components.ContactRowItem
-import com.example.ui.components.FavoriteTopChip
 
 private fun getContactStats(
     c: DeviceContact,
@@ -189,14 +188,32 @@ fun ContactsScreen(
         }
     }
 
-    // Directly use deviceContacts as the single source of truth
-    val effectiveContacts = deviceContacts
+    // Directly use deviceContacts as the single source of truth, enriched with favorite nicknames
+    val effectiveContacts = remember(deviceContacts, favorites) {
+        val favNickMap = favorites.filter { !it.nickname.isNullOrBlank() }.associate { f ->
+            f.phoneNumber.replace(Regex("[^0-9+]"), "") to f.nickname!!.trim()
+        }
+        val favNameNickMap = favorites.filter { !it.nickname.isNullOrBlank() }.associate { f ->
+            f.name.trim().lowercase() to f.nickname!!.trim()
+        }
+        deviceContacts.map { c ->
+            if (c.nickname.isNullOrBlank()) {
+                val normNum = c.phoneNumber.replace(Regex("[^0-9+]"), "")
+                val nickByNum = favNickMap[normNum] ?: c.phoneNumbers.firstNotNullOfOrNull { pn ->
+                    favNickMap[pn.number.replace(Regex("[^0-9+]"), "")]
+                }
+                val nickByName = favNameNickMap[c.name.trim().lowercase()]
+                val fallbackNick = nickByNum ?: nickByName
+                if (fallbackNick != null) c.copy(nickname = fallbackNick) else c
+            } else c
+        }
+    }
 
     // Live update or close bottom sheet if contact was modified or deleted externally
     LaunchedEffect(deviceContacts) {
         val current = contactForDetailsSheet
         if (current != null) {
-            val updated = deviceContacts.firstOrNull { c ->
+            val updated = effectiveContacts.firstOrNull { c ->
                 (current.contactId != null && c.contactId == current.contactId) ||
                 (c.name.equals(current.name, ignoreCase = true) && c.phoneNumber == current.phoneNumber)
             }
@@ -298,6 +315,13 @@ fun ContactsScreen(
                     isNameFav || isNickFav || isPhoneFav || isAnyPnFav
                 }
             }
+            SmartContactSort.NICKNAMES -> {
+                val comparator = compareBy<DeviceContact, String>(String.CASE_INSENSITIVE_ORDER) {
+                    it.nickname?.trim() ?: it.name.trim()
+                }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name }
+                val nickList = filteredContacts.filter { !it.nickname.isNullOrBlank() }.sortedWith(comparator)
+                if (sortOrder == ContactSortOrder.ASCENDING) nickList else nickList.reversed()
+            }
             SmartContactSort.RECENT -> {
                 filteredContacts
                     .map { c -> c to getContactStats(c, lastTsMap, countMap) }
@@ -385,6 +409,7 @@ fun ContactsScreen(
                 val icon = when (sortMode) {
                     SmartContactSort.ALL -> Icons.Default.People
                     SmartContactSort.FAVORITES -> Icons.Default.Star
+                    SmartContactSort.NICKNAMES -> Icons.Default.Face
                     SmartContactSort.RECENT -> Icons.Default.History
                     SmartContactSort.FREQUENT -> Icons.Default.LocalFireDepartment
                     SmartContactSort.REDISCOVER -> Icons.Default.Casino
@@ -392,6 +417,7 @@ fun ContactsScreen(
                 val accentColor = when (sortMode) {
                     SmartContactSort.ALL -> MaterialTheme.colorScheme.primary
                     SmartContactSort.FAVORITES -> Color(0xFFF59E0B)
+                    SmartContactSort.NICKNAMES -> Color(0xFFEC4899)
                     SmartContactSort.RECENT -> Color(0xFF10B981)
                     SmartContactSort.FREQUENT -> Color(0xFFEF4444)
                     SmartContactSort.REDISCOVER -> Color(0xFF8B5CF6)
@@ -578,6 +604,7 @@ fun ContactsScreen(
                 text = when (smartSortBy) {
                     SmartContactSort.ALL -> "Showing All (${sortedContacts.size})"
                     SmartContactSort.FAVORITES -> "Showing Favorites (${sortedContacts.size})"
+                    SmartContactSort.NICKNAMES -> "Showing Nicknames (${sortedContacts.size})"
                     SmartContactSort.RECENT -> "Showing Recents (${sortedContacts.size})"
                     SmartContactSort.FREQUENT -> "Showing Frequent (${sortedContacts.size})"
                     SmartContactSort.REDISCOVER -> "Showing Rediscover (${sortedContacts.size})"
@@ -699,6 +726,7 @@ fun ContactsScreen(
                         Icon(
                             imageVector = when (smartSortBy) {
                                 SmartContactSort.FAVORITES -> Icons.Default.Star
+                                SmartContactSort.NICKNAMES -> Icons.Default.Face
                                 SmartContactSort.RECENT -> Icons.Default.History
                                 SmartContactSort.FREQUENT -> Icons.Default.LocalFireDepartment
                                 SmartContactSort.REDISCOVER -> Icons.Default.Casino
@@ -711,6 +739,7 @@ fun ContactsScreen(
                         val emptyTitle = when {
                             searchQuery.isNotBlank() -> "No contacts match '$searchQuery'"
                             smartSortBy == SmartContactSort.FAVORITES -> "No favorite contacts added yet"
+                            smartSortBy == SmartContactSort.NICKNAMES -> "No contacts with nicknames found"
                             smartSortBy == SmartContactSort.RECENT -> "No recent call activity found"
                             smartSortBy == SmartContactSort.FREQUENT -> "No call frequency history found"
                             smartSortBy == SmartContactSort.REDISCOVER -> "No dormant or long-unspoken contacts found"
@@ -835,10 +864,11 @@ fun ContactsScreen(
 
                             val (lastTs, count) = getContactStats(contact, lastTsMap, countMap)
                             val badge = when (smartSortBy) {
-                                SmartContactSort.FAVORITES -> "⭐ Favorite"
-                                SmartContactSort.RECENT -> if (lastTs > 0L) "🕒 ${formatRelativeTime(lastTs)}" else null
-                                SmartContactSort.FREQUENT -> if (count > 0) "🔥 $count call${if (count > 1) "s" else ""}" else null
-                                SmartContactSort.REDISCOVER -> if (lastTs > 0L) "🕰️ ${formatRelativeTime(lastTs)}" else "🎲 Dormant"
+                                SmartContactSort.FAVORITES -> null
+                                SmartContactSort.NICKNAMES -> null
+                                SmartContactSort.RECENT -> if (lastTs > 0L) formatRelativeTime(lastTs) else null
+                                SmartContactSort.FREQUENT -> if (count > 0) "$count call${if (count > 1) "s" else ""}" else null
+                                SmartContactSort.REDISCOVER -> if (lastTs > 0L) formatRelativeTime(lastTs) else "Dormant"
                                 else -> null
                             }
 

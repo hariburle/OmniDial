@@ -7,6 +7,9 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.4.3` | `16` | Sep 2026 | Dedicated top-level nicknames filter with quick icon, and nickname-aware keypad suggestions. |
+| `1.4.2` | `15` | Sep 2026 | Automation recipes gallery, keyboard auto-scroll in rule editor, wrap-around presets layout, and unified settings backup. |
+| `1.4.1` | `14` | Sep 2026 | High-resolution interactive visual feature previews, full-screen lightbox inspection, and direct caller rules default navigation. |
 | `1.4.0` | `13` | Sep 2026 | Dual SIM management modes (System, Ask & Learn, International), direct SIM name pills, smart roaming warnings, and streamlined channel clearing. |
 | `1.3.0` | `12` | Sep 2026 | Per-number preferred SIM selection, unified nickname display in call history, and synchronized contact editing. |
 | `1.2.3` | `11` | Sep 2026 | Direct phone contacts default number sync, refined rounded-rectangle discovery filters, and single-line search bar layouts. |
@@ -24,7 +27,43 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.4.0 (Latest) — Intelligent Dual SIM Management & Direct SIM Names</h3></summary>
+<summary><h3>🚀 Release 1.4.3 (Latest) — Dedicated Nicknames Filter & Nickname-Aware Keypad Suggestions</h3></summary>
+
+### What's New & Improvements:
+- **Dedicated Nicknames Filter**: A brand-new quick filter tab featuring a recognizable avatar icon is now available at the top of the Contacts directory. Tapping it instantly surfaces all contacts that have personalized nicknames.
+- **Nickname-Aware Keypad Suggestions**: Predictive contact suggestions on the dial pad now prominently feature contact nicknames alongside formal names, making it effortless to identify family, friends, and favorites as you type.
+- **Enhanced Recents Contact Resolution**: Keypad recent call shortcuts now resolve contacts by name and phone number to ensure saved nicknames are always visible in your history.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.4.2 — Always-Accessible Recipe Gallery & Smart Rule Editing</h3></summary>
+
+### What's New & Improvements:
+- **Always-Accessible Recipe Templates**: Tap the new "Recipes" button in the top bar or the "Automation Recipes Gallery" banner at any time to explore and activate starter automation templates (such as Gate Buzzer, Auto-Answer, and VIP Ringing), even if you already have custom rules configured.
+- **Smart Auto-Scrolling Rule Editor**: When typing rule details, delay times, or door codes, the editing screen now smoothly and automatically scrolls upward so your keyboard never blocks the active text field.
+- **Conflict-Free Presets Grid**: Quick preset buttons now neatly wrap across multiple lines, making them easy to tap without accidental swiping conflicts.
+- **Complete Settings Backup & Restore**: Backup now saves all your multi-SIM settings, spam filters, and custom preferences completely, making phone upgrades effortless.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.4.1 — Visual Feature Previews & Direct Rule Navigation</h3></summary>
+
+### What's New & Improvements:
+- **Visual Capabilities Showcase**: Interactive preview cards and high-resolution lightbox viewing across app guides and setup overviews.
+- **Direct Caller Rules Navigation**: The Automation screen opens directly to your active rules list by default.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.4.0 — Intelligent Dual SIM Management & Direct SIM Names</h3></summary>
 
 ### What's New & Improvements:
 - **Intelligent Dual SIM Management Suite**: Choose how your phone handles multi-SIM calling from Settings with three clear modes:

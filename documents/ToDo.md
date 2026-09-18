@@ -77,7 +77,7 @@
 ---
 
 ### ⚡ Phase 11 (Minor Release — v1.4.0): Context-Aware Automation & Geofenced IFTTT Recipes
-*Location guards, ambient Wi-Fi/Bluetooth triggers, visual execution pipeline, and simulated test mode (documented in [`documents/AUTOMATION_RECIPES_BLUEPRINT.md`](AUTOMATION_RECIPES_BLUEPRINT.md)).*
+*Location guards, ambient Wi-Fi/Bluetooth triggers, visual execution pipeline, and simulated test mode (documented in [`documents/archive/AUTOMATION_RECIPES_BLUEPRINT.md`](archive/AUTOMATION_RECIPES_BLUEPRINT.md)).*
 - [x] **Task 11.1: Visual Rule Pipeline & Template Gallery UX**
   - *Goal*: Replace static tag chips with an interactive step-by-step pipeline (`Ringing` ➔ `Delay` ➔ `Answer` ➔ `DTMF` ➔ `Hangup`) and add low-density template starter cards (Gate, Office, Car, Voicemail).
   - *Deliverable*: Modernized `RulesScreen`, updated `RuleCard`, and top-bar history icon.
@@ -97,5 +97,5 @@
 All prior implemented features, architectural specifications, and releases have been archived in their respective project documents:
 - **System Specifications & Architecture**: See [`documents/ARCHITECTURE.md`](ARCHITECTURE.md) and [`documents/DESIGN.md`](DESIGN.md).
 - **Completed Version Release History**: See [`documents/CHANGELOG.md`](CHANGELOG.md) and [`documents/RELEASE.md`](RELEASE.md).
-- **Strategic Expert Product Reviews**: See [`documents/SUNDAR_PICHAI_PRODUCT_REVIEW.md`](SUNDAR_PICHAI_PRODUCT_REVIEW.md) and [`documents/TRUECALLER_PRODUCT_REVIEW.md`](TRUECALLER_PRODUCT_REVIEW.md).
+- **Strategic Expert Product Reviews**: See [`documents/archive/SUNDAR_PICHAI_PRODUCT_REVIEW.md`](archive/SUNDAR_PICHAI_PRODUCT_REVIEW.md) and [`documents/archive/TRUECALLER_PRODUCT_REVIEW.md`](archive/TRUECALLER_PRODUCT_REVIEW.md).
 - **QA & Verification Checkpoints**: See [`documents/ToTest.md`](ToTest.md).

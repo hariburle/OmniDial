@@ -52,9 +52,6 @@ interface AppDao {
     @Query("SELECT * FROM recent_calls WHERE phoneNumber = :phoneNumber OR normalized_number = :normalizedNumber ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatestRecentCallForNumber(phoneNumber: String, normalizedNumber: String = phoneNumber): RecentCall?
 
-    @Query("SELECT * FROM recent_calls WHERE normalized_number = :normalizedNumber ORDER BY timestamp DESC LIMIT 1")
-    suspend fun getLatestRecentCallByNormalizedNumber(normalizedNumber: String): RecentCall?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecentCall(call: RecentCall): Long
 

@@ -111,7 +111,11 @@ fun BackupManagementCard(
                     if (onCreateLocalBackup != null) {
                         onCreateLocalBackup { success ->
                             onLoadingChanged(false)
-                            onStatusMessage(if (success) "Backup saved automatically to device storage!" else "Failed to create backup.")
+                            android.widget.Toast.makeText(
+                                context,
+                                if (success) "Backup saved to device storage" else "Failed to create backup",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
                 },
@@ -169,7 +173,7 @@ fun BackupManagementCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No backup files saved yet.\nTap 'Backup Now' above to save your data automatically.",
+                            text = "No backups found in app storage.\nTap 'Backup Now' to create one, or 'Browse files' to restore from Documents or Downloads.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             textAlign = TextAlign.Center
@@ -259,12 +263,7 @@ fun BackupManagementCard(
 
                                 // Delete Button
                                 IconButton(
-                                    onClick = {
-                                        if (onDeleteLocalBackup != null) {
-                                            onDeleteLocalBackup(file)
-                                            onStatusMessage("Backup deleted.")
-                                        }
-                                    },
+                                    onClick = { backupToDelete = file },
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
@@ -320,6 +319,54 @@ fun BackupManagementCard(
             },
             dismissButton = {
                 TextButton(onClick = { backupToRestore = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Confirmation Dialog for Delete
+    if (backupToDelete != null) {
+        val targetFile = backupToDelete!!
+        AlertDialog(
+            onDismissRequest = { backupToDelete = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = {
+                Text(
+                    text = "Delete Backup?",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to permanently remove this backup file from your device storage?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        backupToDelete = null
+                        if (onDeleteLocalBackup != null) {
+                            onDeleteLocalBackup(targetFile)
+                            android.widget.Toast.makeText(context, "Backup deleted", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { backupToDelete = null }) {
                     Text("Cancel")
                 }
             }

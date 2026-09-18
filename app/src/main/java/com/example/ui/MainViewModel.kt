@@ -71,6 +71,16 @@ data class SimChoicePrompt(
     val reason: String? = null
 )
 
+/**
+ * Unified ViewModel orchestrating the state, background workers, and business logic of OmniDial.
+ *
+ * Key Areas of Responsibility:
+ * - Reactive Room SQLite streams (Recent Calls, Favorite Contacts, Caller Rules, Spam list, Cloud Sync).
+ * - System Contacts / ContentObserver aggregation with background T9 normalization.
+ * - Global & Per-Contact SIM preferences (Dual-SIM routing modes).
+ * - Multi-location Backup and Restore coordination via [BackupManager].
+ * - WhatsApp VoIP vs. Cellular calling channel resolution and learning engine.
+ */
 class MainViewModel(
     private val repository: AppRepository,
     private val appContext: Context
@@ -93,7 +103,6 @@ class MainViewModel(
     fun setWhatsAppCallMode(mode: String) {
         _whatsAppCallMode.value = mode
         prefs.edit().putString("whatsapp_call_mode", mode).apply()
-        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit().putString("whatsapp_call_mode", mode).apply()
     }
 
     private val _globalSimPreferenceMode = MutableStateFlow(prefs.getString("global_sim_pref_mode", "system") ?: "system")
@@ -102,7 +111,6 @@ class MainViewModel(
     fun setGlobalSimPreferenceMode(mode: String) {
         _globalSimPreferenceMode.value = mode
         prefs.edit().putString("global_sim_pref_mode", mode).apply()
-        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit().putString("global_sim_pref_mode", mode).apply()
     }
 
     // Learned Calling Choices for Contacts (Map of normalized number -> "cellular" | "whatsapp")
@@ -143,21 +151,11 @@ class MainViewModel(
             .putStringSet("whatsapp_learned_choices", HashSet(set))
             .putStringSet("learned_call_modes", HashSet(set))
             .apply()
-        // Also mirror to app_prefs for cross-process / service consistency
-        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit()
-            .putStringSet("whatsapp_learned_choices", HashSet(set))
-            .putStringSet("learned_call_modes", HashSet(set))
-            .putString("whatsapp_call_mode", _whatsAppCallMode.value)
-            .apply()
     }
 
     fun resetWhatsAppChoices() {
         _learnedCallModes.value = emptyMap()
         prefs.edit()
-            .remove("whatsapp_learned_choices")
-            .remove("learned_call_modes")
-            .apply()
-        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit()
             .remove("whatsapp_learned_choices")
             .remove("learned_call_modes")
             .apply()
@@ -580,9 +578,22 @@ class MainViewModel(
         registerCallLogObserver()
         viewModelScope.launch {
             CallManager.activeCall.collect { call ->
-                if (call != null && call.state != android.telecom.Call.STATE_DISCONNECTED) {
-                    dismissAllModals()
+                if (call != null) {
+                    if (call.state != android.telecom.Call.STATE_DISCONNECTED) {
+                        dismissAllModals()
+                    } else {
+                        refreshRecentCalls()
+                    }
                 }
+            }
+        }
+        viewModelScope.launch {
+            CallManager.callLoggedEvent.collect {
+                refreshRecentCalls()
+                kotlinx.coroutines.delay(600)
+                refreshRecentCalls()
+                kotlinx.coroutines.delay(1200)
+                refreshRecentCalls()
             }
         }
         viewModelScope.launch(Dispatchers.IO) {
@@ -716,11 +727,43 @@ class MainViewModel(
                 try {
                     fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
 
-                    val deviceList = ContactHelper.fetchDeviceContacts(appContext)
+                    val nicknameMap = ContactHelper.fetchNicknameMap(appContext)
+                    val deviceList = ContactHelper.fetchDeviceContacts(appContext, nicknameMap)
                     val localList = repository.getAllLocalContactsList()
                     val currentFavs = repository.getAllFavoritesList()
 
                     val favDigits = currentFavs.map { normDigits(it.phoneNumber) }.filter { it.isNotEmpty() }.toSet()
+
+                    val favDigitsToNickMap = currentFavs
+                        .filter { !it.nickname.isNullOrBlank() }
+                        .associate { normDigits(it.phoneNumber) to it.nickname!!.trim() }
+                    val favNameToNickMap = currentFavs
+                        .filter { !it.nickname.isNullOrBlank() }
+                        .associate { it.name.trim().lowercase() to it.nickname!!.trim() }
+
+                    fun resolveNickname(name: String, mainNum: String, phoneNumbers: List<ContactPhoneNumber>, existingNick: String?): String? {
+                        if (!existingNick.isNullOrBlank()) return existingNick
+                        val normMain = normDigits(mainNum)
+                        if (normMain.isNotBlank() && favDigitsToNickMap.containsKey(normMain)) {
+                            return favDigitsToNickMap[normMain]
+                        }
+                        for (pn in phoneNumbers) {
+                            val normPn = normDigits(pn.number)
+                            if (normPn.isNotBlank() && favDigitsToNickMap.containsKey(normPn)) {
+                                return favDigitsToNickMap[normPn]
+                            }
+                        }
+                        val normName = name.trim().lowercase()
+                        if (normName.isNotBlank() && favNameToNickMap.containsKey(normName)) {
+                            return favNameToNickMap[normName]
+                        }
+                        return null
+                    }
+
+                    val enrichedDeviceList = deviceList.map { c ->
+                        val nick = resolveNickname(c.name, c.phoneNumber, c.phoneNumbers, c.nickname)
+                        if (nick != c.nickname) c.copy(nickname = nick) else c
+                    }
 
                     // Group local contacts by name so multi-number contacts are consolidated into a single DeviceContact
                     val localAsDeviceContacts = localList
@@ -729,12 +772,13 @@ class MainViewModel(
                             val first = contacts.first()
                             val allNumbers = contacts.map { ContactPhoneNumber(it.phoneNumber, it.label) }
                             val isFav = contacts.any { favDigits.contains(normDigits(it.phoneNumber)) }
+                            val nick = resolveNickname(name, first.phoneNumber, allNumbers, first.nickname)
                             DeviceContact(
                                 name = name,
                                 phoneNumber = first.phoneNumber,
                                 label = first.label,
                                 photoUri = first.photoUri,
-                                nickname = first.nickname,
+                                nickname = nick,
                                 isStarred = isFav,
                                 isAppOnly = true,
                                 phoneNumbers = allNumbers
@@ -742,8 +786,8 @@ class MainViewModel(
                         }
 
                     // Combine: Keep both device contacts and in-app contacts sorted A-Z
-                    val combined = (deviceList + localAsDeviceContacts)
-                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                    val combined = (enrichedDeviceList + localAsDeviceContacts)
+                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.nickname?.trim()?.ifBlank { null } ?: it.name })
 
                     _deviceContacts.value = combined
                     inMemoryCachedDeviceContacts = combined
@@ -1076,8 +1120,6 @@ class MainViewModel(
             currentSet.add("$normalized:$slot")
         }
         prefs.edit().putStringSet("contact_sim_preferences", currentSet).apply()
-        appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE).edit()
-            .putStringSet("contact_sim_preferences", currentSet).apply()
     }
 
     fun confirmSimChoiceAndPlaceCall(context: Context, slot: Int) {
@@ -2229,6 +2271,7 @@ class MainViewModel(
                 // Refresh local UI states from restored preferences
                 _themeMode.value = prefs.getString("theme_mode", "system") ?: "system"
                 _whatsAppCallMode.value = prefs.getString("whatsapp_call_mode", "ask_learn") ?: "ask_learn"
+                _globalSimPreferenceMode.value = prefs.getString("global_sim_pref_mode", "system") ?: "system"
                 _callAnswerStyle.value = prefs.getString("call_answer_style", "swipe_slider") ?: "swipe_slider"
                 _favoriteCardStyle.value = prefs.getString("favorite_card_style", "bento") ?: "bento"
                 _confirmFavoritesCall.value = prefs.getBoolean("confirm_fav_calls", true)
@@ -2238,12 +2281,13 @@ class MainViewModel(
                 _showDialerQuickActions.value = prefs.getBoolean("show_dialer_quick_actions", true)
                 _defaultStartTab.value = prefs.getInt("default_start_tab", 0)
                 _swipeToSwitchPanels.value = prefs.getBoolean("swipe_to_switch_panels", true)
+                _navBarStyle.value = prefs.getString("nav_bar_style", "full") ?: "full"
                 _notSpamWhitelist.value = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()
                 _learnedCallModes.value = loadLearnedCallModes()
                 refreshContacts()
                 refreshRecentCalls()
-                refreshLocalBackups()
             }
+            refreshLocalBackups()
             onComplete(result)
         }
     }
@@ -2265,6 +2309,7 @@ class MainViewModel(
                 // Refresh local UI states from restored preferences
                 _themeMode.value = prefs.getString("theme_mode", "system") ?: "system"
                 _whatsAppCallMode.value = prefs.getString("whatsapp_call_mode", "ask_learn") ?: "ask_learn"
+                _globalSimPreferenceMode.value = prefs.getString("global_sim_pref_mode", "system") ?: "system"
                 _callAnswerStyle.value = prefs.getString("call_answer_style", "swipe_slider") ?: "swipe_slider"
                 _favoriteCardStyle.value = prefs.getString("favorite_card_style", "bento") ?: "bento"
                 _confirmFavoritesCall.value = prefs.getBoolean("confirm_fav_calls", true)
@@ -2274,6 +2319,7 @@ class MainViewModel(
                 _showDialerQuickActions.value = prefs.getBoolean("show_dialer_quick_actions", true)
                 _defaultStartTab.value = prefs.getInt("default_start_tab", 0)
                 _swipeToSwitchPanels.value = prefs.getBoolean("swipe_to_switch_panels", true)
+                _navBarStyle.value = prefs.getString("nav_bar_style", "full") ?: "full"
                 _notSpamWhitelist.value = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()
                 _learnedCallModes.value = loadLearnedCallModes()
                 refreshContacts()

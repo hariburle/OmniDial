@@ -29,7 +29,7 @@ class CallNotificationReceiver : BroadcastReceiver() {
                 }
 
                 // Add to persistent not_spam_whitelist in SharedPreferences
-                val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
                 val currentWl = prefs.getStringSet("not_spam_whitelist", emptySet())?.toMutableSet() ?: mutableSetOf()
                 currentWl.add(number)
                 val cleanDigits = number.filter { it.isDigit() }.takeLast(10)

@@ -1446,6 +1446,7 @@ object ContactHelper {
     }
 
     fun fetchDeviceContacts(context: Context, nicknameMap: Map<Long, String>? = null): List<DeviceContact> {
+        val effectiveNicknameMap = nicknameMap ?: fetchNicknameMap(context)
         val contactsMap = linkedMapOf<String, DeviceContactAccumulator>()
         var cursor: Cursor? = null
         try {
@@ -1495,7 +1496,7 @@ object ContactHelper {
 
                     val key = contactId?.toString() ?: fullName.trim().lowercase()
                     val accumulator = contactsMap.getOrPut(key) {
-                        val nickname = if (contactId != null) nicknameMap?.get(contactId) else null
+                        val nickname = if (contactId != null) effectiveNicknameMap[contactId] else null
                         DeviceContactAccumulator(
                             name = fullName,
                             photoUri = photo ?: thumb,

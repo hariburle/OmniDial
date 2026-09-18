@@ -78,6 +78,24 @@ class Task10Test {
     }
 
     @Test
+    fun testBackupListDeduplication(): Unit = runBlocking {
+        val internalDir = BackupManager.getLocalBackupsDir(context)
+        val file1 = File(internalDir, "omnidial_backup_20260917_202000.bak")
+        val file2 = File(internalDir, "omnidial_backup_20260917_202000.bak.json")
+        file1.writeText("{\"appName\":\"OmniDial\"}")
+        file2.writeText("{\"appName\":\"OmniDial\"}")
+
+        val list = BackupManager.listLocalBackups(context)
+        // Should only return 1 item instead of duplicate entries
+        assertEquals(1, list.filter { it.name.contains("20260917_202000") }.size)
+
+        // Cleanup
+        file1.delete()
+        file2.delete()
+        Unit
+    }
+
+    @Test
     fun testDismissAllModalsTriggersAndMaximizesCall() = runBlocking {
         val viewModel = MainViewModel(repository, context)
         val initialTrigger = viewModel.dismissModalsTrigger.value
