@@ -28,7 +28,20 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.4.3 (Latest) — Dedicated Nicknames Filter & Nickname-Aware Keypad Suggestions</h3></summary>
+<summary><h3>🚀 Release 1.4.4 (Latest) — Smart SIM Alerts, Instant Call Log Updates & Polished Nicknames</h3></summary>
+
+### What's New & Improvements:
+- **Smart SIM & Roaming Alerts Before You Answer**: Incoming calls now display which SIM card is ringing ("SIM 1" or "SIM 2") and show a clear amber roaming warning when the active SIM is on network roaming, giving you a heads-up before you pick up.
+- **Instant Call History**: Missed, incoming, and outgoing calls now appear in your Recent Calls list the moment a call ends — no more waiting for the list to refresh.
+- **Polished Contact Names & Nicknames**: Contact detail sheets now highlight full names with nicknames displayed cleanly underneath, while the contacts list shows nicknames neatly without extra bracket text.
+- **Cleaner Contact Rows**: Removed redundant inline filter badges from contact list rows, giving contact names the full horizontal space they deserve.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.4.3 — Dedicated Nicknames Filter & Nickname-Aware Keypad Suggestions</h3></summary>
 
 ### What's New & Improvements:
 - **Dedicated Nicknames Filter**: A brand-new quick filter tab featuring a recognizable avatar icon is now available at the top of the Contacts directory. Tapping it instantly surfaces all contacts that have personalized nicknames.
@@ -226,8 +239,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v1.1.5.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v1.1.4.apk`, `OmniDial-v1.1.3.apk`, `OmniDial-v1.1.2.apk`, `OmniDial-v1.1.1.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v1.4.4.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

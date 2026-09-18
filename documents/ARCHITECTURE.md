@@ -1,10 +1,12 @@
 # OmniDial — System Architecture & Technical Documentation
 
+> **Current Version**: v1.4.4 (Build 17) — September 2026
+
 ## 1. Executive Summary
 
-**OmniDial** is a native Android Telecom dialer and call management application built with Jetpack Compose, Kotlin Coroutines/StateFlow, Room SQLite database, and Android Telecom framework (`InCallService`).
+**OmniDial** is a native Android Telecom dialer and call management application built with Jetpack Compose, Kotlin Coroutines/StateFlow, Room SQLite database (v12+), and Android Telecom framework (`InCallService`).
 
-The app unifies phone contacts, app-created local contacts, T9 smart dialing, automated call screening/rules, carrier STIR/SHAKEN spam detection, and persistent drag-and-drop VIP favorite shortcuts into a clean Material 3 design.
+The app unifies phone contacts, app-created local contacts, T9 smart dialing, automated call screening/rules, ambient geofencing guards, dual-SIM management, E.164 number normalization, tiered caller trust badges, carrier STIR/SHAKEN spam detection, and persistent drag-and-drop VIP favorite shortcuts into a clean Material 3 design.
 
 ---
 
@@ -16,48 +18,59 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 |   (Hosts Bottom Navigation, Tab Bar, Floating In-Call Pill, and Root Insets)    |
 +---------------------------------------------------------------------------------+
         |
-        +---> MainViewModel (StateFlow, Repositories, Preferences Sync)
+        +---> MainViewModel (StateFlow, Domain UseCases, Preferences Sync)
                 |
-                +---> AppRepository & AppDatabase (Room DB v10)
-                |       ├── LocalContact
-                |       ├── RecentCall
+                +---> Domain Use Cases
+                |       ├── EvaluateSimRuleUseCase  (DAG conflict-resolved SIM routing)
+                |       ├── ResolveCallerIdentityUseCase  (trust badges, spam lookup)
+                |       ├── SearchT9ContactsUseCase  (T9 nickname/name/number search)
+                |       └── ManageFavoritesUseCase  (star, unstar, reorder, ignore)
+                |
+                +---> AppRepository & AppDatabase (Room DB v12)
                 |       ├── FavoriteContact
-                |       ├── AutomationRule
+                |       ├── RecentCall
+                |       ├── CallerRule  (+ ambient geofence + automation fields)
+                |       ├── ContactNumberPreference  (per-number preferred SIM slot)
+                |       ├── SpamNumber
+                |       ├── LocalContact
                 |       ├── IgnoredContact
-                |       └── OfflineSpamNumber
+                |       └── AutomationLogItem
                 |
                 +---> ContactHelper (System Contacts Provider & CallLog Merging)
                 |
-                +---> CallManager (Telecom InCallService & Automation Rule Pipeline)
+                +---> CallManager (InCallService, Automation Pipeline, Trust Badges,
+                |                  callLoggedEvent SharedFlow, SIM roaming resolution)
+                |
+                +---> PhoneNumberNormalizer (libphonenumber E.164 engine)
+                |
+                +---> SimHelper (Multi-SIM subscription resolution, roaming detection)
+                |
+                +---> ReminderScheduler (AlarmManager post-call callback scheduling)
+                |
+                +---> BackupManager (JSON backup, public MediaStore storage, restore)
 ```
 
 ### Key UI Screens & Components
-- **`FavoritesScreen.kt`**: VIP grid hub featuring:
-  - Configure Mode for drag-and-drop reordering.
-  - Local state tracking (`localFavorites`) for zero-latency, continuous multi-row drag-and-drop.
-  - Hit-testing against real-time physical screen bounds (`activeItemBounds[contact.id]`).
-  - Top-layer `Box` overlay (`zIndex = 10000f`) ensuring dragged cards never draw under other cards.
-  - Direct positional swapping (`Collections.swap`) for natural grid reordering.
-  - Persistent sort order synced to Room and `SharedPreferences` (`favorite_sort_orders`).
-- **`DialerScreen.kt`**: Ergo-width T9 smart keypad featuring:
-  - Quick Recents bar shown when the keypad field is empty.
-  - Overflow menu `⋮` on number bar providing "Add 2-sec pause (,)" and "Add wait (;)".
-  - Long-press `*` -> `,` (Pause) and `#` -> `;` (Wait).
-  - Long-press Backspace button clearing the entire number field with haptic feedback.
-  - Flex-weight keys filling the horizontal width without vertical scrolling.
-- **`CallLogScreen.kt`**: Rich call history merging system `CallLog.Calls` and Room `recent_calls` using unique composite keys (`"${group.primaryCall.id}_${group.primaryCall.timestamp}_$index"`), preventing LazyColumn key duplication crashes.
-- **`ContactsScreen.kt`**: Unified directory aggregating system and local contacts into single person rows with right-thumb ergonomic action buttons on expanded rows.
-- **`InCallScreen.kt`**: Active call UI with automatic soft keyboard dismissal upon connect, active call controls (Mute, Speaker, Hold, Audio Output Selector, Keypad), and post-call notes.
-- **`MainActivity.kt`**: Hosts `FloatingCallPill` when an active call is minimized (`activeCall != null && activeCall.state != STATE_DISCONNECTED`), offering status bar inset shielding and a red hangup button.
+- **`FavoritesScreen.kt`**: VIP grid hub with Configure Mode drag-and-drop reordering, persistent sort order, dual-dialer buttons for all card styles (Bento/Grid/Material), and popular contact ignore.
+- **`DialerScreen.kt`**: T9 smart keypad with Quick Recents bar, Pause/Wait overflow menu, nickname-aware suggestions (`contactsByDigits` + `contactsByName` lookup), and non-jumping 2x2 call action grid.
+- **`CallLogScreen.kt`**: Rich call history merging `CallLog.Calls` + Room `recent_calls`. Shows SIM slot badges, instant updates via `callLoggedEvent` SharedFlow, missed call highlight pulse, and `🤖 Rule` badges.
+- **`ContactsScreen.kt`**: Unified directory with Nicknames filter tab (`SmartContactSort.NICKNAMES`), default number prioritization, and per-number SIM routing.
+- **`InCallScreen.kt`**: Active call UI with SIM display name chip, amber `ROAMING` alert badge, DTMF keypad, audio output selector, post-call notes, and isolated `CallDurationStatusChip` to prevent 1Hz recomposition cascades.
+- **`RulesScreen.kt`**: Automation rule manager with visual pipeline chips, Quick-Start Recipe Gallery bottom sheet, rule dry-run simulator, execution history log, and rule duplication.
+- **`MainActivity.kt`**: Hosts `FloatingCallPill`, observes `callLoggedEvent` for reactive Recents updates, handles `dismissAllModals()` when external calls arrive, and processes missed call deep-link intents.
 
 ---
 
 ## 3. Data Persistence & Migration
 
-- **Database Version**: Bumped to Version 10 in `AppDatabase.kt`.
-- **Migration Strategy**: `fallbackToDestructiveMigration(dropAllTables = true)` used during development to purge obsolete schema tables. Fake test seed data completely removed.
-- **Local Contacts Table (`local_contacts`)**: Stores app-created contacts locally without requiring Google Account synchronization.
-- **Favorites Sort Order (`favorite_sort_orders`)**: `SharedPreferences` string set storing `phoneNumber:sortOrder:name` mappings, ensuring custom grid order is restored immediately on app launch or reinstall.
+- **Database Version**: v12 in `AppDatabase.kt`.
+- **Indices Added in v12**: `index_recent_calls_phoneNumber`, `index_recent_calls_timestamp`, `index_caller_rules_phoneNumberPattern` for O(1) lookup during incoming call broadcasts.
+- **Migration Strategy**: Structured `MIGRATION_11_12` applied; `fallbackToDestructiveMigration` retained for development builds.
+- **`ContactNumberPreference` entity**: Stores `preferredSimSlot` (`-1`=Ask, `0`=Auto, `1`=SIM 1, `2`=SIM 2) keyed by normalized phone number, consumed by `OmniCallRedirectionService` to bind the correct `PhoneAccountHandle`.
+- **`SpamNumber` entity**: Stores both raw and `normalizedNumber` (E.164) for sub-millisecond indexed lookup via `getSpamByNormalizedNumber()`.
+- **`CallerRule` entity**: Stores full automation pipeline including `autoAnswer`, `answerDelaySec`, `dtmfSequence`, `dtmfDelayMs`, `autoHangup`, `hangupDelaySec`, `autoSpeakerphone`, `autoMuteMic`, `requiredWifiSsid`, `requiredBluetoothDevice`.
+- **Favorites Sort Order**: `SharedPreferences` key `favorite_sort_orders` storing `phoneNumber:sortOrder:name` mappings.
+- **Unified SharedPreferences key**: All modules (`MainViewModel`, `CallManager`, `CallNotificationReceiver`, `SpamManagementDialog`, `BackupManager`) share `"kishan_dialer_prefs"`.
 
 ---
 
@@ -67,73 +80,160 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 Incoming Call Arrives
         │
         ▼
-Evaluate Automation Rules (CallManager.kt)
-  ├── Match rule 10-digit pattern (matchesRulePattern)
-  └── Execute Rule Actions (e.g. Auto-Answer, DTMF sequence, Auto-Hangup, Auto-SMS)
+SimHelper.resolveSimInfo(context, accountHandle)
+  └── Populates: simDisplayName, isRoaming  ──> ActiveCallInfo enrichment
         │
-        ├── Rule Matched ──> Execute Action & Finish
+        ▼
+Evaluate Automation Rules (CallManager.kt)
+  ├── Match rule pattern  (matchesRulePattern — exact > prefix > wildcard, DAG weighted)
+  ├── Check ambient geofence: Wi-Fi SSID + Bluetooth device name
+  └── Execute Rule Actions:
+        ├── Auto-Answer (delay)
+        ├── Auto-Speakerphone
+        ├── Auto-Mute Mic
+        ├── DTMF Sequence (dtmfDelayMs)
+        └── Auto-Hangup (delay)
+        │
+        ├── Rule Matched ──> executeAutomationWorkflow() & Finish
         │
         └── No Rule Matched
                 │
                 ▼
+      ResolveCallerIdentityUseCase (Trust Badge Assignment)
+        ├── isSpam  ──>  TrustTier.HIGH_RISK_SPAM (Red)
+        ├── communityInfo logistics  ──>  TrustTier.PRIORITY_LOGISTICS (Amber)
+        ├── communityInfo business / hasContact  ──>  TrustTier.VERIFIED_BUSINESS (Green)
+        └── Unknown  ──>  TrustTier.UNKNOWN
+                │
+                ▼
       Evaluate Spam Blocklist & STIR/SHAKEN
-        ├── Check local offline spam database
+        ├── E.164 normalized lookup: getSpamByNormalizedNumber()
         └── Check Connection.VERIFICATION_STATUS_FAILED
                 │
-                ├── Is Spam ──> Reject / Silence
-                └── Is Safe ──> Ring & Display Incoming Screen
+                ├── Is Spam ──> Reject / Silence + SpamNotificationHelper
+                └── Is Safe ──> Ring & Display InCallScreen
+                                (with SIM name chip + roaming amber badge if applicable)
 ```
 
 ---
 
-## 5. Recent Fixes & Quality Upgrades
+## 5. Dual-SIM Management Architecture
 
-1. **Unified Contact Creation**: `CreateContactDialog` allows selecting between "Phone Contacts" and "App Only" local storage.
-2. **Keypad UX**: Added Quick Recents bar, Pause/Wait overflow menu, long-press `,` / `;` T9 subtext, and long-press Backspace clear.
-3. **In-Call Screen Keyboard Overlap**: Automatically hides soft keyboard when call connects (`LocalSoftwareKeyboardController.current?.hide()`).
-4. **Recents Panel Crash Fix**: Resolved duplicate key exceptions in `LazyColumn` by generating unique composite keys for merged system/local call logs.
-6. **Gate Buzzer & User Rule/Contact Whitelisting over Carrier Spam Filter**:
-   - `CallManager.isWhitelistedOrRuleMatched` checks if an incoming number matches an active Automation Rule (e.g. Gate / Intercom Buzzer), Starred Favorites, or Saved Contacts BEFORE applying carrier STIR/SHAKEN or carrier spam checks.
-   - Prevents legitimate gate buzzers or user contacts from being wrongly auto-rejected or flagged as carrier spam threats.
-
-7. **Directional Grid Reordering Controls**:
-   - In Configure Mode, every card provides explicit directional arrow buttons (`▲` Up Row, `▼` Down Row, `◄` Left Column, `►` Right Column).
-   - Each directional button is dynamically enabled **only if there is space to move in that direction** (e.g., `▲` is enabled only if `index >= 2` in a 2-column grid).
+- **Global SIM Mode** (`global_sim_pref_mode` in SharedPreferences):
+  - `"system"`: Highlights active system default SIM; no per-contact prompts.
+  - `"ask_learn"`: Allows per-contact SIM preference customization via `ContactNumberPreference`.
+  - `"international"`: Shows SIM selection only for numbers where `PhoneNumberNormalizer.isInternational(context, number)` returns true.
+- **`EvaluateSimRuleUseCase`**: DAG-based weighted resolver — exact match rules (`weight > 1000`) take precedence over prefix/wildcard rules (`weight ~501`). Roaming SIM auto-avoidance: if `isRoaming == true` on target SIM and a non-roaming alternative exists, sets `isRoamingAvoided = true` and routes to the local SIM.
+- **`SimHelper.resolveSimInfo()`**: Queries `SubscriptionManager` for `SubscriptionInfo`, resolves `simDisplayName` (preferring user-assigned label over carrier name), and queries `TelephonyManager.isNetworkRoaming(subscriptionId)` per slot.
+- **`OmniCallRedirectionService`**: Queries `ContactNumberPreference` DAO for `preferredSimSlot` and calls `placeCallWithConference()` binding the corresponding `PhoneAccountHandle` before cellular dial.
 
 ---
 
-## 6. Phase 6 Advanced Features & System Polish
+## 6. Reactive Call Log Update Architecture
 
-1. **Smart Contact Discovery & Sorting**:
-   - Provides 5 dynamic sort modes (`A-Z`, `Recent`, `Long Time No Talk`, `Frequent`, `Rediscover`) uncoupled from alphabetical grouping.
-2. **Keypad Hybrid Action Buttons**:
-   - Redesigned Keypad action row into wide, high-visibility Hybrid Buttons (`[ 📞 Phone Call ]` in Deep Emerald `#059669` and `[ 💬 WhatsApp ]` in signature `#25D366`) with distinct branding and glowing preferred borders.
-3. **Dedicated Spam Management Center**:
-   - `SpamManagementDialog` provides blocked numbers list, quick search, manual blocking, and auto-block toggles.
-4. **Recents Category Filters & Rule Pattern Matching**:
-   - Filter chips (`All`, `Missed`, `In`, `Out`, `Spam`, `Rules`, `Notes`) and `🤖 Rule` badges. Rules filter matches historical calls matching active rule patterns.
-5. **Phone vs Local Contact Edit Routing**:
-   - System phone contacts (`contactId > 0`) open directly in the native Android Phone Contacts editor via `Intent.ACTION_EDIT`, while local app-only contacts open `EditContactDialog`.
-6. **Cloud Auto-Backup & Persistence**:
-   - `backup_rules.xml` and `data_extraction_rules.xml` ensure shared preferences, learned calling choices, and Room SQLite databases persist across reinstalls and cloud restorations.
+- **`callLoggedEvent: SharedFlow<Long>`** in `CallManager`: Emitted with the Room `RecentCall.id` upon DB insertion after call termination.
+- **`MainViewModel`** subscribes via `viewModelScope.launch { callManager.callLoggedEvent.collect { ... } }` and triggers `_combinedRecentCalls` StateFlow refresh within <10ms of call end.
+- Eliminates polling or system `ContentObserver` delays — Recents list updates are instant and reactive.
 
 ---
 
-## 7. Phase 7 (Release 1.1.0) Architecture & Enhancements
+## 7. Post-Call Quick Action Architecture
 
-1. **Keypad 2x2 Action Button Architecture**:
-   - Replaced scrolling carousels with a stable 2x2 grid in `DialerScreen.kt`:
-     - Row 1: `Text Message` (SMS) and `Phone` (Cellular)
-     - Row 2: `WhatsApp - Msg` and `WhatsApp - Voice`
-   - **Situational Intelligence Highlighting**: Automatically highlights the preferred channel based on `getPreferredCallingMode(number)` using subtle container borders (`colorScheme.primary` or signature WhatsApp green) without visual clutter from text badges.
-2. **High-Contrast Dark Mode WhatsApp Icon**:
-   - `WhatsAppIcon.kt` uses custom vector drawing with an outer white contour stroke around the bubble path.
-   - Prevents dark theme background blending and eliminates sizing anomalies across the keypad, favorites, and contact rows.
-3. **Android `CallRedirectionService` Integration**:
-   - Implemented `OmniCallRedirectionService` to intercept outgoing calls originating outside the app (such as vehicle Bluetooth head-units, Android Auto, smartwatches, voice assistants, and third-party dialers).
-   - If the target contact prefers WhatsApp VoIP, the call is canceled via `cancelCall()` and seamlessly rerouted to WhatsApp VoIP.
-4. **Favorites Per-Number Designation & Nickname Synchronization**:
-   - Favorites search results provide distinct per-number buttons for contacts with multiple numbers, allowing users to designate the specific primary number for instant dialing.
-   - Bi-directional sync between Android Contacts Provider (`ContactsContract.CommonDataKinds.Nickname`) and Room SQLite local database.
-5. **Release Distribution & Versioned Storage Architecture**:
-   - Maintained semantic versioning with dual hosting: latest release (`OmniDial-v1.1.0.apk` / `OmniDial.apk`) and previous builds (`OmniDial-v1.0.0.apk`) in `/docs` and root directory.
+After call termination, `CallManager` emits a post-call state to `MainViewModel`. A 4-second bottom sheet (`PostCallQuickActionCard`) surfaces four 1-tap actions:
+- **Save Contact**: Opens `CreateContactDialog` pre-filled with caller number.
+- **Block & Report Spam**: Inserts a `SpamNumber` entry and updates block UI.
+- **WhatsApp Message**: Launches WhatsApp chat intent with normalized number.
+- **Set Reminder**: Opens `ReminderScheduler` with pre-filled caller name and number, scheduling an `AlarmManager` exact-time broadcast to `ReminderReceiver`.
+
+---
+
+## 8. Backup Architecture
+
+`BackupManager` uses a dual-storage strategy:
+1. **Internal storage** (`context.filesDir/backups/`): Fast local access, survives app updates.
+2. **Public MediaStore** (`Documents/OmniDial/` via `MediaStore.Files`): Survives app uninstalls; scanned and mirrored into internal storage on every app startup.
+
+Backup JSON payload includes: `CallerRule` list, `FavoriteContact` list, `SpeedDial` map, all SharedPreferences keys (SIM mode, spam presets, WhatsApp mode, learned choices).
+
+SHA-256 checksum and schema version are embedded in the JSON header for tamper detection on restore.
+
+---
+
+## 9. Unit Test Coverage (Build 17)
+
+All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk = [36])`):
+
+| Test File | Coverage |
+|---|---|
+| `ExampleUnitTest` | Country ISO lookup, descriptive number labels, voicemail/short-code isolation, `SmartContactSort.NICKNAMES` filtering |
+| `Phase9SpamDefenseTest` | E.164 normalization, spam DB indexed lookups, spam preset SharedPrefs |
+| `Phase10TelecomTest` | DAG rule conflict resolution, roaming-aware SIM selection, trust badge scoring, VoIP continuity lifecycle |
+| `Phase11AutomationTest` | CallerRule automation field persistence, Gate Buzzer recipe template, ambient geofence backup/restore |
+| `MissedCallHighlightTest` | Explicit missed call notification deep link, system intent auto-targets latest missed call |
+| `Task10Test` | Local backup save/list/delete, deduplication, `dismissAllModals()` + call screen maximize |
+| `OmniCallRedirectionServiceTest` | WhatsApp preference matching, never-mode bypass, per-contact SIM resolution, voicemail URI bypass |
+| `SimHelperTest` | `SimInfo` data integrity, `resolveSimSlot` default, `getPhoneAccountForSimSlot` safe on empty Telecom |
+| `ReminderSchedulerTest` | Schedule creates alarm, past epoch not scheduled, cancel removes alarm |
+| `ExampleRobolectricTest` | Robolectric baseline, Room in-memory DB, basic DAO operations |
+
+---
+
+## 10. Recent Fixes & Quality Upgrades (v1.2.x–v1.4.x)
+
+1. **Unified SharedPreferences**: Migrated all modules to `"kishan_dialer_prefs"` key to eliminate preference fragmentation bugs across backup/restore.
+2. **Race-Condition Free Contact Refresh**: `Mutex.withLock` replaced `AtomicBoolean` in `MainViewModel.refreshContacts()`.
+3. **Pre-Warmed Pager**: `beyondViewportPageCount = 4` keeps all 5 panels in memory, eliminating keypad switch lag.
+4. **Compose Stability Annotations**: `@Immutable` applied to `DeviceContact`, `ActiveCallInfo`, `SimInfo`, `BluetoothDeviceItem`, `ContactPhoneNumber`, `AutomationStep` to prevent spurious recompositions.
+5. **IME Auto-Scroll in RuleEditDialog**: `DialogProperties(decorFitsSystemWindows = false)` + `Modifier.imePadding()` + `FlowRow` presets prevent keyboard from obscuring inputs.
+6. **Instant Nickname Display Fix**: `ContactDetailsBottomSheet` now reads from pre-loaded `FavoriteContact` map before rendering, eliminating the false `+ Add Nickname` flash.
+7. **Cleaned Contact Filter Row**: Removed inline `⭐ Favorite` and `🏷️ Nickname` filter tags from contact list items, restoring full horizontal width to contact names.
+
+---
+
+## 11. Build, Signing & Optimization Runbook
+
+### 11.1 Keystore Auto-Restoration
+`app/build.gradle.kts` auto-decodes `debug.keystore.base64` → `debug.keystore` on any build if missing.
+
+### 11.2 APK Optimization (R8 & ProGuard)
+- Minification + resource shrinking enabled in release builds.
+- Reduces release APK from ~19 MB to ~5.2 MB.
+- Compose, Room, Telecom, and libphonenumber reflection rules preserved in `proguard-rules.pro`.
+
+### 11.3 Building Release APK
+```bash
+./gradlew :app:assembleRelease
+cp app/build/outputs/apk/release/app-release.apk apks/OmniDial-v<version>.apk
+cp apks/OmniDial-v<version>.apk apks/OmniDial.apk
+```
+
+### 11.4 Running Unit Tests
+```bash
+./gradlew testDebugUnitTest --continue
+./gradlew verifyRoborazziDebug   # Screenshot regression
+./gradlew recordRoborazziDebug   # Record new reference screenshots
+```
+
+---
+
+## 12. Maintenance & Extension Guide
+
+### Adding a New Caller Rule Action
+1. Add field to `CallerRule` entity in `data/Entities.kt` and bump Room DB version.
+2. Add execution logic in `CallManager.executeAutomationWorkflow()`.
+3. Add UI toggle in `RuleEditDialog.kt`.
+4. Add `CallerRule` field to `BackupManager` JSON serialization.
+5. Add unit test in `Phase11AutomationTest.kt`.
+
+### Adding a New Panel / Tab
+1. Add route in `MainActivity.kt` navigation state.
+2. Implement Composable screen in `ui/screens/`.
+3. Add navigation icon to `NavigationBar`.
+4. Add Roborazzi screenshot test in `RealScreenshotTest.kt`.
+
+### Troubleshooting Checklist
+- **Calls don't open in-call screen**: Set OmniDial as default phone app in Android Settings → Apps → Default apps → Phone app.
+- **WhatsApp icon does nothing**: WhatsApp must be installed; number must have a valid E.164 country code.
+- **Missing contacts in Recents**: Ensure `READ_CALL_LOG` and `READ_CONTACTS` permissions are granted.
+- **Roaming alert not showing**: Verify `READ_PHONE_STATE` permission is granted and device has an active SIM with telephony subscription.
+- **Backup not surviving reinstall**: Verify `WRITE_EXTERNAL_STORAGE` / MediaStore permissions granted on Android < 10.

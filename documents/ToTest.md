@@ -6,76 +6,7 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
-### 1. Task 15 (Phase 6): Favorites Reorder Persistence & Material Card Hairline Border
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. On **Favorites** (Tab 0), tap **Configure** and drag-and-drop cards to reorder them.
-  2. Restart the app and verify custom card order.
-  3. Switch between Bento, Grid, and Material card formats in **Settings**.
-- **Expected Result**:
-  - Custom drag-and-drop card order persists across app restarts.
-  - Material card style maintains an ultra-thin hairline border without heavy dark outlines.
-
-### 2. Task 32 (Phase 7): External Outgoing Call Redirection Service
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. Set OmniDial as Default Phone App.
-  2. Ensure "Display over other apps" permission is granted.
-  3. Initiate an outgoing call from a connected Bluetooth vehicle head-unit, smartwatch, or assistant to a contact with WhatsApp preference.
-- **Expected Result**:
-  - `OmniCallRedirectionService` intercepts the cellular call and routes it directly to WhatsApp VoIP.
-
-### 3. Task 34 (Phase 8): Instant Keypad Switching & Zero Frame Drops (v1.1.5 Performance)
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. Navigate to **Contacts** (Tab 3) with dozens or hundreds of device contacts loaded.
-  2. Tap the bottom navigation bar or swipe directly to **Keypad** (Tab 2).
-  3. Navigate to **Rules** (Tab 4) and tap back to **Keypad** (Tab 2).
-  4. Repeat switching rapidly between Contacts, Rules, and Keypad.
-- **Expected Result**:
-  - Transition to Keypad is immediate (<50ms) with zero frame drops, stuttering, or UI freeze.
-  - Keypad renders pre-warmed instantly with all speed dials, T9 candidate contacts, and recent calls ready.
-
-### 4. Task 35 (Phase 8): One-Tap Direct Backup Creation (v1.1.4)
-- [x] **Verified** TESTED (Note: Survives until reinstall; public storage persistence tracked in Issue #40)
-- **Test Steps**:
-  1. Open **Rules / Settings** (Tab 4) and scroll to the **Backup & Restore** card.
-  2. Tap the **"Backup Now"** action button.
-- **Expected Result**:
-  - A new JSON backup file is created instantly without popping up complex system file picker prompts.
-  - Success message displays showing the exact backup timestamp.
-  - The new backup entry appears immediately in the "Available Backups" list with its timestamp and file size.
-
-### 5. Task 36 (Phase 8): Automatic Backup Scan & One-Tap Restore (v1.1.4)
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. In the **Backup & Restore** card under "Available Backups", locate an existing backup entry.
-  2. Tap the **"Restore"** icon button next to that backup.
-  3. In the confirmation dialog, tap **"Restore"**.
-- **Expected Result**:
-  - Dialog confirms what will be restored (Rules, Speed Dials, Favorites, App Settings).
-  - Data restores cleanly and screen updates immediately.
-  - A confirmation notification confirms the successful restore.
-
-### 6. Task 37 (Phase 8): Backup Deletion & Storage Management (v1.1.4)
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. In the **Backup & Restore** card, tap the **Delete (Trash)** icon on a listed backup.
-  2. Confirm deletion in the safety prompt.
-- **Expected Result**:
-  - The backup file is permanently deleted from device storage.
-  - The item vanishes immediately from the list with zero orphaned files left behind.
-
-### 7. Task 38 (Phase 8): External Backup File Import & Cross-Device Transfer (v1.1.4)
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. In the **Backup & Restore** card, tap **"Browse Files"**.
-  2. Select an `omnidial_backup_*.json` file from device Downloads or cloud drive.
-- **Expected Result**:
-  - File is safely parsed, validated, and copied into OmniDial's managed backup storage.
-  - OmniDial restores rules, favorites, and speed dial settings from the external file.
-
-### 8. Task 10.1 (Phase 10): Roaming-Aware & DAG Conflict-Resolved SIM Routing
+### 1. Task 10.1 (Phase 10): Roaming-Aware & DAG Conflict-Resolved SIM Routing
 - [ ] **To Test**
 - **Test Steps**:
   1. Insert two active SIM cards (or configure dual-SIM state where SIM 1 is roaming and SIM 2 is local non-roaming).
@@ -88,7 +19,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - DAG weighted resolver selects the exact-match rule over the prefix rule.
   - Roaming detection identifies roaming status in real-time. If roaming is active on the default SIM, OmniDial routes or prompts with `[Roaming Protected]` on the local non-roaming SIM to prevent bill shock.
 
-### 9. Task 10.2 (Phase 10): Tiered Caller ID & Trust Badges
+### 2. Task 10.2 (Phase 10): Tiered Caller ID & Trust Badges
 - [ ] **To Test**
 - **Test Steps**:
   1. Simulate or receive an incoming call from a suspected spam number (e.g. `+18005550199`).
@@ -101,7 +32,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Verified businesses and saved contacts display a green **Verified Caller** badge.
   - Badges render with high-contrast Material 3 containers on both the In-Call screen and Call Log items.
 
-### 10. Task 10.3 (Phase 10): Android 14+ Telecom VoIP Continuity
+### 3. Task 10.3 (Phase 10): Android 14+ Telecom VoIP Continuity
 - [ ] **To Test**
 - **Test Steps**:
   1. Initiate an outgoing or incoming simulated/WhatsApp VoIP call on an Android 14+ device.
@@ -112,49 +43,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - `TelecomManager.addCall()` cleanly integrates into the system-level audio endpoint router without dropping audio channels.
   - Bluetooth device transitions, mute state, and disconnect actions execute reliably and release system audio locks.
 
-### 11. Task 11.1 (Phase 11): Modernized Automation Pipeline & Quick-Start Gallery
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. Navigate to **Rules** (Tab 4).
-  2. Inspect the horizontal **Quick-Start Recipes** carousel at the top (Gate Buzzer, Delivery Gate, SMS Responder).
-  3. Tap **"Gate Buzzer"** recipe. Verify dialog opens pre-filled with recommended actions (Auto-Answer 1s, Speakerphone ON, Mute Mic ON, DTMF 9#, Auto-Hangup 2s).
-  4. Enter a test phone number pattern (e.g. `+1555*`) and tap **Save**.
-  5. Inspect the saved rule card: verify the visual execution pipeline chips (`Ring` ➔ `Delay` ➔ `Answer` ➔ `Speaker` ➔ `Mute` ➔ `DTMF` ➔ `Hangup`).
-  6. Tap the **Duplicate** icon button on the rule card. Verify a cloned copy named `... (Copy)` appears immediately.
-  7. Tap the **History** icon button in the top app bar to view the execution log sheet.
-- **Expected Result**:
-  - Recipes pre-fill valid, tested automation pipelines in 1 tap.
-  - Rule card visualizes the sequence of triggers and actions with colored Material 3 chips.
-  - Rule duplication clones all actions and constraints accurately.
-  - History sheet opens cleanly and displays recent trigger activity.
-
-### 12. Task 11.2 (Phase 11): Interactive Dry-Run Rule Simulator
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. On any rule card in **Rules** (Tab 4), tap the **"Test Rule"** (beaker/flask) action button.
-  2. In the Rule Simulation bottom sheet, review the listed execution steps.
-  3. Tap **"Start Simulation"**.
-  4. Watch the step-by-step simulated progress bar and real-time execution node highlights.
-  5. Observe simulated answering, speakerphone engagement, mic mute, DTMF tone delivery, and auto-hangup.
-- **Expected Result**:
-  - Simulator runs through all rule actions with visual countdown timers.
-  - DTMF tones play audibly if tone playback is supported.
-  - Successful dry-run displays a green completion banner and logs the simulated event into history.
-
-### 13. Task 11.3 (Phase 11): Ambient Geofencing (Wi-Fi SSID & Bluetooth Device Constraints)
-- [ ] **To Test**
-- **Test Steps**:
-  1. In **Rules** (Tab 4), tap **Edit** on a rule or create a new rule.
-  2. In the **"Ambient Geofence & Device Guards"** section, enter your current connected Wi-Fi SSID (e.g. `Home_WiFi`) in the Wi-Fi field.
-  3. Save the rule. Verify the rule card displays the `📶 Home_WiFi` badge.
-  4. Simulate or receive an incoming call while connected to that Wi-Fi network -> Verify rule executes.
-  5. Disconnect Wi-Fi (or edit rule to require an unmatched SSID like `Unknown_WiFi`) and receive/simulate a call -> Verify rule does **NOT** trigger.
-  6. Repeat with Bluetooth device name (e.g. `CarKit` or `AirPods`) and verify the rule only fires when connected to the designated Bluetooth peripheral.
-- **Expected Result**:
-  - Zero-battery ambient geofencing guards rule execution based on immediate physical environment.
-  - Rule conditions fail gracefully if ambient constraints are not satisfied, preventing unintended automation outside target locations.
-
-### 14. Task 11.4 (Phase 11): Dynamic Audio Routing (Auto-Speakerphone & Mic-Muting)
+### 4. Task 11.4 (Phase 11): Dynamic Audio Routing (Auto-Speakerphone & Mic-Muting)
 - [ ] **To Test**
 - **Test Steps**:
   1. Configure a rule with **Auto-Speakerphone** enabled and **Auto-Mute Mic** enabled.
@@ -167,18 +56,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - Microphone is automatically muted during DTMF transmission to prevent acoustic ambient noise interference at entry buzzers/IVRs.
   - Call cleanly terminates automatically.
 
-### 15. Task 11.5 (Phase 11): Backup & Restore of Ambient Automation Fields
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. In **Rules** (Tab 4), create rules with Wi-Fi SSID, Bluetooth Device, Auto-Speakerphone, and Auto-Mute Mic configured.
-  2. In **Backup & Restore**, tap **"Backup Now"**.
-  3. Delete the rule from the list.
-  4. Tap **"Restore"** on the created backup.
-- **Expected Result**:
-  - Backup file preserves all ambient geofence fields and audio routing flags.
-  - Restored rule retains all exact settings: Wi-Fi SSID, Bluetooth Device, Auto-Speakerphone, and Auto-Mute Mic.
-
-### 16. Task 10.5 (Issue #39): In-Call Screen Priority & Modal Auto-Dismiss on External Outgoing Calls
+### 5. Task 10.5 (Issue #39): In-Call Screen Priority & Modal Auto-Dismiss on External Outgoing Calls
 - [ ] **To Test**
 - **Test Steps**:
   1. In OmniDial, open any contact's `ContactDetailsBottomSheet` in Contacts, Favorites, or Recents (or open a rule dialog in Rules).
@@ -189,21 +67,7 @@ Items currently pending verification or undergoing testing. Verified items are a
   - All open bottom sheets (`ContactDetailsBottomSheet`), dialogs (`SimChoiceDialog`, `WhatsAppChoiceDialog`, `CloudContactSyncDialog`, `RuleEditDialog`), and prompt overlays are immediately dismissed.
   - Active `InCallScreen` is surfaced with 100% priority and zero visual obstruction.
 
-### 17. Task 10.6 (Issue #40): Public Storage MediaStore Backup Persistence (Survive Clean Reinstalls)
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. In **Rules / Settings** (Tab 4), scroll to **Backup & Restore** and tap **"Backup Now"**.
-  2. Confirm the backup file appears in "Available Backups".
-  3. Open a file explorer app on the device and navigate to `Documents/OmniDial/` — verify `omnidial_backup_*.bak` exists in public storage.
-  4. Uninstall OmniDial completely from the device (`adb uninstall com.example` or drag to uninstall).
-  5. Re-install OmniDial.
-  6. Open OmniDial and navigate to **Rules / Settings** (Tab 4) -> **Backup & Restore**.
-- **Expected Result**:
-  - OmniDial automatically queries public MediaStore on startup and mirrors the preserved backups from `Documents/OmniDial/`.
-  - The backup is immediately visible in the "Available Backups" list with its original timestamp and file size.
-  - Tapping **"Restore"** cleanly restores all rules, speed dials, favorites, and settings.
-
-### 18. Task 10.7: Missed Call Notification Auto-Scroll & Highlight Pulse
+### 6. Task 10.7: Missed Call Notification Auto-Scroll & Highlight Pulse
 - [ ] **To Test**
 - **Test Steps**:
   1. Trigger a missed call (either simulated incoming call left unanswered or an actual phone call).
@@ -213,54 +77,6 @@ Items currently pending verification or undergoing testing. Verified items are a
   5. Verify the card displays an animated primary highlight container and border stroke, which gracefully fades out over 3.5 seconds.
 - **Expected Result**:
   - Tapping missed call notification navigates to Recents, smoothly scrolls to the exact entry, and pulses the highlight before fading back cleanly.
-
-### 19. Task 19 (v1.4.2): Rule Editor Keyboard Insets & Soft Keyboard Auto-Scroll
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. Open **Rules** (Tab 4) and tap **+** or edit an existing rule.
-  2. Tap into lower text fields (e.g. "DTMF Start Delay", "SMS Message Content", or "Required Wi-Fi SSID").
-  3. Observe soft keyboard opening.
-- **Expected Result**:
-  - Dialog smoothly resizes and scrolls the focused input field upward above the keyboard with zero obscured text inputs.
-
-### 20. Task 20 (v1.4.2): Redesigned Rule Editor UX & Sticky Action Bar
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. Open **Rule Editor** dialog.
-  2. Inspect the live **Workflow Pipeline Preview** indicator at the top as you toggle Auto-Answer, Auto-Mute, DTMF, SMS, and Auto-Hangup switches.
-  3. Inspect the categorized section cards and quick preset chips.
-  4. Edit rule parameters and tap the prominent bottom **"Create Rule" / "Save Changes"** button.
-- **Expected Result**:
-  - Live pipeline preview updates reactively.
-  - Section cards (Identification, Call Actions, Audio Routing, SMS, Geofence) present a clean visual hierarchy.
-  - Prominent sticky bottom action bar provides instant one-tap save without scrolling to bottom.
-
-### 21. Task 21 (v1.4.2): Top Header Recipes Gallery & Conflict-Free Presets Grid
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. In **Rules** (Tab 4), tap the top header **"Recipes"** button when rules are present.
-  2. Select any template (Gate Buzzer, Delivery Gate, SMS Responder, Voicemail PIN).
-  3. Observe rule dialog opening pre-filled with the selected template.
-- **Expected Result**:
-  - Recipe templates gallery opens cleanly in a bottom sheet anytime.
-  - Active rules list begins immediately below the header without redundant banner cards taking up screen space.
-
-### 22. Task 22 (v1.4.2): Unified Multi-SIM & Carrier Spam Settings Backup
-- [x] **Verified** TESTED
-- **Test Steps**:
-  1. In **Settings** (Tab 4), set Global SIM Preference to **"International"** or **"Ask & Learn"**.
-  2. In Spam Management, enable Carrier Spam Defense toggles.
-  3. Tap **"Backup Now"** in Backup & Restore.
-  4. Reset app settings or delete preferences, then tap **"Restore"**.
-- **Expected Result**:
-  - All multi-SIM preference modes and carrier spam defense switches restore accurately with full fidelity.
-
-### 23. Task 23 (v1.4.2): Automated Telecom Subsystem Unit Tests
-- [x] **Verified** TESTED (Executed via `./gradlew testDebugUnitTest` with 100% pass rate)
-- **Test Coverage**:
-  - `OmniCallRedirectionServiceTest`: External outgoing call interception, voicemail bypassing, SIM account binding, WhatsApp routing fallback.
-  - `SimHelperTest`: Multi-SIM subscription resolution, direct carrier display names, roaming status queries.
-  - `ReminderSchedulerTest`: Post-call AlarmManager callback scheduling, exact timing, alarm cancelation.
 
 ---
 

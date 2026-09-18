@@ -3,6 +3,7 @@
 [![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
+[![Version](https://img.shields.io/badge/Version-1.4.4%20(Build%2017)-brightgreen.svg)](documents/CHANGELOG.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](documents/CHANGELOG.md)
 [![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](documents/DESIGN.md)
 
@@ -13,62 +14,94 @@
 ## 🚀 Key Features & Capabilities
 
 ### 1. 🎹 Smart T9 Dialer & Hybrid Keypad
-- **Non-Scrolling 2x2 Call Action Grid**: Replaced scrolling carousels with a stable 2x2 grid (`Text Message`, `Phone`, `WhatsApp - Msg`, `WhatsApp - Voice`).
-- **Adaptive Preference Highlighting**: Dynamically highlights preferred communication channels using high-contrast borders and subtle background tints based on learned caller intelligence, avoiding intrusive badge tags.
-- **Enhanced Dark Mode WhatsApp Icon**: Rendered with a high-contrast white outer contour ring around the bubble to guarantee perfect visibility and size harmony in dark AMOLED themes.
-- **Bluetooth & Car Head Unit Call Redirection**: Android `CallRedirectionService` (`OmniCallRedirectionService`) automatically routes outgoing calls triggered from vehicle infotainment systems, smartwatches, or third-party dialers to WhatsApp VoIP when preferred.
-- **T9 Search**: Instant T9 matching on digits that searches contact names, nicknames, and phone numbers as you type.
-- **Pause (`,`) & Wait (`;`) Support**:
-  - Long-press `*` key to enter a 2-second Pause (`,`).
-  - Long-press `#` key to enter a Wait (`;`).
-  - Dedicated overflow menu (`⋮`) on the number bar to insert Pause or Wait directly.
-- **Quick Recents Bar**: Displays your most recent caller avatars right above the keypad when the input field is empty for instant redialing.
+- **Non-Scrolling 2x2 Call Action Grid**: Stable 2x2 grid (`Text Message`, `Phone`, `WhatsApp - Msg`, `WhatsApp - Voice`) with zero layout jumps.
+- **Adaptive Preference Highlighting**: Dynamically highlights preferred communication channels using high-contrast borders and subtle background tints based on learned caller intelligence.
+- **Enhanced Dark Mode WhatsApp Icon**: Rendered with a high-contrast white outer contour ring for perfect AMOLED visibility.
+- **Bluetooth & Car Head Unit Call Redirection**: `OmniCallRedirectionService` automatically routes outgoing calls from vehicle infotainment, smartwatches, or third-party dialers to WhatsApp VoIP when preferred.
+- **T9 Search**: Instant matching on digits that searches contact names, **nicknames**, and phone numbers as you type.
+- **Pause (`,`) & Wait (`;`) Support**: Long-press `*` for Pause, long-press `#` for Wait, or insert via the overflow menu (`⋮`).
+- **Quick Recents Bar**: Most recent caller avatars above the keypad for instant redialing.
+- **Nickname-Aware Keypad Suggestions**: Predictive suggestions prominently display contact nicknames alongside formal names.
 
 ---
 
 ### 2. ⭐ VIP Favorites Hub & Grid Management
-- **3 Responsive Card Themes**: Select between **Bento**, **Grid (Quick Action)**, and **Material** card styles in App Settings.
-- **Dual Dialers Across All Styles**: In "Ask & Learn" or "Ask Always" mode, all favorite card styles render side-by-side dual action buttons (`Phone` and `WhatsApp`). Once learned, cards collapse to the preferred channel.
-- **Continuous Multi-Row Drag-and-Drop Reordering**:
-  - Unlock Configure Mode via the top-right checkmark button.
-  - Touch and drag any card smoothly across 1, 2, 5, or 10 rows.
-  - Custom grid order is saved to Room DB & `SharedPreferences` for persistence across reinstalls.
-- **Popular Contact Nickname Auto-Lookup**: Starring a popular contact or number automatically resolves its custom nickname from device contacts.
-- **1-Tap Speed Dial Shortcuts**: Assign numbers 2–9 to VIP favorites for instant long-press dialing on the keypad.
+- **3 Responsive Card Themes**: **Bento**, **Grid (Quick Action)**, and **Material** card styles selectable in App Settings.
+- **Dual Dialers Across All Styles**: In "Ask & Learn" or "Ask Always" mode, all card styles render side-by-side `Phone` and `WhatsApp` buttons. Once learned, cards collapse to the preferred channel.
+- **Continuous Multi-Row Drag-and-Drop Reordering**: Custom grid order saved to Room DB & `SharedPreferences`, persisting across reinstalls.
+- **Popular Contact Nickname Auto-Lookup**: Starring a popular contact automatically resolves its custom nickname from device contacts.
+- **1-Tap Speed Dial Shortcuts**: Assign numbers 2–9 for instant long-press dialing on the keypad.
 
 ---
 
 ### 3. 📜 Call History & Recent Logs
-- **SIM Slot Badges**: Every call record explicitly displays a `SIM 1` / `SIM 2` badge (or `WhatsApp` badge) alongside the timestamp and duration.
-- **Recents Search & Live Filtering**: Top search bar (`"Search by name or number"`) to filter call history by caller name, number, or note in real time.
-- **Fresh Install Call Log Import**: Automatically seeds Room SQLite database with system call history logs on first run.
-- **Missed Call Notification Deep-Linking**: Tapping missed call notifications switches directly to Recents and auto-scrolls to highlight the call.
-- **Post-Call Notes & Callback Reminders**: Add timestamped notes to recent call records immediately after hanging up.
+- **SIM Slot Badges**: Every call record displays `SIM 1` / `SIM 2` (or `WhatsApp`) badge alongside timestamp and duration.
+- **Instant Call Log Updates**: Outgoing, incoming, and missed calls appear in Recent Calls the moment a call ends — no refresh delay.
+- **SIM & Roaming Call Alerts**: Incoming calls display the receiving SIM name with a prominent amber roaming warning when the active SIM is on network roaming.
+- **Recents Search & Live Filtering**: Real-time filtering by caller name, number, or note.
+- **Fresh Install Call Log Import**: Automatically seeds Room SQLite with system call history on first run.
+- **Missed Call Notification Deep-Linking**: Tapping missed call notifications switches to Recents and auto-scrolls with a 3.5s highlight pulse on the target entry.
+- **Post-Call Notes & Callback Reminders**: Add timestamped notes to recent call records and set `AlarmManager`-backed callbacks immediately after hanging up.
+- **Post-Call Quick Action Card**: 4-second bottom sheet after call end offering 1-tap "Save Contact", "Block & Report Spam", "WhatsApp Message", and "Set Reminder".
 
 ---
 
-### 4. 📇 Unified Contact Directory & Edit Routing
-- **Official Full Names Directory**: The main Contacts Directory always displays official full names (`contact.name`), reserving nicknames for space-limited Favorite cards.
-- **Smart Edit Routing**: Tapping **Edit** on a Phone ContactSynced from Android system opens the native **Android Phone Contacts app** editor directly (`Intent.ACTION_EDIT`). Tapping Edit on a Local App Contact opens the in-app `EditContactDialog`.
-- **Equal Action Icons**: All 5 action buttons (Copy, WhatsApp Chat, WhatsApp Call, SMS, Phone Call) use 1:1 identical 36dp circular containers with crisp 18dp vector glyphs, high-contrast borders, and adaptive theme colors for Light and Dark modes.
-- **Teach Preferred Channel Without Calling**: Set or reset channel preferences (`Phone`, `WhatsApp`, `Ask & Learn`) per contact directly in the Contact Details sheet without placing a call.
+### 4. 📇 Unified Contact Directory
+- **Smart Edit Routing**: Phone contacts open the native Android Contacts editor; local app contacts open the in-app `EditContactDialog`.
+- **Per-Number Preferred SIM Routing**: Assign a preferred SIM slot (SIM 1, SIM 2, Auto, or Always Ask) per phone number. Outgoing calls auto-route via the designated SIM.
+- **Nicknames Filter**: One-tap "Nicknames" filter tab instantly surfaces all contacts with saved nicknames.
+- **Default Number Prioritization**: Default primary number always sorted to top with a `DEFAULT` badge when expanding contact details.
+- **Phonebook Default Number Sync**: Setting a default number updates Android's system contacts and Google Contacts, keeping everything in sync.
+- **Teach Preferred Channel Without Calling**: Set or reset channel preferences per contact directly in the Contact Details sheet.
 
 ---
 
-### 5. 🤖 Automated Call Screening & Gate Buzzer Rules
-- **Carrier Spam Filter Bypass**: Automatically whitelists incoming calls that match an active **User Automation Rule**, **Starred Favorite**, or **Saved Contact**, ensuring gate buzzers and VIP contacts are NEVER auto-rejected by carrier STIR/SHAKEN filters.
-- **Gate / Intercom Buzzer Recipe**:
-  - *Trigger*: Incoming call from Gate / Lobby number (e.g., `+1 469-731-3343` or `5550199`).
-  - *Action*: Auto-answers after 1 second $\rightarrow$ Sends in-band DTMF `9#` $\rightarrow$ Auto-hangs up after 2 seconds $\rightarrow$ Sends optional confirmation SMS.
-- **Custom Rule Builder**: Create rules triggered by exact numbers or 10-digit patterns with customizable auto-answer delays, DTMF key sequences, auto-hangup delays, and auto-reply SMS messages.
-- **Fail-Safe Persistence**: Automation rules and learned calling choices are backed up via Android Auto-Backup (`backup_rules.xml` & `data_extraction_rules.xml`) and `SharedPreferences` for zero data loss across reinstalls.
+### 5. 🤖 Automated Call Screening & Contextual Recipes
+- **Visual Rule Pipeline**: Rule cards display the full execution sequence as colored Material 3 chips (`Ring` ➔ `Delay` ➔ `Answer` ➔ `Speaker` ➔ `Mute` ➔ `DTMF` ➔ `Hangup`).
+- **Quick-Start Recipe Gallery**: Pre-configured automation templates (Gate Buzzer, Delivery Gate, Office Extension, VIP Ring) available at any time via the top "Recipes" button.
+- **Gate / Intercom Buzzer**: Auto-answers after 1s → Sends DTMF `9#` → Auto-hangs up after 2s → Optional confirmation SMS.
+- **Ambient Geofencing Guards**: Rules only execute when connected to the configured Wi-Fi SSID or Bluetooth device — zero extra battery drain.
+- **Dynamic Audio Routing**: Auto-route answered calls to speakerphone and auto-mute mic during DTMF transmission.
+- **Interactive Dry-Run Simulator**: Test and verify DTMF sequences and delay timings with a step-by-step simulation without placing real calls.
+- **Rule Execution History**: Top-bar History icon opens an execution log sheet of recent rule triggers.
+- **Rule Duplication**: One-tap clone of any rule with all actions and constraints.
+- **Carrier Spam Filter Bypass**: Whitelists automation-rule matched calls, starred favorites, and saved contacts from carrier STIR/SHAKEN auto-rejection.
 
 ---
 
-### 6. 🛡️ Dedicated Spam & Blocked Calls Center
-- **Dedicated Spam Window**: `SpamManagementDialog` provides blocked numbers list, quick search, manual blocking, auto-block carrier spam toggles, and unblocking.
-- **Location-Aware International Detection**: Detects international numbers relative to your physical cellular tower location (`TelephonyManager.networkCountryIso`) and SIM country, routing foreign calls to WhatsApp automatically if configured.
-- **Safety Confirmation**: Global "Reset Learned Choices" in Settings prompts with a safety confirmation dialog before clearing learned channel memories.
+### 6. 📡 Intelligent Dual-SIM Management
+- **Three Global SIM Modes** (selectable in Settings):
+  - **System** (Default): Highlights your active system default SIM without clutter.
+  - **Ask & Learn**: Allows full per-contact SIM preference customization.
+  - **International**: Presents SIM selection for non-domestic numbers while keeping domestic calls on the primary SIM.
+- **Direct SIM Name Pills**: Contact sheets display custom carrier/user SIM names without redundant technical labels.
+- **Roaming Cost Alerts**: Proactive toast warnings when routing a call through an active roaming SIM.
+- **DAG Conflict-Resolved SIM Rules**: Weighted rule resolver gives precedence to exact-match rules over prefix rules, preventing unintended routing conflicts.
+- **Roaming Protection**: Real-time `isNetworkRoaming()` check automatically avoids roaming SIM and routes to local non-roaming SIM when possible.
+
+---
+
+### 7. 🏅 Tiered Caller ID & Trust Badges
+- **High-Risk Spam (Red)**: Red `Spam Risk` badge on spam callers in both In-Call screen and Call Log.
+- **Priority Delivery & Logistics (Amber)**: Amber `Priority Delivery` badge for verified logistics numbers.
+- **Verified Business & Saved Contacts (Green)**: Green `Verified Caller` badge for saved contacts and community-verified businesses.
+- All badges render with high-contrast Material 3 containers.
+
+---
+
+### 8. 🛡️ Dedicated Spam & Blocked Calls Center
+- **Dedicated Spam Window**: `SpamManagementDialog` with blocked list, quick search, manual blocking, auto-block presets, and unblocking.
+- **E.164 Number Normalization**: Google `libphonenumber` integration for strict international number parsing across T9 search, contact matching, WhatsApp dispatch, and call redirection.
+- **Auto-Block Presets**: One-tap defense against top spammers, private/restricted numbers, and foreign prefix wildcards.
+- **Location-Aware International Detection**: Detects international numbers relative to cellular tower location and SIM country.
+
+---
+
+### 9. 💾 Backup & Restore
+- **One-Tap Automatic Backups**: Single "Backup Now" tap saves all rules, speed dials, favorites, and settings — including multi-SIM preferences, ambient geofence guards, and spam filters.
+- **Public Storage Persistence**: Backups written to `Documents/OmniDial/` via MediaStore survive app uninstalls and reinstalls.
+- **One-Tap Restore & File Manager**: Auto-scanned backup list with instant restore and safe-delete. "Browse Files" imports backups from other devices or cloud.
+- **Cryptographic Integrity**: SHA-256 checksums and schema versioning protect against corrupted imports.
 
 ---
 
@@ -77,29 +110,32 @@
 ### Teaching Preferred Calling Channel Without Placing Calls
 1. Open **Contacts** (Tab 3) or **Recents** (Tab 1) and tap a contact row to open the **Contact Details Sheet**.
 2. Locate the **Preferred Channel** selector row directly below the phone number.
-3. Tap **`Phone`** or **`WhatsApp`** to set the preference (or tap **`Reset`** to return to Ask & Learn).
-4. *Result*: The choice is saved immediately with a Toast confirmation without making a call!
+3. Tap **`Phone`** or **`WhatsApp`** to set the preference (or tap ✕ to return to Ask & Learn).
+4. *Result*: The choice is saved immediately with a Toast confirmation without making a call.
 
 ### Reordering Favorites
 1. Go to the **Favorites** tab.
 2. Tap the top-right **Configure Mode** checkmark button (`✓`).
-3. Touch and hold any favorite card, then drag it up, down, left, or right across rows. Surrounding cards will slide out of the way. Release to drop.
-4. Tap the checkmark button again to lock in the new layout. Your custom order is automatically saved and persisted across app reinstalls.
+3. Touch and hold any favorite card, then drag it across rows. Release to drop.
+4. Tap the checkmark again to lock the new layout. Custom order is persisted across reinstalls.
 
 ---
 
 ## 📦 Download & Installation
 
-The latest release and prior versions are available directly in the `apks/` directory and on the [OmniDial Website](index.html):
+The latest release and prior versions are available in the `apks/` directory and on the [OmniDial Website](index.html):
 
-- **[OmniDial-v1.1.5.apk](apks/OmniDial-v1.1.5.apk)** *(Latest Release — Build 7)*: Instant keypad and panel switching with zero delay and pre-warmed viewport navigation.
-- **[OmniDial-v1.1.4.apk](apks/OmniDial-v1.1.4.apk)** *(Prior Release — Build 6)*: One-tap automatic backups and cross-device backup restore file picker.
-- **[OmniDial-v1.1.3.apk](apks/OmniDial-v1.1.3.apk)** *(Prior Release — Build 5)*: Tactile sensory haptics and smoother active in-call controls.
-- **[OmniDial-v1.1.2.apk](apks/OmniDial-v1.1.2.apk)** *(Prior Release — Build 4)*: Instant international WhatsApp & texting resolution, overseas dial without country code fix, and accurate full-number one-tap calling.
-- **[OmniDial-v1.1.1.apk](apks/OmniDial-v1.1.1.apk)** *(Prior Release — Build 3)*: T9 Nickname search, Fav & T9 default keypad layout, automatic international country code resolution for WhatsApp/SMS, Key 1 VM deduplication, and non-jumping quick action buttons.
-- **[OmniDial-v1.1.0.apk](apks/OmniDial-v1.1.0.apk)** *(Prior Release — Build 2)*: 2x2 Call Action layout, adaptive preference highlighting, dark mode WhatsApp contrast, car call redirection, and favorites UX updates.
-- **[OmniDial-v1.0.0.apk](apks/OmniDial-v1.0.0.apk)** *(Prior Release — Build 1)*: Initial release with Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh.
-- **[OmniDial.apk](apks/OmniDial.apk)** *(Latest build direct alias)*.
+- **[OmniDial-v1.4.4.apk](apks/OmniDial-v1.4.4.apk)** *(Latest — Build 17)*: Smart SIM & roaming call alerts, instant call log updates, and polished nickname presentation.
+- **[OmniDial-v1.4.3.apk](apks/OmniDial-v1.4.3.apk)** *(Build 16)*: Dedicated Nicknames filter tab and nickname-aware keypad suggestions.
+- **[OmniDial-v1.4.2.apk](apks/OmniDial-v1.4.2.apk)** *(Build 15)*: Automation recipes gallery, keyboard auto-scroll in rule editor, and unified settings backup.
+- **[OmniDial-v1.4.1.apk](apks/OmniDial-v1.4.1.apk)** *(Build 14)*: Interactive visual feature previews and direct caller rules navigation.
+- **[OmniDial-v1.4.0.apk](apks/OmniDial-v1.4.0.apk)** *(Build 13)*: Dual SIM management modes, direct SIM name pills, and roaming cost alerts.
+- **[OmniDial-v1.3.0.apk](apks/OmniDial-v1.3.0.apk)** *(Build 12)*: Per-number preferred SIM routing and unified nickname call log display.
+- **[OmniDial-v1.2.0.apk](apks/OmniDial-v1.2.0.apk)** *(Build 8)*: Architecture modularization, faster call history search, and tamper-proof backups.
+- **[OmniDial-v1.1.5.apk](apks/OmniDial-v1.1.5.apk)** *(Build 7)*: Instant keypad switching and pre-warmed panel navigation.
+- **[OmniDial-v1.1.0.apk](apks/OmniDial-v1.1.0.apk)** *(Build 2)*: 2x2 Call Action grid, adaptive highlights, car call redirection, and WhatsApp dark mode contrast.
+- **[OmniDial-v1.0.0.apk](apks/OmniDial-v1.0.0.apk)** *(Build 1)*: Initial release — Cellular + WhatsApp integration, Caller Rules, T9 search, and Flip-to-Shhh.
+- **[OmniDial.apk](apks/OmniDial.apk)** *(Latest build direct alias)*
 
 ---
 
@@ -111,5 +147,6 @@ OmniDial requires standard telephony permissions to operate as your default phon
 - `READ_CALL_LOG` & `WRITE_CALL_LOG`: Display and manage recent call history.
 - `ANSWER_PHONE_CALLS`: Auto-answer calls for user-configured automation rules.
 - `SEND_SMS`: Send optional auto-response SMS messages for busy/gate rules.
+- `READ_PHONE_STATE`: Detect active SIM slots, roaming status, and carrier information.
 
 *All user data, call logs, contacts, and automation rules remain 100% private and stored locally on your device in Room SQLite database and SharedPreferences.*
