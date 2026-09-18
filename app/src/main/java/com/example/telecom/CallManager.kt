@@ -12,6 +12,7 @@ import android.os.PowerManager
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.Connection
+import android.telecom.TelecomManager
 import android.telecom.VideoProfile
 import android.telephony.SmsManager
 import android.util.Log
@@ -126,6 +127,23 @@ object CallManager {
 
     private val _lastDtmfKey = MutableStateFlow<Char?>(null)
     val lastDtmfKey: StateFlow<Char?> = _lastDtmfKey.asStateFlow()
+
+    private val _isRingerSilenced = MutableStateFlow(false)
+    val isRingerSilenced: StateFlow<Boolean> = _isRingerSilenced.asStateFlow()
+
+    fun silenceRinger(context: Context) {
+        val current = _activeCall.value
+        if (current != null && current.state == Call.STATE_RINGING) {
+            try {
+                val tm = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+                tm?.silenceRinger()
+                _isRingerSilenced.value = true
+                Log.d(TAG, "Incoming call ringer silenced by user action or motion")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error silencing ringer", e)
+            }
+        }
+    }
 
     @Volatile
     var lastInsertedCallId: Long? = null
@@ -252,10 +270,14 @@ object CallManager {
             isRoaming = isRoaming
         )
         _activeCall.value = initialCallInfo
+        _isRingerSilenced.value = false
 
         call.registerCallback(object : Call.Callback() {
             override fun onStateChanged(call: Call, state: Int) {
                 Log.d(TAG, "Call state changed: $state")
+                if (state != Call.STATE_RINGING) {
+                    _isRingerSilenced.value = false
+                }
                 val current = _activeCall.value
                 if (current != null) {
                     val connectTime = if (state == Call.STATE_ACTIVE && current.connectTimeMillis == 0L) {
@@ -432,14 +454,14 @@ object CallManager {
                     val isKnownCaller = (lookedUp != null || favContact != null)
                     if (isIncoming && silenceUnknownPrivate && !isKnownCaller && !isWhitelisted) {
                         Log.d(TAG, "Incoming call from unknown caller $number silenced by Silence Unknown/Private preset")
-                        FlipToShhhManager.silenceIncomingCallIfRinging(context)
+                        silenceRinger(context)
                     } else {
                         val isFavoriteCaller = lookedUp?.isStarred == true
                         if (FlipToShhhManager.isDndActive(context)) {
                             val allowed = FlipToShhhManager.isCallerAllowedUnderCurrentDnd(context, isFavoriteCaller)
                             if (!allowed) {
                                 Log.d(TAG, "Incoming call from $number silenced by Do Not Disturb")
-                                FlipToShhhManager.silenceIncomingCallIfRinging(context)
+                                silenceRinger(context)
                             }
                         }
                     }
@@ -462,6 +484,7 @@ object CallManager {
     }
 
     private fun handleCallEnded(context: Context, callInfo: ActiveCallInfo?) {
+        _isRingerSilenced.value = false
         releaseProximityWakeLock()
         TelecomVoipHelper.endVoipCall()
         automationJob?.cancel()

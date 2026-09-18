@@ -1,6 +1,6 @@
 # OmniDial — System Architecture & Technical Documentation
 
-> **Current Version**: v1.4.4 (Build 17) — September 2026
+> **Current Version**: v1.5.0 (Build 18) — September 2026
 
 ## 1. Executive Summary
 
@@ -54,8 +54,8 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 - **`FavoritesScreen.kt`**: VIP grid hub with Configure Mode drag-and-drop reordering, persistent sort order, dual-dialer buttons for all card styles (Bento/Grid/Material), and popular contact ignore.
 - **`DialerScreen.kt`**: T9 smart keypad with Quick Recents bar, Pause/Wait overflow menu, nickname-aware suggestions (`contactsByDigits` + `contactsByName` lookup), and non-jumping 2x2 call action grid.
 - **`CallLogScreen.kt`**: Rich call history merging `CallLog.Calls` + Room `recent_calls`. Shows SIM slot badges, instant updates via `callLoggedEvent` SharedFlow, missed call highlight pulse, and `🤖 Rule` badges.
-- **`ContactsScreen.kt`**: Unified directory with Nicknames filter tab (`SmartContactSort.NICKNAMES`), default number prioritization, and per-number SIM routing.
-- **`InCallScreen.kt`**: Active call UI with SIM display name chip, amber `ROAMING` alert badge, DTMF keypad, audio output selector, post-call notes, and isolated `CallDurationStatusChip` to prevent 1Hz recomposition cascades.
+- **`ContactsScreen.kt`**: Unified directory with Nicknames filter tab (`SmartContactSort.NICKNAMES`), default number prioritization, per-number SIM routing, and partitioned search outside active filters (`otherFilteredOutMatches`).
+- **`InCallScreen.kt`**: Active call UI with SIM display name chip, amber `ROAMING` alert badge, DTMF keypad, audio output selector, post-call notes, manual `[ 🔕 Silence ]` ringer chip, touch-to-silence gestures, and isolated `CallDurationStatusChip` to prevent 1Hz recomposition cascades.
 - **`RulesScreen.kt`**: Automation rule manager with visual pipeline chips, Quick-Start Recipe Gallery bottom sheet, rule dry-run simulator, execution history log, and rule duplication.
 - **`MainActivity.kt`**: Hosts `FloatingCallPill`, observes `callLoggedEvent` for reactive Recents updates, handles `dismissAllModals()` when external calls arrive, and processes missed call deep-link intents.
 
@@ -187,6 +187,9 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 5. **IME Auto-Scroll in RuleEditDialog**: `DialogProperties(decorFitsSystemWindows = false)` + `Modifier.imePadding()` + `FlowRow` presets prevent keyboard from obscuring inputs.
 6. **Instant Nickname Display Fix**: `ContactDetailsBottomSheet` now reads from pre-loaded `FavoriteContact` map before rendering, eliminating the false `+ Add Nickname` flash.
 7. **Cleaned Contact Filter Row**: Removed inline `⭐ Favorite` and `🏷️ Nickname` filter tags from contact list items, restoring full horizontal width to contact names.
+8. **Partitioned Contact Search Outside Active Filters**: When searching under any filter tab (Nicknames, Favorites, etc.), matching contacts outside the filter are cleanly displayed in an "Other Matches Outside Filter" section with direct bottom sheet actions.
+9. **Ambient Incoming Ring Silencing**: Integrated `TelecomManager.silenceRinger()` triggered on device pickup/motion, proximity uncover, screen tap, audio route selection, quick decline SMS, or physical volume buttons while keeping the call active in `STATE_RINGING`.
+10. **Multi-Channel Calling Architecture Specification**: Documented complete dynamic channel discovery and per-phone-number channel preferences blueprint in `documents/MULTI_CHANNEL_CALLING_BLUEPRINT.md`.
 
 ---
 

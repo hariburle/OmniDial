@@ -6,7 +6,36 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
-### 1. Task 10.1 (Phase 10): Roaming-Aware & DAG Conflict-Resolved SIM Routing
+### 1. Task 12.1 (Phase 12): Partitioned Contact Search Outside Active Filter
+- [ ] **To Test**
+- **Test Steps**:
+  1. Open the **Contacts** tab (Tab 4).
+  2. Select an active filter chip (e.g. "Nicknames" or "Favorites"). Verify list only shows qualifying contacts.
+  3. Type a search query for a contact name that exists in the phonebook but does NOT have a nickname or is NOT starred in favorites.
+  4. Verify the search results view:
+     - Top section displays qualifying filter matches (if any).
+     - Below, a dedicated section appears: `"Other Matches Outside Filter (N)"`.
+     - Each item displays the contact name, phone numbers, and a contextual reason badge (e.g., `[No Nickname]`, `[Not in Favs]`).
+  5. Tap an item in the partitioned section to open its `ContactDetailsBottomSheet`.
+  6. Confirm you can add a nickname or favorite star directly from the sheet, and the contact immediately shifts into the primary filtered section.
+- **Expected Result**:
+  - Contacts are never hidden by active filters during search. Non-qualifying contacts are cleanly partitioned with 1-tap sheet access.
+
+### 2. Task 12.2 (Phase 12): Ambient Incoming Call Ring Silencing on Lift & Screen Interaction
+- [ ] **To Test**
+- **Test Steps**:
+  1. Receive an incoming phone call on the device while it is placed flat on a table (or simulate an incoming ringing call).
+  2. Notice the phone ringing out loud.
+  3. Pick up the phone from the table (or uncover the proximity sensor).
+  4. Verify the loud ringer is immediately silenced, while the screen remains on `STATE_RINGING` with full answer/decline/audio controls.
+  5. In a second incoming call test, leave the phone on the table and tap anywhere on the screen background, tap the audio route selector bar, or tap a quick decline SMS chip.
+  6. Verify the ringer is immediately silenced while the call remains ringing.
+  7. In a third incoming call test, tap the dedicated `[ 🔕 Silence ]` top status chip. Verify it turns to `[ Silenced ]` and stops the ringer.
+  8. In a fourth test, press the physical volume up or volume down button during an incoming call. Verify ringer is silenced.
+- **Expected Result**:
+  - `TelecomManager.silenceRinger()` is invoked seamlessly without altering system-wide ringer mode. Call stays active in `STATE_RINGING` until user decides.
+
+### 3. Task 10.1 (Phase 10): Roaming-Aware & DAG Conflict-Resolved SIM Routing
 - [ ] **To Test**
 - **Test Steps**:
   1. Insert two active SIM cards (or configure dual-SIM state where SIM 1 is roaming and SIM 2 is local non-roaming).

@@ -1,6 +1,6 @@
 # OmniDial — Architecture & System Design Document
 
-> **Current Version**: v1.4.4 (Build 17) — September 2026
+> **Current Version**: v1.5.0 (Build 18) — September 2026
 
 This document serves as the primary technical specification and maintenance guide for **OmniDial**. It documents the system architecture, component contracts, data persistence models, telephony integrations, build pipelines, and maintenance runbooks.
 
@@ -20,7 +20,8 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 7. **Tiered Caller Trust Badges**: Color-coded trust tiers for spam, logistics, verified businesses, and saved contacts.
 8. **E.164 Number Intelligence**: Google `libphonenumber` normalization across all lookup, matching, and dispatch paths.
 9. **Post-Call Quick Actions & Reminders**: 4-second bottom sheet with Save Contact, Block Spam, WhatsApp Message, and AlarmManager-backed Set Reminder.
-10. **In-Call Telecom Experience**: Custom full-screen in-call interface with SIM name chip, roaming amber badge, mute, hold, DTMF, speaker/Bluetooth routing, and flip-to-silence.
+10. **In-Call Telecom Experience**: Custom full-screen in-call interface with SIM name chip, roaming amber badge, mute, hold, DTMF, speaker/Bluetooth routing, ambient lift & touch ring silencing, and flip-to-silence.
+11. **Partitioned Filter Contact Discovery**: Real-time two-pass search displaying qualifying filter matches at the top and partitioning non-qualifying matches into a dedicated "Other Matches Outside Filter" section with direct action sheets.
 
 ---
 
@@ -161,6 +162,7 @@ app/src/main/java/com/example/
 2. Delegates to `CallManager`, which enriches `ActiveCallInfo` with `simDisplayName` and `isRoaming` via `SimHelper.resolveSimInfo()`.
 3. `CallManager` evaluates ambient geofence guards (`checkWifiSsid()`, `checkBluetoothDevice()`) before executing automation.
 4. On call termination, emits `callLoggedEvent` SharedFlow and triggers `PostCallQuickActionCard`.
+5. **Ambient Incoming Ring Silencing**: `CallManager.silenceRinger()` delegates to `telecomManager.silenceRinger()`, invoked on device pickup (accelerometer dynamic motion in `FlipToShhhManager`), proximity uncover, user touch/gestures on `InCallScreen`, audio route switching, quick SMS decline, or physical volume keys while keeping the call active in `STATE_RINGING`.
 
 ### 4.5 Ambient Geofencing (Zero-Battery Guards)
 `CallManager.checkAndExecuteAutomation()` evaluates:

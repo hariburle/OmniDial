@@ -262,6 +262,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP) {
+            val active = CallManager.activeCall.value
+            if (active != null && active.state == android.telecom.Call.STATE_RINGING) {
+                CallManager.silenceRinger(this)
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     fun updateLockScreenFlags(hasActiveCall: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(hasActiveCall)

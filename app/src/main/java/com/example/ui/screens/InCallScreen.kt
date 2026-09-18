@@ -7,6 +7,8 @@ import com.example.ui.components.SwipeSliderAnswerView
 
 import android.telecom.Call
 import android.telecom.CallAudioState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.telecom.CallManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -218,7 +220,15 @@ fun InCallScreen(
             .fillMaxSize()
             .testTag("in_call_screen")
             .let { baseModifier ->
-                if (callInfo.state == Call.STATE_DISCONNECTED) {
+                if (callInfo.state == Call.STATE_RINGING) {
+                    baseModifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = {
+                                CallManager.silenceRinger(context)
+                            }
+                        )
+                    }
+                } else if (callInfo.state == Call.STATE_DISCONNECTED) {
                     baseModifier.pointerInput(Unit) {
                         detectTapGestures(
                             onTap = {
@@ -273,7 +283,41 @@ fun InCallScreen(
                         onDismiss = onDismiss
                     )
 
-                    Spacer(modifier = Modifier.size(48.dp))
+                    if (callInfo.state == Call.STATE_RINGING) {
+                        val isRingerSilenced by CallManager.isRingerSilenced.collectAsStateWithLifecycle()
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isRingerSilenced) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    CallManager.silenceRinger(context)
+                                }
+                                .testTag("silence_ringer_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isRingerSilenced) Icons.Default.VolumeOff else Icons.Default.NotificationsActive,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (isRingerSilenced) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    text = if (isRingerSilenced) "Silenced" else "Silence",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isRingerSilenced) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.size(48.dp))
+                    }
                 }
 
                 // Caller Avatar (shows contact photo if available)
@@ -659,8 +703,14 @@ fun InCallScreen(
                             bluetoothDeviceName = bluetoothDeviceName,
                             availableBluetoothDevices = availableBluetoothDevices,
                             activeBluetoothDeviceAddress = activeBluetoothDeviceAddress,
-                            onSelectRoute = onSelectAudioRoute,
-                            onSelectBluetoothDevice = onSelectBluetoothDevice
+                            onSelectRoute = { route ->
+                                CallManager.silenceRinger(context)
+                                onSelectAudioRoute(route)
+                            },
+                            onSelectBluetoothDevice = { address ->
+                                CallManager.silenceRinger(context)
+                                onSelectBluetoothDevice(address)
+                            }
                         )
                     }
 
@@ -690,7 +740,10 @@ fun InCallScreen(
                         ) {
                             items(quickDeclineChips) { chipText ->
                                 SuggestionChip(
-                                    onClick = { onDeclineWithSms(chipText) },
+                                    onClick = {
+                                        CallManager.silenceRinger(context)
+                                        onDeclineWithSms(chipText)
+                                    },
                                     label = {
                                         Text(
                                             text = chipText,

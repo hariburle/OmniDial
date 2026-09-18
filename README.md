@@ -3,7 +3,7 @@
 [![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/Version-1.4.4%20(Build%2017)-brightgreen.svg)](documents/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.5.0%20(Build%2018)-brightgreen.svg)](documents/CHANGELOG.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](documents/CHANGELOG.md)
 [![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](documents/DESIGN.md)
 
@@ -43,6 +43,7 @@
 - **Missed Call Notification Deep-Linking**: Tapping missed call notifications switches to Recents and auto-scrolls with a 3.5s highlight pulse on the target entry.
 - **Post-Call Notes & Callback Reminders**: Add timestamped notes to recent call records and set `AlarmManager`-backed callbacks immediately after hanging up.
 - **Post-Call Quick Action Card**: 4-second bottom sheet after call end offering 1-tap "Save Contact", "Block & Report Spam", "WhatsApp Message", and "Set Reminder".
+- **Ambient Incoming Ring Silencing**: Picking up the phone (accelerometer lift / proximity uncover), interacting with the screen, selecting an audio route, tapping a quick decline message, or pressing the volume button automatically silences the loud ringer while keeping the call active in ringing state, giving you quiet focus to decide.
 
 ---
 
@@ -51,6 +52,7 @@
 - **Per-Number Preferred SIM Routing**: Assign a preferred SIM slot (SIM 1, SIM 2, Auto, or Always Ask) per phone number. Outgoing calls auto-route via the designated SIM.
 - **Nicknames Filter**: One-tap "Nicknames" filter tab instantly surfaces all contacts with saved nicknames.
 - **Default Number Prioritization**: Default primary number always sorted to top with a `DEFAULT` badge when expanding contact details.
+- **Partitioned Filter Search**: When a filter (Nicknames, Favorites, Recent, Frequent, Device/App) is active and you search, qualifying contacts appear at the top while any other matching contacts are cleanly partitioned into "Other Matches Outside Filter" with one-tap action sheets.
 - **Phonebook Default Number Sync**: Setting a default number updates Android's system contacts and Google Contacts, keeping everything in sync.
 - **Teach Preferred Channel Without Calling**: Set or reset channel preferences per contact directly in the Contact Details sheet.
 
@@ -125,7 +127,8 @@
 
 The latest release and prior versions are available in the `apks/` directory and on the [OmniDial Website](index.html):
 
-- **[OmniDial-v1.4.4.apk](apks/OmniDial-v1.4.4.apk)** *(Latest — Build 17)*: Smart SIM & roaming call alerts, instant call log updates, and polished nickname presentation.
+- **[OmniDial-v1.5.0.apk](apks/OmniDial-v1.5.0.apk)** *(Latest — Build 18)*: Partitioned contact search outside active filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture.
+- **[OmniDial-v1.4.4.apk](apks/OmniDial-v1.4.4.apk)** *(Build 17)*: Smart SIM & roaming call alerts, instant call log updates, and polished nickname presentation.
 - **[OmniDial-v1.4.3.apk](apks/OmniDial-v1.4.3.apk)** *(Build 16)*: Dedicated Nicknames filter tab and nickname-aware keypad suggestions.
 - **[OmniDial-v1.4.2.apk](apks/OmniDial-v1.4.2.apk)** *(Build 15)*: Automation recipes gallery, keyboard auto-scroll in rule editor, and unified settings backup.
 - **[OmniDial-v1.4.1.apk](apks/OmniDial-v1.4.1.apk)** *(Build 14)*: Interactive visual feature previews and direct caller rules navigation.

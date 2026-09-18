@@ -56,6 +56,11 @@ object FlipToShhhManager : SensorEventListener {
     private var faceDownDebounceJob: Job? = null
     private var faceUpDebounceJob: Job? = null
 
+    // Ringing lift-to-silence state
+    private var initialRingingZ: Float? = null
+    private var initialRingingTimestamp = 0L
+    private var wasRingingFlat = false
+
     fun initialize(context: Context) {
         val app = context.applicationContext
         this.appContext = app
@@ -69,6 +74,20 @@ object FlipToShhhManager : SensorEventListener {
 
         if (_isFlipToShhhEnabled.value) {
             startListening()
+        }
+
+        scope.launch {
+            CallManager.activeCall.collect { call ->
+                if (call != null && call.state == Call.STATE_RINGING) {
+                    startListening()
+                    initialRingingZ = null
+                    wasRingingFlat = false
+                } else if (!_isFlipToShhhEnabled.value) {
+                    stopListening()
+                    initialRingingZ = null
+                    wasRingingFlat = false
+                }
+            }
         }
     }
 
@@ -103,21 +122,68 @@ object FlipToShhhManager : SensorEventListener {
     }
 
     override fun onSensorChanged(event: SensorEvent) {
-        if (!_isFlipToShhhEnabled.value) return
+        val activeCall = CallManager.activeCall.value
+        val isCallRinging = activeCall != null && activeCall.state == Call.STATE_RINGING
 
         when (event.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> {
                 lastX = event.values[0]
                 lastY = event.values[1]
                 lastZ = event.values[2]
-                evaluateFaceOrientation()
+
+                if (isCallRinging) {
+                    evaluateRingingPickupGesture()
+                }
+
+                if (_isFlipToShhhEnabled.value) {
+                    evaluateFaceOrientation()
+                }
             }
             Sensor.TYPE_PROXIMITY -> {
                 val distance = event.values[0]
                 val maxRange = event.sensor.maximumRange
+                val wasNear = isProximityNear
                 isProximityNear = distance < 4.0f || distance < maxRange
-                evaluateFaceOrientation()
+
+                if (isCallRinging && wasNear && !isProximityNear) {
+                    // Proximity uncovered while ringing (e.g. pulled out of pocket or lifted off table)
+                    appContext?.let { ctx ->
+                        if (!CallManager.isRingerSilenced.value) {
+                            CallManager.silenceRinger(ctx)
+                            Log.d(TAG, "Incoming call ringer silenced: Proximity sensor uncovered")
+                        }
+                    }
+                }
+
+                if (_isFlipToShhhEnabled.value) {
+                    evaluateFaceOrientation()
+                }
             }
+        }
+    }
+
+    private fun evaluateRingingPickupGesture() {
+        val ctx = appContext ?: return
+        if (CallManager.isRingerSilenced.value) return
+
+        if (initialRingingZ == null) {
+            initialRingingZ = lastZ
+            initialRingingTimestamp = System.currentTimeMillis()
+            // Check if phone was resting horizontally flat (face up or face down)
+            wasRingingFlat = abs(lastZ) > 6.0f && abs(lastX) < 5.0f && abs(lastY) < 5.0f
+            return
+        }
+
+        val elapsed = System.currentTimeMillis() - initialRingingTimestamp
+        if (elapsed < 350L) return // Debounce initial incoming vibration burst
+
+        val totalA = kotlin.math.sqrt(lastX * lastX + lastY * lastY + lastZ * lastZ)
+        val isDynamicLiftJerk = abs(totalA - 9.8f) > 2.8f
+        val isTiltedUp = abs(lastZ) < 6.0f && abs(lastY) > 3.5f
+
+        if (wasRingingFlat && (isDynamicLiftJerk || isTiltedUp)) {
+            CallManager.silenceRinger(ctx)
+            Log.d(TAG, "Incoming call ringer silenced: Lift gesture detected (Z: $lastZ, Y: $lastY, totalA: $totalA)")
         }
     }
 
@@ -212,18 +278,7 @@ object FlipToShhhManager : SensorEventListener {
     }
 
     fun silenceIncomingCallIfRinging(context: Context) {
-        val activeCall = CallManager.activeCall.value
-        if (activeCall != null && activeCall.state == Call.STATE_RINGING) {
-            try {
-                val tm = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
-                tm?.silenceRinger()
-            } catch (_: Exception) {}
-
-            try {
-                val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                am?.ringerMode = AudioManager.RINGER_MODE_SILENT
-            } catch (_: Exception) {}
-        }
+        CallManager.silenceRinger(context)
     }
 
     fun isNotificationPolicyAccessGranted(context: Context): Boolean {

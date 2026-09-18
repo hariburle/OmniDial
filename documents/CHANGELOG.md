@@ -2,6 +2,24 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v1.5.0] — Build 18 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Partitioned Contact Search Outside Filter**: When any filter (Nicknames, Favorites, Recent, Frequent, Device/App) is selected on the Contacts tab and the user types a search query, matching contacts that do not meet the active filter criteria are cleanly partitioned below into a dedicated "Other Matches Outside Filter (N)" section with one-tap action sheet access and contextual status badges (`No Nickname`, `Not in Favs`, etc.), ensuring no contact is hidden.
+- **Ambient Incoming Ring Silencing**: Picking up the phone (accelerometer lift / proximity uncover), touching or interacting with the incoming call screen (tapping anywhere, changing audio route, selecting quick decline SMS, or pressing physical volume keys) automatically silences loud ringer audio while preserving the active ringing call state for user decision.
+- **Dedicated Incoming Call Silence Chip**: Added a prominent `[ 🔕 Silence ]` / `[ Silenced ]` action chip to the top status bar of `InCallScreen` for immediate 1-tap manual ringer silencing.
+
+### 🔧 Technical / Architecture Notes
+- **Partitioned Search Architecture**: Implemented two-pass filtering in `ContactsScreen.kt` partitioning search results into `primaryFilteredMatches` and `otherFilteredOutMatches` with Section Headers and `SearchExclusionReasonBadge`.
+- **InCallScreen Ring Silencing Triggers**: Integrated `CallManager.silenceRinger(context)` invoking `telecomManager.silenceRinger()` and updating `isRingerSilenced` StateFlow without mutating device-wide ringer mode.
+- **FlipToShhhManager Ambient Lift Detection**: Added accelerometer dynamic magnitude detection (`diff > 1.25 m/s²`) and proximity transition detection to invoke `CallManager.silenceRinger()` when ringing and phone is lifted or uncovered.
+- **Physical Volume Key Intercept**: Added `onKeyDown` intercept in `MainActivity.kt` for `KEYCODE_VOLUME_UP` and `KEYCODE_VOLUME_DOWN` while ringing to invoke `CallManager.silenceRinger()`.
+- **Multi-Channel Calling Blueprint**: Completed comprehensive specification in [`documents/MULTI_CHANNEL_CALLING_BLUEPRINT.md`](MULTI_CHANNEL_CALLING_BLUEPRINT.md) for dynamic `ChannelDiscoveryManager`, `CallingChannel` model, and per-phone-number `number_channel_preferences` (Cellular + WhatsApp in Phase 13; WhatsApp Business + Google Voice in Phase 14).
+- **Unit Test Coverage**: Created `Phase12PartitionedSearchAndRingSilencingTest.kt` validating partitioned search logic and ringer silence state transitions.
+- Incremented `versionCode` to 18 and `versionName` to `"1.5.0"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.4.4] — Build 17 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

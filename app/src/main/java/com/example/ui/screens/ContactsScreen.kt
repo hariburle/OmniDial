@@ -359,6 +359,40 @@ fun ContactsScreen(
         }
     }
 
+    // All contacts matching the search query across the entire directory (unfiltered by smartSortBy or sourceFilter)
+    val allSearchQueryMatches = remember(effectiveContacts, searchQuery) {
+        if (searchQuery.isBlank()) {
+            emptyList()
+        } else {
+            val q = searchQuery.trim()
+            val qLower = q.lowercase()
+            effectiveContacts.filter {
+                it.name.lowercase().contains(qLower) ||
+                (it.nickname != null && it.nickname.lowercase().contains(qLower)) ||
+                ContactHelper.matchesNumberQuery(it.phoneNumber, q) ||
+                it.phoneNumbers.any { pn ->
+                    ContactHelper.matchesNumberQuery(pn.number, q) ||
+                    pn.label.lowercase().contains(qLower)
+                }
+            }
+        }
+    }
+
+    // Contacts that matched the search query but were filtered out by the active smartSortBy or sourceFilter
+    val otherFilteredOutMatches = remember(allSearchQueryMatches, sortedContacts, smartSortBy, sourceFilter, searchQuery) {
+        if (searchQuery.isBlank() || (smartSortBy == SmartContactSort.ALL && sourceFilter == ContactSourceFilter.ALL)) {
+            emptyList()
+        } else {
+            val sortedKeys = sortedContacts.map { it.contactId?.toString() ?: (it.name + "_" + it.phoneNumber) }.toSet()
+            allSearchQueryMatches
+                .filter { c ->
+                    val key = c.contactId?.toString() ?: (c.name + "_" + c.phoneNumber)
+                    !sortedKeys.contains(key)
+                }
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name.trim() })
+        }
+    }
+
     // Group contacts alphabetically by initial (strictly for All / A-Z Directory mode)
     val groupedContacts = remember(sortedContacts, smartSortBy, sortBy, sortOrder) {
         if (smartSortBy != SmartContactSort.ALL) {
@@ -601,13 +635,25 @@ fun ContactsScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = when (smartSortBy) {
-                    SmartContactSort.ALL -> "Showing All (${sortedContacts.size})"
-                    SmartContactSort.FAVORITES -> "Showing Favorites (${sortedContacts.size})"
-                    SmartContactSort.NICKNAMES -> "Showing Nicknames (${sortedContacts.size})"
-                    SmartContactSort.RECENT -> "Showing Recents (${sortedContacts.size})"
-                    SmartContactSort.FREQUENT -> "Showing Frequent (${sortedContacts.size})"
-                    SmartContactSort.REDISCOVER -> "Showing Rediscover (${sortedContacts.size})"
+                text = when {
+                    searchQuery.isNotBlank() && otherFilteredOutMatches.isNotEmpty() -> {
+                        val base = when (smartSortBy) {
+                            SmartContactSort.ALL -> "All (${sortedContacts.size})"
+                            SmartContactSort.FAVORITES -> "Favorites (${sortedContacts.size})"
+                            SmartContactSort.NICKNAMES -> "Nicknames (${sortedContacts.size})"
+                            SmartContactSort.RECENT -> "Recents (${sortedContacts.size})"
+                            SmartContactSort.FREQUENT -> "Frequent (${sortedContacts.size})"
+                            SmartContactSort.REDISCOVER -> "Rediscover (${sortedContacts.size})"
+                        }
+                        "$base • +${otherFilteredOutMatches.size} other"
+                    }
+                    smartSortBy == SmartContactSort.ALL -> "Showing All (${sortedContacts.size})"
+                    smartSortBy == SmartContactSort.FAVORITES -> "Showing Favorites (${sortedContacts.size})"
+                    smartSortBy == SmartContactSort.NICKNAMES -> "Showing Nicknames (${sortedContacts.size})"
+                    smartSortBy == SmartContactSort.RECENT -> "Showing Recents (${sortedContacts.size})"
+                    smartSortBy == SmartContactSort.FREQUENT -> "Showing Frequent (${sortedContacts.size})"
+                    smartSortBy == SmartContactSort.REDISCOVER -> "Showing Rediscover (${sortedContacts.size})"
+                    else -> "Showing (${sortedContacts.size})"
                 },
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
@@ -712,7 +758,7 @@ fun ContactsScreen(
                 .fillMaxSize()
                 .weight(1f)
         ) {
-            if (sortedContacts.isEmpty()) {
+            if (sortedContacts.isEmpty() && otherFilteredOutMatches.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -772,6 +818,43 @@ fun ContactsScreen(
                             .padding(end = if (showAlphabetStrip) 28.dp else 0.dp)
                             .testTag("contacts_list")
                     ) {
+                    if (sortedContacts.isEmpty()) {
+                        item(key = "no_filter_matches_banner") {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    val activeFilterLabel = when (smartSortBy) {
+                                        SmartContactSort.FAVORITES -> "Favorites"
+                                        SmartContactSort.NICKNAMES -> "Nicknames"
+                                        SmartContactSort.RECENT -> "Recents"
+                                        SmartContactSort.FREQUENT -> "Frequent"
+                                        SmartContactSort.REDISCOVER -> "Rediscover"
+                                        else -> if (sourceFilter == ContactSourceFilter.APP_ONLY) "App Only" else "Phone Contacts"
+                                    }
+                                    Text(
+                                        text = "No $activeFilterLabel matched \"$searchQuery\"",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Showing ${otherFilteredOutMatches.size} other matching contact${if (otherFilteredOutMatches.size > 1) "s" else ""} from your contacts list below:",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     if (smartSortBy == SmartContactSort.ALL) {
                         groupedContacts.forEach { (initial, contactsInGroup) ->
                             stickyHeader(key = "header_$initial") {
@@ -870,6 +953,101 @@ fun ContactsScreen(
                                 SmartContactSort.FREQUENT -> if (count > 0) "$count call${if (count > 1) "s" else ""}" else null
                                 SmartContactSort.REDISCOVER -> if (lastTs > 0L) formatRelativeTime(lastTs) else "Dormant"
                                 else -> null
+                            }
+
+                            ContactRowItem(
+                                contact = contact,
+                                searchQuery = searchQuery,
+                                isFavorite = isFav,
+                                discoveryBadge = badge,
+                                onItemClick = { contactForDetailsSheet = contact },
+                                onRequestCall = {
+                                    val normContactNum = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
+                                    val matchedFav = favorites.firstOrNull { f -> f.phoneNumber.replace(Regex("[^0-9+]"), "") == normContactNum }
+                                    if (contact.phoneNumbers.size > 1) {
+                                        contactForMultiCall = contact
+                                        favoriteContactForMultiCall = matchedFav
+                                    } else {
+                                        onCallNumber(contact.phoneNumber)
+                                    }
+                                },
+                                onCallDirect = onCallNumber,
+                                onSelectNumber = onSelectNumber,
+                                onSmsClick = { num ->
+                                    val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$num"))
+                                    context.startActivity(smsIntent)
+                                },
+                                onCreateRule = { num -> onCreateRule(num) },
+                                onToggleFavorite = {
+                                    onToggleFavorite(contact.name, contact.phoneNumber, contact.label, contact.photoUri)
+                                },
+                                onPlaceWhatsAppCall = onPlaceWhatsAppCall,
+                                onSyncToPhone = {
+                                    onSyncContactToPhone(contact)
+                                },
+                                getPreferredCallingMode = getPreferredCallingMode
+                            )
+                        }
+                    }
+
+                    if (otherFilteredOutMatches.isNotEmpty()) {
+                        if (sortedContacts.isNotEmpty()) {
+                            item(key = "header_other_matches") {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.FilterList,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "Other Matches Outside Filter (${otherFilteredOutMatches.size})",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        items(otherFilteredOutMatches, key = { "other_" + (it.contactId?.toString() ?: (it.name + "_" + it.phoneNumber)) }) { contact ->
+                            val isFav = remember(contact.contactId, contact.phoneNumber, contact.name, contact.nickname, contact.phoneNumbers, fastFavoritesPhoneDigitsSet, fastFavoritesNamesSet) {
+                                val contactNameLower = contact.name.trim().lowercase()
+                                if (fastFavoritesNamesSet.contains(contactNameLower)) return@remember true
+                                if (!contact.nickname.isNullOrBlank() && fastFavoritesNamesSet.contains(contact.nickname.trim().lowercase())) return@remember true
+                                val normContact = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
+                                if (normContact.isNotBlank() && fastFavoritesPhoneDigitsSet.contains(normContact)) return@remember true
+                                contact.phoneNumbers.any { pn ->
+                                    val normPn = pn.number.replace(Regex("[^0-9+]"), "")
+                                    normPn.isNotBlank() && fastFavoritesPhoneDigitsSet.contains(normPn)
+                                }
+                            }
+
+                            val badge = when {
+                                smartSortBy == SmartContactSort.NICKNAMES && contact.nickname.isNullOrBlank() -> "No Nickname"
+                                smartSortBy == SmartContactSort.FAVORITES && !isFav -> "Not in Favs"
+                                smartSortBy == SmartContactSort.RECENT -> "No Recents"
+                                smartSortBy == SmartContactSort.FREQUENT -> "Low Activity"
+                                sourceFilter == ContactSourceFilter.APP_ONLY && !contact.isAppOnly -> "Phone Contact"
+                                sourceFilter == ContactSourceFilter.DEVICE && contact.isAppOnly -> "App Only"
+                                else -> "Outside Filter"
                             }
 
                             ContactRowItem(

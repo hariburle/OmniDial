@@ -93,6 +93,45 @@
 
 ---
 
+### 🌟 Phase 12 (Release v1.5.0): Partitioned Contact Search & Ambient Ring Silencing
+*Smarter contact discovery when filters are active, and intelligent incoming call ring silencing on pickup/interaction.*
+- [x] **Task 12.1: Partitioned Search Results Outside Active Filter (Contacts)**
+  - *Goal*: When a contact filter (Nicknames, Favorites, Recent, Frequent, Device/App) is active and the user searches, avoid hiding non-qualifying matches. Display them under a dedicated, actionable section ("Other Matches Outside Filter") so users can immediately view, call, or take action (e.g., assign nickname, add to favorites).
+  - *Deliverable*: In `ContactsScreen.kt`, partition search matches into primary filtered matches and secondary excluded matches with an intuitive section header and direct action sheet access.
+- [x] **Task 12.2: Ambient Incoming Call Ring Silencing on Lift / Screen Interaction**
+  - *Goal*: When receiving an incoming call, stop loud audio ringing as soon as the user picks up the phone or interacts with the screen (audio route bar, quick decline SMS chips, or screen tap), leaving the call active in `STATE_RINGING` so the user has quiet focus to decide, change output, decline with custom SMS, or answer.
+  - *Deliverable*: Integrate motion lift detection (via accelerometer in `FlipToShhhManager` / `CallManager`) and user-touch/interaction triggers in `InCallScreen` calling `TelecomManager.silenceRinger()`, accompanied by an explicit "Silence" chip.
+
+---
+
+### 🌐 Phase 13 (Upcoming Release — v1.6.0): Core Multi-Channel Calling Engine (Cellular & WhatsApp)
+*Unified dynamic discovery, per-phone-number preferences, and adaptive dock for Cellular SIM 1/2 and WhatsApp (documented in [`documents/MULTI_CHANNEL_CALLING_BLUEPRINT.md`](MULTI_CHANNEL_CALLING_BLUEPRINT.md)).*
+- [ ] **Task 13.1: Granular Per-Number Channel Preference Entity & Repository**
+  - *Goal*: Key channel preferences explicitly by E.164 `normalized_number` so each phone number of a contact can independently select Cellular (SIM 1 / SIM 2), WhatsApp, or Always Ask.
+  - *Deliverable*: Room entity `number_channel_preferences`, DAO methods, and unified `ChannelPreferenceRepository`.
+- [ ] **Task 13.2: Dynamic Channel Discovery Service (`ChannelDiscoveryManager`)**
+  - *Goal*: Replace static boolean toggles with a reactive discovery service tracking active SIM 1, SIM 2, and WhatsApp status, built on a pluggable `CallingChannel` model.
+  - *Deliverable*: `CallingChannel` domain models and `ChannelDiscoveryManager` emitting `StateFlow<List<CallingChannel>>`.
+- [ ] **Task 13.3: Per-Phone-Number Channel Selector in Contact Details**
+  - *Goal*: In `ContactDetailsBottomSheet`, render independent channel chip selectors for each phone number of a contact rather than a single contact-wide setting.
+  - *Deliverable*: Updated phone number rows with reactive per-number channel selection chips.
+- [ ] **Task 13.4: Adaptive Keypad Channel Dock & Dispatch Coordinator**
+  - *Goal*: Provide a dynamic segmented channel dock above the dial pad (`[ SIM 1 ]`, `[ SIM 2 ]`, `[ WhatsApp ]`) and execution dispatch coordinator.
+  - *Deliverable*: `KeypadChannelDock` component on `DialerScreen` and `ChannelDispatchCoordinator`.
+
+---
+
+### 🚀 Phase 14 (Future Extension): Pluggable Multi-Channel Expansion (WhatsApp Business & Google Voice)
+*Leverage the MCCE pluggable foundation to easily add WhatsApp Business and Google Voice without architectural changes.*
+- [ ] **Task 14.1: WhatsApp Business Provider Plugin**
+  - *Goal*: Enable direct calling via WhatsApp Business (`com.whatsapp.w4b`) alongside personal WhatsApp.
+  - *Deliverable*: `ChannelDiscoveryManager` package detection and `ContactHelper` direct call routing for WhatsApp Business.
+- [ ] **Task 14.2: Google Voice Provider Plugin**
+  - *Goal*: Detect Google Voice and support routing via Telecom calling account or direct intent.
+  - *Deliverable*: Google Voice channel plugin and Keypad dock integration.
+
+---
+
 ## 📋 Historical Implementation Archive
 All prior implemented features, architectural specifications, and releases have been archived in their respective project documents:
 - **System Specifications & Architecture**: See [`documents/ARCHITECTURE.md`](ARCHITECTURE.md) and [`documents/DESIGN.md`](DESIGN.md).

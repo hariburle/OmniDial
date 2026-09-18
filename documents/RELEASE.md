@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.5.0` | `18` | Sep 2026 | Partitioned search outside active contact filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture. |
 | `1.4.4` | `17` | Sep 2026 | Smart SIM & roaming call alerts, instant call log updates, and clean nickname presentation across screens. |
 | `1.4.3` | `16` | Sep 2026 | Dedicated top-level nicknames filter with quick icon, and nickname-aware keypad suggestions. |
 | `1.4.2` | `15` | Sep 2026 | Automation recipes gallery, keyboard auto-scroll in rule editor, wrap-around presets layout, and unified settings backup. |
@@ -28,7 +29,19 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.4.4 (Latest) — Smart SIM Alerts, Instant Call Log Updates & Polished Nicknames</h3></summary>
+<summary><h3>🚀 Release 1.5.0 (Latest) — Partitioned Contact Search & Ambient Incoming Ring Silencing</h3></summary>
+
+### What's New & Improvements:
+- **Never Miss a Contact with Partitioned Search**: When viewing contacts under a filter (such as Nicknames, Favorites, Recent, or Frequent) and you search, qualifying matches show at the top while any other matching contacts are cleanly separated into a dedicated "Other Matches Outside Filter" section with one-tap action sheets. You can easily view, call, or manage them without having to leave or clear your filter.
+- **Ambient Ring Silencing on Lift & Touch**: When an incoming call arrives, simply picking up your phone, interacting with the screen, selecting an audio route, tapping a quick decline SMS, or pressing the volume key automatically silences the loud ringer without hanging up or rejecting the call. You get peaceful time to decide whether to answer, switch audio, or reply with a custom message.
+- **One-Tap Silence Chip**: Added an instant `[ 🔕 Silence ]` / `[ Silenced ]` button in the top bar of the incoming call screen so you can quiet the ringer with a single tap at any time.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.4.4 — Smart SIM Alerts, Instant Call Log Updates & Polished Nicknames</h3></summary>
 
 ### What's New & Improvements:
 - **Smart SIM & Roaming Alerts Before You Answer**: Incoming calls now display which SIM card is ringing ("SIM 1" or "SIM 2") and show a clear amber roaming warning when the active SIM is on network roaming, giving you a heads-up before you pick up.
@@ -239,8 +252,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v1.4.4.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v1.5.0.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---
