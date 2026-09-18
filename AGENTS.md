@@ -20,6 +20,7 @@
   ```
 - **Website Synchronization**: Always keep `index.html` in sync with the latest download links and user-friendly release cards.
 - **Git Commit Standards**: Commit complete release updates with clear, descriptive commit messages.
+- **ADB & Device Testing**: Android `platform-tools` (`C:\Users\harib\AppData\Local\Android\Sdk\platform-tools`) is configured in the Windows User PATH and PowerShell profile, making `adb` directly executable for device testing.
 
 ## Document Sync on Every Release Push
 When incrementing `versionCode`/`versionName` or pushing a new Git release, ALL of the following documents must be updated **before** committing:
