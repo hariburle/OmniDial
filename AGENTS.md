@@ -35,7 +35,7 @@ When incrementing `versionCode`/`versionName` or pushing a new Git release, ALL 
    - Update the **Versioned APK Download Scheme** section with the new latest APK filename and prior releases list.
 4. **`documents/CHANGELOG.md`**: Add a new `## 🚀 [vX.Y.Z] — Build N` section with user-facing enhancements and technical architecture notes.
 5. **`index.html`**: Add new release download card and update the "Latest" download button link to the new APK.
-6. **`apks/`**: Build with `assembleRelease` and copy the release APK as `OmniDial-v<version>.apk` and overwrite `OmniDial.apk`. Never copy a debug APK here.
+6. **`apks/`**: Build with `assembleRelease`, copy the release APK as `OmniDial-v<version>.apk`, and update `OmniDial.apk` to link to this latest APK (Git stores both under the identical SHA blob hash without duplicating repository storage, ensuring GitHub Pages direct downloads work without symlink 404 errors). Never copy a debug APK here.
 7. **`documents/ToTest.md`**: Add test items for any new features introduced in the release.
 8. **`documents/ARCHITECTURE.md`**: Update the version header, any new entities/components/subsystems introduced, unit test table, and recent fixes section.
 9. **`documents/DESIGN.md`**: Update the version header, module directory listing, Room DB entity schemas, subsystem workflow descriptions, and any new architectural patterns introduced.
