@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `1.4.4` | `17` | Sep 2026 | Smart SIM & roaming call alerts, instant call log updates, and clean nickname presentation across screens. |
 | `1.4.3` | `16` | Sep 2026 | Dedicated top-level nicknames filter with quick icon, and nickname-aware keypad suggestions. |
 | `1.4.2` | `15` | Sep 2026 | Automation recipes gallery, keyboard auto-scroll in rule editor, wrap-around presets layout, and unified settings backup. |
 | `1.4.1` | `14` | Sep 2026 | High-resolution interactive visual feature previews, full-screen lightbox inspection, and direct caller rules default navigation. |

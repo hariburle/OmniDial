@@ -2,6 +2,23 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v1.4.4] — Build 17 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Smart SIM & Roaming Call Alerts**: Incoming calls now display the receiving SIM card name (`SIM 1`, `SIM 2`) and show a prominent amber warning alert when the active SIM is currently on network roaming before answering.
+- **Instant Call Log Updates**: Outgoing, incoming, and missed call records now immediately populate in the recent calls list upon call termination without waiting for background system delays.
+- **Polished Nicknames & Contact Presentation**: Contact details sheet highlights full names with nicknames in parentheses `(Nickname)` below, while contact list items display nicknames cleanly without redundant bracket text.
+- **Cleaned Contact Filter Row**: Removed redundant inline filter tags (`⭐ Favorite`, `🏷️ Nickname`) from list items to provide full horizontal width for contact names.
+
+### 🔧 Technical / Architecture Notes
+- **SimHelper Roaming Resolution**: Added `resolveSimInfo(context, accountHandle)` in `SimHelper.kt` utilizing `SubscriptionInfo` and `TelephonyManager.isNetworkRoaming` to populate `isRoaming` and `simDisplayName`.
+- **ActiveCallInfo Data Model**: Enriched `ActiveCallInfo` with `simDisplayName: String?` and `isRoaming: Boolean` properties in `CallManager.kt`.
+- **InCallScreen & Notification UI**: Added custom amber `ROAMING` alert badge in `InCallScreen.kt` and updated `OngoingCallNotificationHelper.kt` notification status text.
+- **Reactive Call Logging Event**: Added `callLoggedEvent: SharedFlow<Long>` in `CallManager.kt` triggered upon Room DB insertion; subscribed `MainViewModel.kt` to update `_combinedRecentCalls` state flow instantly (<10ms).
+- Incremented `versionCode` to 17 and `versionName` to `"1.4.4"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.4.3] — Build 16 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
