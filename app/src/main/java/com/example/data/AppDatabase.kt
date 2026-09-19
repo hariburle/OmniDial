@@ -11,8 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class, ContactSimPreference::class],
-    version = 14,
+    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class, ContactSimPreference::class, NumberChannelPreference::class, ChannelConfig::class],
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +21,55 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS channel_configurations (
+                            channel_id TEXT NOT NULL PRIMARY KEY,
+                            is_enabled INTEGER NOT NULL,
+                            custom_name TEXT,
+                            order_index INTEGER NOT NULL,
+                            updated_timestamp INTEGER NOT NULL
+                        )
+                    """.trimIndent())
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_channel_configurations_channel_id ON channel_configurations(channel_id)")
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Error migrating DB 15 to 16", e)
+                }
+            }
+        }
+
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS number_channel_preferences (
+                            normalized_number TEXT NOT NULL PRIMARY KEY,
+                            preferred_channel_id TEXT NOT NULL,
+                            custom_label TEXT,
+                            updated_timestamp INTEGER NOT NULL
+                        )
+                    """.trimIndent())
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_number_channel_preferences_normalized_number ON number_channel_preferences(normalized_number)")
+
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO number_channel_preferences (normalized_number, preferred_channel_id, custom_label, updated_timestamp)
+                        SELECT normalized_number, 
+                               CASE preferred_sim_slot 
+                                   WHEN 1 THEN 'sim_1'
+                                   WHEN 2 THEN 'sim_2'
+                                   WHEN -1 THEN 'ask'
+                                   ELSE 'system'
+                               END,
+                               NULL,
+                               strftime('%s', 'now') * 1000
+                        FROM contact_sim_preferences
+                    """.trimIndent())
+                } catch (_: Throwable) {}
+            }
+        }
 
         private val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -102,7 +151,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "telecom_dialer_db"
                 )
-                .addMigrations(MIGRATION_13_14, MIGRATION_12_13, MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
+                .addMigrations(MIGRATION_15_16, MIGRATION_14_15, MIGRATION_13_14, MIGRATION_12_13, MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
                 .fallbackToDestructiveMigration(dropAllTables = false)
                 .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = false)
                 .addCallback(object : Callback() {

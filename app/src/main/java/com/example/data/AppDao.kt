@@ -183,4 +183,46 @@ interface AppDao {
 
     @Query("DELETE FROM contact_sim_preferences")
     suspend fun clearAllContactSimPreferences()
+
+    @Query("SELECT * FROM number_channel_preferences")
+    fun getAllNumberChannelPreferences(): Flow<List<NumberChannelPreference>>
+
+    @Query("SELECT * FROM number_channel_preferences WHERE normalized_number = :normalizedNumber LIMIT 1")
+    suspend fun getNumberChannelPreference(normalizedNumber: String): NumberChannelPreference?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setNumberChannelPreference(pref: NumberChannelPreference)
+
+    @Query("DELETE FROM number_channel_preferences WHERE normalized_number = :normalizedNumber")
+    suspend fun deleteNumberChannelPreference(normalizedNumber: String)
+
+    @Query("DELETE FROM number_channel_preferences")
+    suspend fun clearAllNumberChannelPreferences()
+
+    @Query("SELECT * FROM channel_configurations ORDER BY order_index ASC")
+    fun getAllChannelConfigs(): Flow<List<ChannelConfig>>
+
+    @Query("SELECT * FROM channel_configurations ORDER BY order_index ASC")
+    suspend fun getAllChannelConfigsList(): List<ChannelConfig>
+
+    @Query("SELECT * FROM channel_configurations WHERE channel_id = :channelId LIMIT 1")
+    suspend fun getChannelConfig(channelId: String): ChannelConfig?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateChannelConfig(config: ChannelConfig)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateChannelConfigs(configs: List<ChannelConfig>)
+
+    @Query("UPDATE channel_configurations SET is_enabled = :isEnabled, updated_timestamp = :timestamp WHERE channel_id = :channelId")
+    suspend fun setChannelEnabled(channelId: String, isEnabled: Boolean, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE channel_configurations SET custom_name = :customName, updated_timestamp = :timestamp WHERE channel_id = :channelId")
+    suspend fun setChannelCustomName(channelId: String, customName: String?, timestamp: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM channel_configurations WHERE channel_id = :channelId")
+    suspend fun deleteChannelConfig(channelId: String)
+
+    @Query("DELETE FROM channel_configurations")
+    suspend fun clearAllChannelConfigs()
 }

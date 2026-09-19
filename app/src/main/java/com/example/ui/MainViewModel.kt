@@ -741,6 +741,13 @@ class MainViewModel(
                         .filter { !it.nickname.isNullOrBlank() }
                         .associate { it.name.trim().lowercase() to it.nickname!!.trim() }
 
+                    val favDigitsToPhotoMap = currentFavs
+                        .filter { !it.photoUri.isNullOrBlank() }
+                        .associate { normDigits(it.phoneNumber) to it.photoUri!! }
+                    val favNameToPhotoMap = currentFavs
+                        .filter { !it.photoUri.isNullOrBlank() }
+                        .associate { it.name.trim().lowercase() to it.photoUri!! }
+
                     fun resolveNickname(name: String, mainNum: String, phoneNumbers: List<ContactPhoneNumber>, existingNick: String?): String? {
                         if (!existingNick.isNullOrBlank()) return existingNick
                         val normMain = normDigits(mainNum)
@@ -760,9 +767,32 @@ class MainViewModel(
                         return null
                     }
 
+                    fun resolvePhoto(name: String, mainNum: String, phoneNumbers: List<ContactPhoneNumber>, existingPhoto: String?): String? {
+                        if (!existingPhoto.isNullOrBlank()) return existingPhoto
+                        val normMain = normDigits(mainNum)
+                        if (normMain.isNotBlank() && favDigitsToPhotoMap.containsKey(normMain)) {
+                            return favDigitsToPhotoMap[normMain]
+                        }
+                        for (pn in phoneNumbers) {
+                            val normPn = normDigits(pn.number)
+                            if (normPn.isNotBlank() && favDigitsToPhotoMap.containsKey(normPn)) {
+                                return favDigitsToPhotoMap[normPn]
+                            }
+                        }
+                        val normName = name.trim().lowercase()
+                        if (normName.isNotBlank() && favNameToPhotoMap.containsKey(normName)) {
+                            return favNameToPhotoMap[normName]
+                        }
+                        return null
+                    }
+
                     val enrichedDeviceList = deviceList.map { c ->
                         val nick = resolveNickname(c.name, c.phoneNumber, c.phoneNumbers, c.nickname)
-                        if (nick != c.nickname) c.copy(nickname = nick) else c
+                        val photo = resolvePhoto(c.name, c.phoneNumber, c.phoneNumbers, c.photoUri)
+                        var updated = c
+                        if (nick != c.nickname) updated = updated.copy(nickname = nick)
+                        if (photo != updated.photoUri) updated = updated.copy(photoUri = photo)
+                        updated
                     }
 
                     // Group local contacts by name so multi-number contacts are consolidated into a single DeviceContact
@@ -773,11 +803,12 @@ class MainViewModel(
                             val allNumbers = contacts.map { ContactPhoneNumber(it.phoneNumber, it.label) }
                             val isFav = contacts.any { favDigits.contains(normDigits(it.phoneNumber)) }
                             val nick = resolveNickname(name, first.phoneNumber, allNumbers, first.nickname)
+                            val photo = resolvePhoto(name, first.phoneNumber, allNumbers, first.photoUri)
                             DeviceContact(
                                 name = name,
                                 phoneNumber = first.phoneNumber,
                                 label = first.label,
-                                photoUri = first.photoUri,
+                                photoUri = photo,
                                 nickname = nick,
                                 isStarred = isFav,
                                 isAppOnly = true,
@@ -792,6 +823,32 @@ class MainViewModel(
                     _deviceContacts.value = combined
                     inMemoryCachedDeviceContacts = combined
                     syncWithDeviceContacts()
+
+                    // Sync live photo URIs back to stored favorites in Room DB
+                    try {
+                        val livePhotoByNorm = enrichedDeviceList
+                            .filter { !it.photoUri.isNullOrBlank() }
+                            .flatMap { dc ->
+                                (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
+                                    .map { normDigits(it) }
+                                    .filter { it.isNotBlank() }
+                                    .map { it to dc.photoUri!! }
+                            }.toMap()
+                        val livePhotoByName = enrichedDeviceList
+                            .filter { !it.photoUri.isNullOrBlank() }
+                            .associate { it.name.trim().lowercase() to it.photoUri!! }
+
+                        for (fav in currentFavs) {
+                            if (fav.photoUri.isNullOrBlank()) {
+                                val norm = normDigits(fav.phoneNumber)
+                                val livePhoto = (if (norm.isNotBlank()) livePhotoByNorm[norm] else null)
+                                    ?: livePhotoByName[fav.name.trim().lowercase()]
+                                if (!livePhoto.isNullOrBlank()) {
+                                    repository.updateFavorite(fav.copy(photoUri = livePhoto))
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }

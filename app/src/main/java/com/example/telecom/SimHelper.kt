@@ -55,7 +55,12 @@ object SimHelper {
                     val slot = info.simSlotIndex // 0 for SIM 1, 1 for SIM 2
                     val display = info.displayName?.toString()?.trim()
                     val carrier = info.carrierName?.toString()?.trim()
-                    val name = when {
+                    val customName = try {
+                        com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_${slot + 1}")
+                    } catch (_: Exception) {
+                        null
+                    }
+                    val name = customName?.takeIf { it.isNotBlank() } ?: when {
                         !display.isNullOrBlank() && !display.equals("CARD $slot", ignoreCase = true) -> display
                         !carrier.isNullOrBlank() -> carrier
                         else -> "SIM ${slot + 1}"

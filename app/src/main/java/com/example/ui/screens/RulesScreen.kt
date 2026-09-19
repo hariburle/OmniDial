@@ -67,8 +67,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.AutomationLog
 import com.example.data.CallerRule
+import com.example.data.ChannelConfig
 import com.example.data.FavoriteContact
 import com.example.data.SpamNumber
+import com.example.domain.model.CallingChannel
 import com.example.ui.components.AutomationLogItem
 import com.example.ui.components.RuleCard
 import com.example.ui.components.RuleEditDialog
@@ -228,6 +230,9 @@ fun RulesScreen(
     globalSimPreferenceMode: String = "system",
     onSetGlobalSimPreferenceMode: (String) -> Unit = {},
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
+    channelConfigs: List<ChannelConfig> = emptyList(),
+    discoveredChannels: List<CallingChannel> = emptyList(),
+    onSaveChannelConfigs: ((List<ChannelConfig>) -> Unit)? = null,
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -561,7 +566,10 @@ fun RulesScreen(
                         onDeleteLocalBackup = onDeleteLocalBackup,
                         globalSimPreferenceMode = globalSimPreferenceMode,
                         onSetGlobalSimPreferenceMode = onSetGlobalSimPreferenceMode,
-                        activeSims = activeSims
+                        activeSims = activeSims,
+                        channelConfigs = channelConfigs,
+                        discoveredChannels = discoveredChannels,
+                        onSaveChannelConfigs = onSaveChannelConfigs
                     )
                 }
             }

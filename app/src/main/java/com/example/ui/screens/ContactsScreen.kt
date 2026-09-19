@@ -135,6 +135,8 @@ fun ContactsScreen(
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
+    whatsAppCallMode: String = "ask_learn",
+    onCallNumberDirect: ((String, Int?) -> Unit)? = null,
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -188,23 +190,42 @@ fun ContactsScreen(
         }
     }
 
-    // Directly use deviceContacts as the single source of truth, enriched with favorite nicknames
+    // Directly use deviceContacts as the single source of truth, enriched with favorite nicknames and photos
     val effectiveContacts = remember(deviceContacts, favorites) {
+        fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
+
         val favNickMap = favorites.filter { !it.nickname.isNullOrBlank() }.associate { f ->
             f.phoneNumber.replace(Regex("[^0-9+]"), "") to f.nickname!!.trim()
         }
         val favNameNickMap = favorites.filter { !it.nickname.isNullOrBlank() }.associate { f ->
             f.name.trim().lowercase() to f.nickname!!.trim()
         }
+        val favPhotoByNumMap = favorites.filter { !it.photoUri.isNullOrBlank() }.associate { f ->
+            normDigits(f.phoneNumber) to f.photoUri!!
+        }
+        val favPhotoByNameMap = favorites.filter { !it.photoUri.isNullOrBlank() }.associate { f ->
+            f.name.trim().lowercase() to f.photoUri!!
+        }
+
         deviceContacts.map { c ->
-            if (c.nickname.isNullOrBlank()) {
-                val normNum = c.phoneNumber.replace(Regex("[^0-9+]"), "")
-                val nickByNum = favNickMap[normNum] ?: c.phoneNumbers.firstNotNullOfOrNull { pn ->
-                    favNickMap[pn.number.replace(Regex("[^0-9+]"), "")]
-                }
-                val nickByName = favNameNickMap[c.name.trim().lowercase()]
-                val fallbackNick = nickByNum ?: nickByName
-                if (fallbackNick != null) c.copy(nickname = fallbackNick) else c
+            val normNum = c.phoneNumber.replace(Regex("[^0-9+]"), "")
+            val normTen = normDigits(c.phoneNumber)
+            val nickByNum = favNickMap[normNum] ?: c.phoneNumbers.firstNotNullOfOrNull { pn ->
+                favNickMap[pn.number.replace(Regex("[^0-9+]"), "")]
+            }
+            val nickByName = favNameNickMap[c.name.trim().lowercase()]
+            val fallbackNick = nickByNum ?: nickByName
+            val effectiveNick = if (c.nickname.isNullOrBlank()) fallbackNick else c.nickname
+
+            val photoByNum = favPhotoByNumMap[normTen] ?: c.phoneNumbers.firstNotNullOfOrNull { pn ->
+                favPhotoByNumMap[normDigits(pn.number)]
+            }
+            val photoByName = favPhotoByNameMap[c.name.trim().lowercase()]
+            val fallbackPhoto = photoByNum ?: photoByName
+            val effectivePhoto = if (c.photoUri.isNullOrBlank()) fallbackPhoto else c.photoUri
+
+            if (effectiveNick != c.nickname || effectivePhoto != c.photoUri) {
+                c.copy(nickname = effectiveNick, photoUri = effectivePhoto)
             } else c
         }
     }
@@ -1193,6 +1214,15 @@ fun ContactsScreen(
             contact = detailContact,
             favoriteContact = matchedFav,
             isFavorite = isFav,
+            whatsAppCallMode = whatsAppCallMode,
+            onCallNumberDirect = { num, slot ->
+                if (onCallNumberDirect != null) {
+                    onCallNumberDirect(num, slot)
+                } else {
+                    onCallNumber(num)
+                }
+                contactForDetailsSheet = null
+            },
             onCallNumber = { num ->
                 onCallNumber(num)
                 contactForDetailsSheet = null

@@ -137,13 +137,24 @@ object HapticFeedbackHelper {
         }
     }
 
+    @Volatile
+    private var cachedVibrator: Vibrator? = null
+
     private fun getVibrator(context: Context): Vibrator? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-            vibratorManager?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        val existing = cachedVibrator
+        if (existing != null) return existing
+        return try {
+            val v = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.applicationContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.applicationContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            cachedVibrator = v
+            v
+        } catch (_: Exception) {
+            null
         }
     }
 }

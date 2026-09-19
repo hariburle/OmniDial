@@ -961,6 +961,7 @@ object ContactHelper {
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_ID,
                 ContactsContract.CommonDataKinds.Phone.TYPE
             )
             cursor = context.contentResolver.query(uri, projection, null, null, null)
@@ -970,6 +971,7 @@ object ContactHelper {
                 val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
                 val photoIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
                 val thumbIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI)
+                val photoIdIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_ID)
                 val typeIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
 
                 val contactId = if (cidIndex != -1) cursor.getLong(cidIndex) else null
@@ -978,6 +980,11 @@ object ContactHelper {
                 val nickname = if (contactId != null) nicknameMap[contactId] else null
                 val photo = if (photoIndex != -1) cursor.getString(photoIndex) else null
                 val thumb = if (thumbIndex != -1) cursor.getString(thumbIndex) else null
+                val photoId = if (photoIdIndex != -1) cursor.getLong(photoIdIndex) else 0L
+                val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                    ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                        ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                    } else null
                 val type = if (typeIndex != -1) cursor.getInt(typeIndex) else ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE
 
                 val label = when (type) {
@@ -990,7 +997,7 @@ object ContactHelper {
                     name = fullName.ifBlank { "Unknown" },
                     phoneNumber = number,
                     label = label,
-                    photoUri = photo ?: thumb,
+                    photoUri = resolvedPhoto,
                     contactId = contactId,
                     nickname = nickname
                 )
@@ -1018,6 +1025,7 @@ object ContactHelper {
                 ContactsContract.PhoneLookup.NUMBER,
                 ContactsContract.PhoneLookup.PHOTO_URI,
                 ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI,
+                ContactsContract.PhoneLookup.PHOTO_ID,
                 ContactsContract.PhoneLookup.TYPE,
                 ContactsContract.PhoneLookup.LABEL
             )
@@ -1028,6 +1036,7 @@ object ContactHelper {
                 val numIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.NUMBER)
                 val photoIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_URI)
                 val thumbIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
+                val photoIdIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_ID)
                 val typeIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.TYPE)
                 val labelIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.LABEL)
 
@@ -1037,6 +1046,11 @@ object ContactHelper {
                 val num = if (numIdx != -1) cursor.getString(numIdx) ?: phoneNumber else phoneNumber
                 val photo = if (photoIdx != -1) cursor.getString(photoIdx) else null
                 val thumb = if (thumbIdx != -1) cursor.getString(thumbIdx) else null
+                val photoId = if (photoIdIdx != -1) cursor.getLong(photoIdIdx) else 0L
+                val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                    ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                        ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                    } else null
                 val type = if (typeIdx != -1) cursor.getInt(typeIdx) else ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE
                 val customLabel = if (labelIdx != -1) cursor.getString(labelIdx) else null
 
@@ -1106,7 +1120,7 @@ object ContactHelper {
                     name = fullName,
                     phoneNumber = matchedSpecificNumber,
                     label = matchedSpecificLabel,
-                    photoUri = photo ?: thumb,
+                    photoUri = resolvedPhoto,
                     contactId = contactId,
                     nickname = nickname,
                     phoneNumbers = phoneNumbers
@@ -1138,6 +1152,7 @@ object ContactHelper {
                 ContactsContract.CommonDataKinds.Phone.TYPE,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_ID,
                 ContactsContract.CommonDataKinds.Phone.STARRED,
                 ContactsContract.CommonDataKinds.Phone.IS_PRIMARY,
                 ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY
@@ -1157,6 +1172,7 @@ object ContactHelper {
                 val typeIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
                 val photoIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
                 val thumbIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI)
+                val photoIdIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_ID)
                 val priIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_PRIMARY)
                 val supIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY)
 
@@ -1175,6 +1191,11 @@ object ContactHelper {
                     }
                     val photo = if (photoIdx != -1) it.getString(photoIdx) else null
                     val thumb = if (thumbIdx != -1) it.getString(thumbIdx) else null
+                    val photoId = if (photoIdIdx != -1) it.getLong(photoIdIdx) else 0L
+                    val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                        ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                            ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                        } else null
                     val isPrimary = (priIdx != -1 && it.getInt(priIdx) > 0) || (supIdx != -1 && it.getInt(supIdx) > 0)
 
                     val key = contactId?.toString() ?: fullName.trim().lowercase()
@@ -1182,12 +1203,13 @@ object ContactHelper {
                         val nickname = if (contactId != null) nicknameMap[contactId] else null
                         DeviceContactAccumulator(
                             name = fullName,
-                            photoUri = photo ?: thumb,
+                            photoUri = resolvedPhoto,
                             contactId = contactId,
                             nickname = nickname,
                             isStarred = true
                         )
                     }
+                    accumulator.updatePhoto(resolvedPhoto)
                     accumulator.addNumber(number, label, isPrimary)
                 }
             }
@@ -1457,6 +1479,7 @@ object ContactHelper {
                 ContactsContract.CommonDataKinds.Phone.TYPE,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_ID,
                 ContactsContract.CommonDataKinds.Phone.IS_PRIMARY,
                 ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY
             )
@@ -1474,6 +1497,7 @@ object ContactHelper {
                 val typeIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
                 val photoIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
                 val thumbIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI)
+                val photoIdIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_ID)
                 val priIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_PRIMARY)
                 val supIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY)
 
@@ -1492,6 +1516,11 @@ object ContactHelper {
                     }
                     val photo = if (photoIdx != -1) it.getString(photoIdx) else null
                     val thumb = if (thumbIdx != -1) it.getString(thumbIdx) else null
+                    val photoId = if (photoIdIdx != -1) it.getLong(photoIdIdx) else 0L
+                    val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                        ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                            ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                        } else null
                     val isPrimary = (priIdx != -1 && it.getInt(priIdx) > 0) || (supIdx != -1 && it.getInt(supIdx) > 0)
 
                     val key = contactId?.toString() ?: fullName.trim().lowercase()
@@ -1499,11 +1528,12 @@ object ContactHelper {
                         val nickname = if (contactId != null) effectiveNicknameMap[contactId] else null
                         DeviceContactAccumulator(
                             name = fullName,
-                            photoUri = photo ?: thumb,
+                            photoUri = resolvedPhoto,
                             contactId = contactId,
                             nickname = nickname
                         )
                     }
+                    accumulator.updatePhoto(resolvedPhoto)
                     accumulator.addNumber(number, label, isPrimary)
                 }
             }
@@ -1740,7 +1770,7 @@ object ContactHelper {
 
 private class DeviceContactAccumulator(
     val name: String,
-    val photoUri: String?,
+    var photoUri: String?,
     val contactId: Long?,
     val nickname: String?,
     val isStarred: Boolean = false
@@ -1748,6 +1778,12 @@ private class DeviceContactAccumulator(
     private val numbers = mutableListOf<ContactPhoneNumber>()
     private val seen = mutableSetOf<String>()
     private var defaultNumberItem: ContactPhoneNumber? = null
+
+    fun updatePhoto(newPhoto: String?) {
+        if (photoUri.isNullOrBlank() && !newPhoto.isNullOrBlank()) {
+            photoUri = newPhoto
+        }
+    }
 
     fun addNumber(number: String, label: String, isPrimary: Boolean = false) {
         val clean = number.replace(Regex("[^0-9+]"), "")

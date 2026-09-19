@@ -26,15 +26,21 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
                 |       ├── SearchT9ContactsUseCase  (T9 nickname/name/number search)
                 |       └── ManageFavoritesUseCase  (star, unstar, reorder, ignore)
                 |
-                +---> AppRepository & AppDatabase (Room DB v12)
+                +---> AppRepository & AppDatabase (Room DB v13)
                 |       ├── FavoriteContact
                 |       ├── RecentCall
                 |       ├── CallerRule  (+ ambient geofence + automation fields)
                 |       ├── ContactNumberPreference  (per-number preferred SIM slot)
+                |       ├── ContactChannelPreference  (per-normalized-number VoIP/channel binding)
                 |       ├── SpamNumber
                 |       ├── LocalContact
                 |       ├── IgnoredContact
                 |       └── AutomationLogItem
+                |
+                +---> Multi-Channel Calling Engine (MCCE)
+                |       ├── ChannelDiscoveryManager (active SIM detection, installed VoIP packages, emergency cell tower checks)
+                |       ├── ChannelDispatchCoordinator (domestic cellular emergency lock, Telecom/WhatsApp VoIP intent dispatch)
+                |       └── ChannelPreferenceRepository (Room-backed per-number channel preferences)
                 |
                 +---> ContactHelper (System Contacts Provider & CallLog Merging)
                 |
@@ -51,9 +57,9 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 ```
 
 ### Key UI Screens & Components
-- **`FavoritesScreen.kt`**: VIP grid hub with Configure Mode drag-and-drop reordering, persistent sort order, dual-dialer buttons for all card styles (Bento/Grid/Material), and popular contact ignore.
-- **`DialerScreen.kt`**: T9 smart keypad with Quick Recents bar, Pause/Wait overflow menu, nickname-aware suggestions (`contactsByDigits` + `contactsByName` lookup), and non-jumping 2x2 call action grid.
-- **`CallLogScreen.kt`**: Rich call history merging `CallLog.Calls` + Room `recent_calls`. Shows SIM slot badges, instant updates via `callLoggedEvent` SharedFlow, missed call highlight pulse, and `🤖 Rule` badges.
+- **`FavoritesScreen.kt`**: VIP grid hub with Configure Mode drag-and-drop reordering, persistent sort order, Option B single voice-first button (`Call` with 2-option sheet on unknown, `Call - <Channel>` on known preference), and full contact sheet opening on card tap.
+- **`DialerScreen.kt`**: T9 smart keypad with Quick Recents bar, Pause/Wait overflow menu, nickname-aware suggestions, Unified Keypad Channel Dock (`[SIM 1]`, `[SIM 2]`, `[WhatsApp]`), domestic cellular emergency locking, and dedicated `[Message]` + `[Call]` action buttons.
+- **`CallLogScreen.kt`**: Rich call history merging `CallLog.Calls` + Room `recent_calls`. Channel-faithful 1-tap redial (dials back on exact channel and SIM slot), missed call highlight pulse, and `🤖 Rule` badges.
 - **`ContactsScreen.kt`**: Unified directory with Nicknames filter tab (`SmartContactSort.NICKNAMES`), default number prioritization, per-number SIM routing, and partitioned search outside active filters (`otherFilteredOutMatches`).
 - **`InCallScreen.kt`**: Active call UI with SIM display name chip, amber `ROAMING` alert badge, DTMF keypad, audio output selector, post-call notes, manual `[ 🔕 Silence ]` ringer chip, touch-to-silence gestures, and isolated `CallDurationStatusChip` to prevent 1Hz recomposition cascades.
 - **`RulesScreen.kt`**: Automation rule manager with visual pipeline chips, Quick-Start Recipe Gallery bottom sheet, rule dry-run simulator, execution history log, and rule duplication.

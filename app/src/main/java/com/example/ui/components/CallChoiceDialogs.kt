@@ -33,6 +33,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.Surface
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.sp
+import com.example.domain.model.CallingChannel
 import com.example.telecom.SimInfo
 import com.example.ui.CallMethodChoicePrompt
 import com.example.ui.CloudContactConfirmation
@@ -111,6 +118,22 @@ fun WhatsAppChoiceDialog(
 ) {
     var rememberChoice by remember(prompt) { mutableStateOf(prompt.isLearnMode) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val cellularLabel = remember(context) {
+        try {
+            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_1") ?: "Cellular"
+        } catch (_: Exception) {
+            "Cellular"
+        }
+    }
+    val waLabel = remember(context) {
+        try {
+            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
+        } catch (_: Exception) {
+            "WhatsApp"
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -151,7 +174,7 @@ fun WhatsAppChoiceDialog(
                     ) {
                         Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Cellular")
+                        Text(cellularLabel)
                     }
 
                     Button(
@@ -161,7 +184,7 @@ fun WhatsAppChoiceDialog(
                     ) {
                         WhatsAppIcon(modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("WhatsApp", color = Color.White)
+                        Text(waLabel, color = Color.White)
                     }
                 }
 
@@ -296,3 +319,258 @@ fun SimChoiceDialog(
         }
     )
 }
+
+/**
+ * Smart Multi-Channel Call Dialog ("Always Ask" Mode or Keypad Long-Press)
+ * Displays discovered channels with branded cards, icons, and optional "Remember choice" checkbox.
+ */
+@Composable
+fun MultiChannelChoiceDialog(
+    phoneNumber: String,
+    contactName: String? = null,
+    channels: List<CallingChannel>,
+    initialRememberChoice: Boolean = false,
+    showRememberChoice: Boolean = true,
+    onSelectChannel: (channel: CallingChannel, remember: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var rememberChoice by remember(phoneNumber, initialRememberChoice) { mutableStateOf(initialRememberChoice) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Call,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = "Choose Calling Channel",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val displayName = contactName ?: phoneNumber
+                Text(
+                    text = "Call $displayName using:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                val displayChannels = if (channels.isEmpty()) listOf(CallingChannel.SystemDefault) else channels
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    displayChannels.forEach { channel ->
+                        val brandColor = Color(channel.brandColorHex)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = brandColor.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, brandColor.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectChannel(channel, if (showRememberChoice) rememberChoice else false) }
+                                .testTag("channel_dialog_option_${channel.id}")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                when (channel) {
+                                    is CallingChannel.CellularSim -> {
+                                        Icon(
+                                            imageVector = Icons.Default.SimCard,
+                                            contentDescription = null,
+                                            tint = brandColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    is CallingChannel.WhatsApp -> {
+                                        WhatsAppIcon(
+                                            modifier = Modifier.size(20.dp),
+                                            tint = brandColor
+                                        )
+                                    }
+                                    else -> {
+                                        Icon(
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = null,
+                                            tint = brandColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = channel.displayName,
+                                        fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val subtitle = when (channel) {
+                                        is CallingChannel.CellularSim -> if (channel.isRoaming) "Cellular (Roaming)" else "Cellular Network"
+                                        is CallingChannel.WhatsApp -> if (channel.isBusiness) "WhatsApp Business VoIP" else "Free on Wi-Fi / Data"
+                                        is CallingChannel.GoogleVoice -> "Google Voice VoIP / Carrier"
+                                        else -> "Standard Carrier Network"
+                                    }
+                                    Text(
+                                        text = subtitle,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (showRememberChoice) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { rememberChoice = !rememberChoice }
+                            .padding(top = 4.dp)
+                    ) {
+                        Checkbox(
+                            checked = rememberChoice,
+                            onCheckedChange = { rememberChoice = it }
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Remember choice for this number",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+/**
+ * Unified Call Confirmation Dialog for accidental touch protection (Favorites & Speed Dial).
+ * Matches the exact styling, iconography, and colors of MultiChannelChoiceDialog.
+ */
+@Composable
+fun CallConfirmationDialog(
+    phoneNumber: String,
+    contactName: String? = null,
+    channel: CallingChannel? = null,
+    isWhatsApp: Boolean = false,
+    channelLabel: String? = null,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val displayName = contactName?.ifBlank { null } ?: phoneNumber
+    val effectiveLabel = channelLabel ?: channel?.displayName ?: if (isWhatsApp) "WhatsApp" else "Cellular"
+    val brandColor = channel?.let { Color(it.brandColorHex) } ?: if (isWhatsApp) Color(0xFF25D366) else Color(0xFF16A34A)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Call,
+                    contentDescription = null,
+                    tint = brandColor,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = "Confirm Call",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Call $displayName?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = phoneNumber,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = brandColor.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, brandColor.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isWhatsApp) {
+                            WhatsAppIcon(modifier = Modifier.size(18.dp), tint = brandColor)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = null,
+                                tint = brandColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Text(
+                            text = "Calling via $effectiveLabel",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = brandColor)
+            ) {
+                Text(if (isWhatsApp) "Call on WhatsApp" else "Call")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+

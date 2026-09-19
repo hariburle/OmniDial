@@ -35,9 +35,14 @@ object SpamNotificationHelper {
 
         val notificationId = (number.hashCode() and 0x7FFFFFFF)
 
-        // Open app to Call Log
+        // Open app directly to Recents (Call Log)
         val contentIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = Intent.ACTION_VIEW
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("EXTRA_INITIAL_TAB", 1)
+            putExtra("EXTRA_NAV_TAB", "RECENTS")
+            putExtra("EXTRA_NAV_TAB_INDEX", 1)
+            putExtra("EXTRA_HIGHLIGHT_NUMBER", number)
         }
         val contentPendingIntent = PendingIntent.getActivity(
             context,

@@ -146,4 +146,52 @@ data class ContactSimPreference(
     val preferredSimSlot: Int
 )
 
+/**
+ * Granular Per-Phone-Number Calling Channel Preference.
+ * Keyed strictly by E.164 normalized phone number.
+ * preferredChannelId: "system", "sim_1", "sim_2", "whatsapp", "whatsapp_business", "google_voice", "ask"
+ */
+@Immutable
+@Entity(
+    tableName = "number_channel_preferences",
+    indices = [Index(value = ["normalized_number"])]
+)
+data class NumberChannelPreference(
+    @PrimaryKey
+    @ColumnInfo(name = "normalized_number")
+    val normalizedNumber: String,
+    @ColumnInfo(name = "preferred_channel_id")
+    val preferredChannelId: String,
+    @ColumnInfo(name = "custom_label")
+    val customLabel: String? = null,
+    @ColumnInfo(name = "updated_timestamp")
+    val updatedTimestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * User-configured calling channel preferences:
+ * - isEnabled: whether the user wants to leverage this channel in OmniDial
+ * - customName: user-defined custom label (e.g. "Personal (Jio)", "Work (Airtel)")
+ * - orderIndex: display order
+ */
+@Immutable
+@Entity(
+    tableName = "channel_configurations",
+    indices = [Index(value = ["channel_id"])]
+)
+data class ChannelConfig(
+    @PrimaryKey
+    @ColumnInfo(name = "channel_id")
+    val channelId: String,
+    @ColumnInfo(name = "is_enabled")
+    val isEnabled: Boolean = true,
+    @ColumnInfo(name = "custom_name")
+    val customName: String? = null,
+    @ColumnInfo(name = "order_index")
+    val orderIndex: Int = 0,
+    @ColumnInfo(name = "updated_timestamp")
+    val updatedTimestamp: Long = System.currentTimeMillis()
+)
+
+
 

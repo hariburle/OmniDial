@@ -417,7 +417,7 @@ fun InCallScreen(
 
                     // SIM & Roaming Indicator Badge
                     val simLabel = if (!callInfo.simDisplayName.isNullOrBlank()) {
-                        "SIM ${callInfo.simSlot} (${callInfo.simDisplayName})"
+                        callInfo.simDisplayName
                     } else {
                         "SIM ${callInfo.simSlot}"
                     }

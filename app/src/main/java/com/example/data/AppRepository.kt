@@ -98,4 +98,29 @@ class AppRepository(private val appDao: AppDao) {
     suspend fun deleteContactSimPreference(phoneNumber: String) =
         appDao.deleteContactSimPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
     suspend fun clearAllContactSimPreferences() = appDao.clearAllContactSimPreferences()
+
+    val allNumberChannelPreferences: Flow<List<NumberChannelPreference>> = appDao.getAllNumberChannelPreferences()
+    suspend fun getNumberChannelPreference(phoneNumber: String): NumberChannelPreference? =
+        appDao.getNumberChannelPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
+    suspend fun setNumberChannelPreference(phoneNumber: String, channelId: String, customLabel: String? = null) =
+        appDao.setNumberChannelPreference(
+            NumberChannelPreference(
+                normalizedNumber = com.example.util.PhoneNumberNormalizer.toE164(phoneNumber),
+                preferredChannelId = channelId,
+                customLabel = customLabel
+            )
+        )
+    suspend fun deleteNumberChannelPreference(phoneNumber: String) =
+        appDao.deleteNumberChannelPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
+    suspend fun clearAllNumberChannelPreferences() = appDao.clearAllNumberChannelPreferences()
+
+    val allChannelConfigs: Flow<List<ChannelConfig>> = appDao.getAllChannelConfigs()
+    suspend fun getAllChannelConfigsList(): List<ChannelConfig> = appDao.getAllChannelConfigsList()
+    suspend fun getChannelConfig(channelId: String): ChannelConfig? = appDao.getChannelConfig(channelId)
+    suspend fun setChannelConfig(config: ChannelConfig) = appDao.insertOrUpdateChannelConfig(config)
+    suspend fun setChannelConfigs(configs: List<ChannelConfig>) = appDao.insertOrUpdateChannelConfigs(configs)
+    suspend fun setChannelEnabled(channelId: String, isEnabled: Boolean) = appDao.setChannelEnabled(channelId, isEnabled)
+    suspend fun setChannelCustomName(channelId: String, customName: String?) = appDao.setChannelCustomName(channelId, customName)
+    suspend fun deleteChannelConfig(channelId: String) = appDao.deleteChannelConfig(channelId)
+    suspend fun clearAllChannelConfigs() = appDao.clearAllChannelConfigs()
 }

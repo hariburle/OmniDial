@@ -86,4 +86,25 @@ class ExampleUnitTest {
         assertEquals("Nicknames", nicknamesSort.label)
         assertEquals("Contacts with Nicknames", nicknamesSort.description)
     }
+
+    @Test
+    fun testT9SecondaryNumberMatchPreservesMatchingNumberAndLabel() {
+        val contact = DeviceContact(
+            name = "Kishan Patel",
+            phoneNumber = "+919876543210",
+            label = "India Mobile",
+            phoneNumbers = listOf(
+                ContactPhoneNumber("+919876543210", "India Mobile"),
+                ContactPhoneNumber("+16505551234", "US Work")
+            )
+        )
+
+        val results = com.example.util.T9Helper.search(listOf(contact), "6505551234")
+        assertEquals(1, results.size)
+        val match = results[0]
+        assertEquals("Kishan Patel", match.name)
+        // Must return the matched US Work number, NOT the default India Mobile number
+        assertEquals("+16505551234", match.phoneNumber)
+        assertEquals("US Work", match.label)
+    }
 }

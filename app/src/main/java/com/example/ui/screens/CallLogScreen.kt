@@ -137,7 +137,8 @@ fun CallLogScreen(
     favorites: List<FavoriteContact> = emptyList(),
     highlightNumber: String? = null,
     isSpamNumber: ((String) -> Boolean)? = null,
-    onCallBack: (String) -> Unit,
+    onCallBack: (RecentCall) -> Unit,
+    onCallNumber: (String) -> Unit = { num -> onCallBack(RecentCall(phoneNumber = num, callType = 2)) },
     onCreateRuleForNumber: (String) -> Unit,
     onMarkSpam: (String) -> Unit = {},
     onRemoveSpam: (String) -> Unit = {},
@@ -155,9 +156,9 @@ fun CallLogScreen(
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
     getPreferredCallingMode: (String) -> String = { "cellular" },
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
-    getPreferredSimSlot: (String) -> Int = { 0 },
-    onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
-    globalSimPreferenceMode: String = "system",
+    getPreferredSimSlot: (String) -> Int = { -1 },
+    onSetPreferredSimSlot: (String, Int) -> Unit = { _, _ -> },
+    globalSimPreferenceMode: String = "always_ask",
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -191,10 +192,10 @@ fun CallLogScreen(
             favoriteContact = favContact,
             isFavorite = favContact != null,
             onCallNumber = { num ->
-                onCallBack(num)
+                onCallNumber(num)
             },
             onSelectInDialer = { num ->
-                onCallBack(num)
+                onCallNumber(num)
             },
             onToggleFavorite = {
                 onToggleFavorite(matchedContact.name, favContact?.phoneNumber ?: matchedContact.phoneNumber, favContact?.label ?: matchedContact.label, matchedContact.photoUri)
@@ -794,7 +795,7 @@ fun CallLogScreen(
                     numberLabel = numberLabel,
                     matchedDc = matchedDc,
                     activeSims = activeSims,
-                    onCallBack = { onCallBack(group.primaryCall.phoneNumber) },
+                    onCallBack = { onCallBack(group.primaryCall) },
                     onCreateRule = { onCreateRuleForNumber(group.primaryCall.phoneNumber) },
                     onOpenNoteDialog = { target ->
                         noteDialogCall = target

@@ -68,8 +68,15 @@ fun CallLogItem(
     )
     val noteToShow = if (isCarrierAutoDropped) null else call.note
     val reminderToShow = call.reminderTime
+    val waLabel = remember(context) {
+        try {
+            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
+        } catch (_: Exception) {
+            "WhatsApp"
+        }
+    }
     val (typeIcon, typeColor, typeLabel) = when {
-        isWhatsApp -> Triple(Icons.AutoMirrored.Filled.CallMade, Color(0xFF25D366), "WhatsApp Call")
+        isWhatsApp -> Triple(Icons.AutoMirrored.Filled.CallMade, Color(0xFF25D366), "$waLabel Call")
         call.callType == 1 -> Triple(Icons.AutoMirrored.Filled.CallReceived, Color(0xFF16A34A), "Incoming")
         call.callType == 2 -> Triple(Icons.AutoMirrored.Filled.CallMade, Color(0xFF2563EB), "Outgoing")
         else -> Triple(Icons.AutoMirrored.Filled.CallMissed, Color(0xFFDC2626), "Missed")
@@ -270,7 +277,7 @@ fun CallLogItem(
                                 ) {
                                     WhatsAppIcon(modifier = Modifier.size(11.dp))
                                     Text(
-                                        text = "WhatsApp",
+                                        text = waLabel,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF15803D),
@@ -399,7 +406,7 @@ fun CallLogItem(
                         )
                         if (isWhatsApp) {
                             Text(
-                                text = "• WhatsApp Call",
+                                text = "• $waLabel Call",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
                                 color = Color(0xFF15803D)
@@ -418,9 +425,16 @@ fun CallLogItem(
                             // SIM Badge with Custom Name (shown only on multi-SIM devices)
                             if (activeSims.size > 1) {
                                 val slot = if (call.simSlot > 0) call.simSlot else 1
+                                val customName = remember(slot, activeSims) {
+                                    try {
+                                        com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_$slot")
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                }
                                 val matchedSim = activeSims.firstOrNull { it.slotIndex + 1 == slot }
-                                val simLabel = if (matchedSim != null && matchedSim.displayName.isNotBlank()) {
-                                    matchedSim.displayName.take(8)
+                                val simLabel = customName ?: if (matchedSim != null && matchedSim.displayName.isNotBlank()) {
+                                    matchedSim.displayName.take(14)
                                 } else {
                                     "SIM $slot"
                                 }

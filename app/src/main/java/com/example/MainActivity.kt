@@ -79,7 +79,11 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import android.app.PendingIntent
 import android.app.RemoteAction
+import androidx.compose.runtime.collectAsState
+import com.example.data.ChannelConfigRepository
 import com.example.telecom.CallNotificationReceiver
+import com.example.telecom.ChannelDiscoveryManager
+import com.example.ui.components.ChannelSetupDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -215,6 +219,7 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra("EXTRA_IN_CALL", false)) {
             viewModel.maximizeCall()
         }
+        viewModel.refreshRecentCalls()
     }
 
     override fun onResume() {
@@ -529,11 +534,12 @@ fun MainAppContent(
         if (currentIntent != null) {
             val navTab = currentIntent.getStringExtra("EXTRA_NAV_TAB")
             val navTabIndex = currentIntent.getIntExtra("EXTRA_NAV_TAB_INDEX", -1)
+            val initialTabExtra = currentIntent.getIntExtra("EXTRA_INITIAL_TAB", -1)
             val highlightNum = currentIntent.getStringExtra("EXTRA_HIGHLIGHT_NUMBER")
             val isDial = com.example.util.ContactHelper.isDialOrTelIntent(currentIntent)
             val extracted = com.example.util.ContactHelper.extractPhoneNumberFromIntent(currentIntent)
 
-            if (navTab == "RECENTS" || navTabIndex == 1) {
+            if (navTab == "RECENTS" || navTabIndex == 1 || initialTabExtra == 1) {
                 navigateToTab(1)
                 if (!highlightNum.isNullOrBlank()) {
                     highlightNumber = highlightNum
@@ -563,6 +569,12 @@ fun MainAppContent(
             }
         }
     }
+
+    val channelConfigRepo = remember { ChannelConfigRepository.getInstance(context) }
+    val channelDiscoveryManager = remember { ChannelDiscoveryManager.getInstance(context) }
+    val channelConfigs by channelConfigRepo.allConfigs.collectAsState(initial = emptyList())
+    val allDiscoveredChannels by channelDiscoveryManager.allDiscoveredChannels.collectAsState()
+    var showChannelOnboarding by remember { mutableStateOf(!channelConfigRepo.hasCompletedOnboarding()) }
 
     var showDefaultAppPrompt by remember { mutableStateOf(true) }
     var showOverlayPrompt by remember { mutableStateOf(true) }
@@ -860,12 +872,16 @@ fun MainAppContent(
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
                         learnedCallModes = learnedCallModes,
+                        whatsAppCallMode = whatsAppCallMode,
                         onSelectNumber = { num ->
                             viewModel.setDialerNumber(num)
                             navigateToTab(2)
                         },
                         onCallNumber = { num ->
                             viewModel.initiateCall(context, num)
+                        },
+                        onCallNumberDirect = { num, slot ->
+                            viewModel.placeCall(context, num, overrideSimSlot = slot)
                         },
                         onCallWhatsApp = { num ->
                             viewModel.placeWhatsAppCall(context, num)
@@ -932,8 +948,12 @@ fun MainAppContent(
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
-                        onCallBack = { num ->
-                            viewModel.initiateCall(context, num)
+                        onCallBack = { recentCall ->
+                            if (recentCall.callReason?.contains("WhatsApp", ignoreCase = true) == true) {
+                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber)
+                            } else {
+                                viewModel.placeCall(context, recentCall.phoneNumber, null, overrideSimSlot = recentCall.simSlot)
+                            }
                         },
                         onCreateRuleForNumber = { num ->
                             ruleNumberToCreate = num
@@ -989,10 +1009,11 @@ fun MainAppContent(
                         onClearDigits = { viewModel.clearDigits() },
                         onSelectContactNumber = { num -> viewModel.setDialerNumber(num) },
                         onPlaceCall = { num, reason -> viewModel.placeCall(context, num, reason) },
+                        onPlaceCallDirect = { num, slot -> viewModel.placeCall(context, num, overrideSimSlot = slot) },
                         onPlaceWhatsAppCall = { num -> viewModel.placeWhatsAppCall(context, num) },
+                        whatsAppCallMode = whatsAppCallMode,
                         onSimulateCall = { num, name -> viewModel.simulateIncomingCall(context, num, name) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
-                        learnedCallModes = learnedCallModes,
                         onCreateRuleForNumber = { num ->
                             ruleNumberToCreate = num
                             navigateToTab(4)
@@ -1029,6 +1050,7 @@ fun MainAppContent(
                         onPlaceWhatsAppCall = { num -> viewModel.placeWhatsAppCall(context, num) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
+                        whatsAppCallMode = whatsAppCallMode,
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
@@ -1038,6 +1060,9 @@ fun MainAppContent(
                         },
                         onCallNumber = { num ->
                             viewModel.initiateCall(context, num)
+                        },
+                        onCallNumberDirect = { num, slot ->
+                            viewModel.placeCall(context, num, overrideSimSlot = slot)
                         },
                         onCreateRule = { num ->
                             ruleNumberToCreate = num
@@ -1139,6 +1164,16 @@ fun MainAppContent(
                         globalSimPreferenceMode = globalSimPreferenceMode,
                         onSetGlobalSimPreferenceMode = { viewModel.setGlobalSimPreferenceMode(it) },
                         activeSims = activeSims,
+                        channelConfigs = channelConfigs,
+                        discoveredChannels = allDiscoveredChannels,
+                        onSaveChannelConfigs = { configs ->
+                            coroutineScope.launch {
+                                channelConfigRepo.saveConfigs(configs)
+                                channelDiscoveryManager.refreshChannels()
+                                viewModel.refreshSimCards()
+                                viewModel.refreshRecentCalls()
+                            }
+                        },
                         dismissModalsTrigger = dismissModalsTrigger
                     )
                 }
@@ -1250,6 +1285,27 @@ fun MainAppContent(
                     showDefaultAppPrompt = false
                 },
                 onDismiss = { showDefaultAppPrompt = false }
+            )
+        }
+
+        // Channel Discovery & First-Launch Onboarding Dialog
+        if (!isCallScreenVisible && showChannelOnboarding && allDiscoveredChannels.isNotEmpty()) {
+            ChannelSetupDialog(
+                discoveredChannels = allDiscoveredChannels,
+                existingConfigs = channelConfigs,
+                isOnboarding = true,
+                onSave = { configs ->
+                    coroutineScope.launch {
+                        channelConfigRepo.saveConfigs(configs)
+                        channelConfigRepo.setCompletedOnboarding(true)
+                        channelDiscoveryManager.refreshChannels()
+                        showChannelOnboarding = false
+                    }
+                },
+                onDismiss = {
+                    channelConfigRepo.setCompletedOnboarding(true)
+                    showChannelOnboarding = false
+                }
             )
         }
 

@@ -161,31 +161,41 @@ When placing a call to any phone number, the system determines the transport cha
 
 ## 6. 🎨 User Experience & Interaction Design
 
-### A. Keypad Channel Dock (Adaptive Pill Bar)
-- Positioned seamlessly directly above the Keypad / Call button.
-- Displays dynamic pills for discovered channels:
-  `[ SIM 1 (Carrier) ]` `[ SIM 2 ]` `[ WhatsApp ]` *(extensible to `[ WA Business ]` `[ Google Voice ]`)*
-- Tapping a pill switches the active outgoing channel with subtle tactile haptic feedback.
-- Long-pressing the main Call button opens a circular radial wheel / bottom sheet to instantly fire any channel.
+### A. Keypad Channel Dock & Dual Action Execution
+- Positioned seamlessly directly above the Keypad / Call action row.
+- Replaces legacy redundant SIM switcher rows with a clean segmented channel dock:
+  `[ SIM 1 (Carrier) ]` `[ SIM 2 (Carrier) ]` `[ WhatsApp ]` *(extensible to `[ WA Business ]` `[ Google Voice ]`)*
+- Directly below the keypad, provides a balanced 3-column action row:
+  - **Left**: `[ 💬 Message ]` — Dispatches an SMS (if SIM 1/SIM 2 active) or opens WhatsApp chat (if WhatsApp active).
+  - **Center**: Hero green `[ 📞 Call ]` button — Places a voice call on the currently selected active channel.
+  - **Right**: `[ ⌫ Backspace ]` button.
+- Typing an international dialing prefix (`+`, `011`, `00`) automatically pre-selects `[WhatsApp]` to prevent accidental carrier toll fees.
 
-### B. Contact Details & Per-Number Channel Chips
+### B. Favorites Section (Option B — Voice-First Execution)
+- VIP Favorites focus strictly on instant voice calling:
+  - **Tapping anywhere on the Card Body**: Opens `ContactDetailsBottomSheet` to view numbers, call history, or initiate alternate actions.
+  - **Call Button Action**:
+    - **Known Preference**: Displays `Call - <Channel Name>` (e.g. `Call - Jio`, `Call - WhatsApp`). 1-tap immediately dials via that channel.
+    - **Unknown Preference**: Displays `Call`. 1-tap presents a lightweight 2-option sheet: *"Call via [SIM 1 / Carrier] or [WhatsApp]? [x] Remember this choice"*. Saving preference immediately updates the button.
+
+### C. Contact Details & Per-Number Channel Chips
 - In `ContactDetailsBottomSheet`, each phone number row displays its own independent channel chips:
   - Phone Number 1 (+1 555-0100): `[ Cellular (SIM 1) ]` `[ WhatsApp ]` `[ Always Ask ]`
   - Phone Number 2 (+1 555-0199): `[ Cellular (SIM 2) ]` `[ WhatsApp ]` `[ Always Ask ]`
 - Changing the channel on Number 1 does **not** affect Number 2.
+- Direct message and video call actions are accessible upon expanding the number.
 
-### C. Smart Multi-Channel Call Sheet ("Always Ask" Mode)
-- Surfaces a lightweight bottom sheet when "Always Ask" is selected:
-  - Large, distinct branded channel cards (Brand color, icon, and clear carrier/account label).
-  - Contextual badges: `"Free on Wi-Fi"`, `"Roaming Warning"`, `"HD Audio"`.
-  - Checkbox: *"Remember choice for this phone number"*.
+### D. Recents / Call Log Channel-Faithful Redial
+- Tapping a call log entry **redials on the exact channel and SIM slot** that the call occurred on (e.g. missed call on SIM 2 redials via SIM 2; WhatsApp call redials via WhatsApp).
+- Tapping the contact avatar or info icon opens `ContactDetailsBottomSheet`.
 
-### D. Call History & Analytics Integration
-- Recents list displays distinct channel badges on every entry:
-  - 📞 SIM 1 (Carrier Name)
-  - 📞 SIM 2 (Carrier Name)
-  - 💬 WhatsApp Call (Green badge)
-- Filter Recents by channel to audit communication channels per number.
+### E. Safety Guardrails: Intelligent Country Emergency Discovery
+- Real-time cell tower detection via `TelephonyManager.isEmergencyNumber()` (API 29+) and `PhoneNumberUtils.isEmergencyNumber()`.
+- Automatically adapts to the country the user is in (`911` in US, `112/100/108` in India, `999` in UK, `000` in Australia, etc.).
+- When an emergency number is detected:
+  - VoIP and WhatsApp channels are forcefully hidden and disabled.
+  - Outgoing call is locked to an active, domestic, non-roaming cellular SIM.
+  - Dispatched directly through native Android Telecom emergency calling stack.
 
 ---
 

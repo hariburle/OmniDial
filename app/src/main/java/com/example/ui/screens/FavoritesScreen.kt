@@ -105,6 +105,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -127,18 +128,24 @@ import coil.compose.AsyncImage
 import com.example.data.FavoriteContact
 import com.example.data.IgnoredContact
 import com.example.data.RecentCall
+import com.example.domain.model.CallingChannel
+import com.example.telecom.ChannelDiscoveryManager
 import com.example.ui.components.AddFavoriteDialog
 import com.example.ui.components.ContactSaveDestination
 import com.example.ui.components.CreateContactDialog
 import com.example.ui.components.ContactDetailsBottomSheet
 import com.example.ui.components.ContactPickerDialog
 import com.example.ui.components.EditFavoriteDialog
+import com.example.ui.components.MultiChannelChoiceDialog
 import com.example.ui.components.MultiNumberCallDialog
 import com.example.util.ContactHelper
 import com.example.util.ContactPhoneNumber
 import com.example.util.DeviceContact
 import java.util.Collections
 
+import com.example.ui.components.CallConfirmationDialog
+import com.example.ui.CallMethodChoicePrompt
+import com.example.ui.components.WhatsAppChoiceDialog
 import com.example.ui.models.PopularContactItem
 import com.example.ui.components.FavoriteGridCard
 import com.example.ui.components.PopularGridCard
@@ -180,6 +187,8 @@ fun FavoritesScreen(
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
+    whatsAppCallMode: String = "ask_learn",
+    onCallNumberDirect: ((String, Int?) -> Unit)? = null,
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -203,6 +212,7 @@ fun FavoritesScreen(
 
     var isSearchActive by remember { mutableStateOf(false) }
     var pendingCallConfirmation by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) }
+    var pendingUnknownCallTarget by remember { mutableStateOf<FavoriteContact?>(null) }
     var nicknameDialogTarget by remember { mutableStateOf<Pair<DeviceContact, String?>?>(null) }
     var nicknameDialogText by remember { mutableStateOf("") }
     val effectiveDeviceContacts = deviceContacts
@@ -214,12 +224,15 @@ fun FavoritesScreen(
                   isConfigureMode || 
                   nicknameDialogTarget != null || 
                   pendingCallConfirmation != null || 
+                  pendingUnknownCallTarget != null || 
                   multiNumberContactToCall != null
     ) {
         if (nicknameDialogTarget != null) {
             nicknameDialogTarget = null
         } else if (pendingCallConfirmation != null) {
             pendingCallConfirmation = null
+        } else if (pendingUnknownCallTarget != null) {
+            pendingUnknownCallTarget = null
         } else if (multiNumberContactToCall != null) {
             multiNumberContactToCall = null
         } else if (searchQuery.isNotBlank()) {
@@ -231,11 +244,6 @@ fun FavoritesScreen(
         }
     }
 
-    LaunchedEffect(favorites) {
-        if (draggingContactId == null) {
-            localFavorites = favorites
-        }
-    }
     var favoriteContactToCall by remember { mutableStateOf<FavoriteContact?>(null) }
     var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
 
@@ -249,6 +257,7 @@ fun FavoritesScreen(
             editTargetContact = null
             editTargetIgnored = null
             pendingCallConfirmation = null
+            pendingUnknownCallTarget = null
             nicknameDialogTarget = null
         }
     }
@@ -291,6 +300,33 @@ fun FavoritesScreen(
             }
         }
         map
+    }
+
+    val deviceContactsByName = remember(effectiveDeviceContacts) {
+        val map = mutableMapOf<String, DeviceContact>()
+        effectiveDeviceContacts.forEach { dc ->
+            val nameLower = dc.name.trim().lowercase()
+            if (nameLower.isNotBlank() && (!map.containsKey(nameLower) || !dc.photoUri.isNullOrBlank())) {
+                map[nameLower] = dc
+            }
+        }
+        map
+    }
+
+    val effectiveFavorites = remember(favorites, effectiveDeviceContacts, deviceContactsByNorm, deviceContactsByName) {
+        favorites.map { fav ->
+            val norm = fav.phoneNumber.filter { it.isDigit() }.takeLast(10)
+            val matchedDc = (if (norm.isNotBlank()) deviceContactsByNorm[norm] else null)
+                ?: deviceContactsByName[fav.name.trim().lowercase()]
+            val resolvedPhoto = if (!fav.photoUri.isNullOrBlank()) fav.photoUri else matchedDc?.photoUri
+            if (resolvedPhoto != fav.photoUri) fav.copy(photoUri = resolvedPhoto) else fav
+        }
+    }
+
+    LaunchedEffect(effectiveFavorites) {
+        if (draggingContactId == null) {
+            localFavorites = effectiveFavorites
+        }
     }
 
     val contactsWithCallCounts = remember(deviceContactsByNorm, recentCalls) {
@@ -577,12 +613,22 @@ fun FavoritesScreen(
                                             color = MaterialTheme.colorScheme.primaryContainer,
                                             modifier = Modifier.size(36.dp)
                                         ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(
-                                                    text = contact.name.take(1).uppercase(),
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            val photo = favContactForThis?.photoUri ?: contact.photoUri
+                                            if (!photo.isNullOrBlank()) {
+                                                AsyncImage(
+                                                    model = photo,
+                                                    contentDescription = contact.name,
+                                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                                    contentScale = ContentScale.Crop
                                                 )
+                                            } else {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = contact.name.take(1).uppercase(),
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                }
                                             }
                                         }
                                         Column {
@@ -983,7 +1029,11 @@ fun FavoritesScreen(
                                             onCallWhatsApp(contact.phoneNumber)
                                         }
                                     },
-                                    onLongClick = {
+                                    onCallUnknown = {
+                                        pendingUnknownCallTarget = contact
+                                    },
+                                    onLongClick = {},
+                                    onSelect = {
                                         val normNum = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
                                         val matched = deviceContacts.firstOrNull { dc ->
                                             dc.phoneNumbers.any { it.number.replace(Regex("[^0-9+]"), "") == normNum } ||
@@ -999,7 +1049,6 @@ fun FavoritesScreen(
                                         val resolvedMatched = if (!contact.nickname.isNullOrBlank()) matched.copy(nickname = contact.nickname) else matched
                                         contactDetailsTarget = Pair(resolvedMatched, contact)
                                     },
-                                    onSelect = { onSelectNumber(contact.phoneNumber) },
                                     onCreateRule = { onCreateRule(contact.phoneNumber) },
                                     onEdit = { editTargetContact = contact },
                                     onDelete = {
@@ -1387,44 +1436,41 @@ fun FavoritesScreen(
     if (pendingCallConfirmation != null) {
         val (name, number, requestedWhatsApp) = pendingCallConfirmation!!
         val isWhatsApp = requestedWhatsApp || (getPreferredCallingMode(number) == "whatsapp")
-        AlertDialog(
-            onDismissRequest = { pendingCallConfirmation = null },
-            title = { Text(if (isWhatsApp) "Call $name on WhatsApp?" else "Call $name?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(text = "Number: $number")
-                    Text(
-                        text = if (isWhatsApp) "Via WhatsApp Calling" else "Via Cellular Phone Call",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isWhatsApp) Color(0xFF25D366) else MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val numToCall = number
-                        val callWa = isWhatsApp
-                        pendingCallConfirmation = null
-                        if (callWa) {
-                            onCallWhatsApp(numToCall)
-                        } else {
-                            onCallNumber(numToCall)
-                        }
-                    },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = if (isWhatsApp) Color(0xFF25D366) else Color(0xFF16A34A)
-                    )
-                ) {
-                    Text(if (isWhatsApp) "WhatsApp Call" else "Call")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingCallConfirmation = null }) {
-                    Text("Cancel")
-                }
+        val waLabel = remember(context) {
+            try {
+                com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
+            } catch (_: Exception) {
+                "WhatsApp"
             }
+        }
+        val cellularLabel = remember(context) {
+            try {
+                com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_1") ?: "Cellular"
+            } catch (_: Exception) {
+                "Cellular"
+            }
+        }
+        CallConfirmationDialog(
+            phoneNumber = number,
+            contactName = name,
+            isWhatsApp = isWhatsApp,
+            channelLabel = if (isWhatsApp) waLabel else cellularLabel,
+            onConfirm = {
+                val numToCall = number
+                val callWa = isWhatsApp
+                pendingCallConfirmation = null
+                if (callWa) {
+                    onCallWhatsApp(numToCall)
+                } else {
+                    val resolvedSimSlot = getPreferredSimSlot(numToCall).takeIf { it > 0 }
+                    if (onCallNumberDirect != null) {
+                        onCallNumberDirect(numToCall, resolvedSimSlot)
+                    } else {
+                        onCallNumber(numToCall)
+                    }
+                }
+            },
+            onDismiss = { pendingCallConfirmation = null }
         )
     }
 
@@ -1495,6 +1541,44 @@ fun FavoritesScreen(
                     Text(if (isAdding) "Skip" else "Cancel")
                 }
             }
+        )
+    }
+
+    if (pendingUnknownCallTarget != null) {
+        val target = pendingUnknownCallTarget!!
+        val channelDiscovery = remember(context) { ChannelDiscoveryManager.getInstance(context) }
+        val availableChannels by channelDiscovery.availableChannels.collectAsState()
+        MultiChannelChoiceDialog(
+            phoneNumber = target.phoneNumber,
+            contactName = target.nickname?.ifBlank { null } ?: target.name,
+            channels = availableChannels,
+            initialRememberChoice = (whatsAppCallMode == "ask_learn"),
+            showRememberChoice = (whatsAppCallMode != "ask_always"),
+            onSelectChannel = { selectedChannel, rememberChoice ->
+                if (rememberChoice) {
+                    onSaveLearnedCallMode(target.phoneNumber, selectedChannel.id)
+                }
+                when (selectedChannel) {
+                    is CallingChannel.WhatsApp -> onCallWhatsApp(target.phoneNumber)
+                    is CallingChannel.CellularSim -> {
+                        val slot = selectedChannel.slotIndex + 1
+                        if (onCallNumberDirect != null) {
+                            onCallNumberDirect(target.phoneNumber, slot)
+                        } else {
+                            onCallNumber(target.phoneNumber)
+                        }
+                    }
+                    else -> {
+                        if (onCallNumberDirect != null) {
+                            onCallNumberDirect(target.phoneNumber, null)
+                        } else {
+                            onCallNumber(target.phoneNumber)
+                        }
+                    }
+                }
+                pendingUnknownCallTarget = null
+            },
+            onDismiss = { pendingUnknownCallTarget = null }
         )
     }
 }

@@ -75,12 +75,21 @@ object T9Helper {
             val matchedPhone = ContactHelper.matchesNumberQuery(contact.phoneNumber, cleanQuery) ||
                 contact.phoneNumbers.any { ContactHelper.matchesNumberQuery(it.number, cleanQuery) }
 
+            // Determine matching phone number and label so we don't display a mismatched default number
+            val matchingPn = contact.phoneNumbers.firstOrNull { ContactHelper.matchesNumberQuery(it.number, cleanQuery) }
+                ?: if (ContactHelper.matchesNumberQuery(contact.phoneNumber, cleanQuery)) {
+                    contact.phoneNumbers.firstOrNull { it.number == contact.phoneNumber } ?: ContactPhoneNumber(contact.phoneNumber, contact.label)
+                } else null
+
+            val effectiveNumber = matchingPn?.number ?: contact.phoneNumber
+            val effectiveLabel = matchingPn?.label ?: contact.label
+
             if (matchedNickname) {
                 results.add(
                     T9SearchResult(
                         name = contact.name,
-                        phoneNumber = contact.phoneNumber,
-                        label = contact.label,
+                        phoneNumber = effectiveNumber,
+                        label = effectiveLabel,
                         photoUri = contact.photoUri,
                         nickname = contact.nickname,
                         matchedByName = true,
@@ -91,8 +100,8 @@ object T9Helper {
                 results.add(
                     T9SearchResult(
                         name = contact.name,
-                        phoneNumber = contact.phoneNumber,
-                        label = contact.label,
+                        phoneNumber = effectiveNumber,
+                        label = effectiveLabel,
                         photoUri = contact.photoUri,
                         nickname = contact.nickname,
                         matchedByName = true,
@@ -100,17 +109,11 @@ object T9Helper {
                     )
                 )
             } else if (matchedPhone) {
-                // Determine matching phone number
-                val matchedNumber = if (ContactHelper.matchesNumberQuery(contact.phoneNumber, cleanQuery)) {
-                    contact.phoneNumber
-                } else {
-                    contact.phoneNumbers.firstOrNull { ContactHelper.matchesNumberQuery(it.number, cleanQuery) }?.number ?: contact.phoneNumber
-                }
                 results.add(
                     T9SearchResult(
                         name = contact.name,
-                        phoneNumber = matchedNumber,
-                        label = contact.label,
+                        phoneNumber = effectiveNumber,
+                        label = effectiveLabel,
                         photoUri = contact.photoUri,
                         nickname = contact.nickname,
                         matchedByName = false,

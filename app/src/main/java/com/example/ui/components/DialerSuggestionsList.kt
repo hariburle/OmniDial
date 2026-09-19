@@ -344,7 +344,7 @@ private fun DialerMatchSuggestionCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 val hasNick = !match.nickname.isNullOrBlank() && !match.nickname.equals(match.name, ignoreCase = true)
-                val displayName = if (hasNick) "${match.nickname} (${match.name})" else match.name
+                val displayName = if (hasNick) match.nickname!! else match.name
                 Text(
                     text = displayName,
                     style = MaterialTheme.typography.bodyMedium,
