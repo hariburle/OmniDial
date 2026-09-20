@@ -51,6 +51,14 @@ android {
         keyAlias = "upload"
         keyPassword = System.getenv("KEY_PASSWORD")
       } else {
+        // Not a hard failure: assembleRelease is the publishing path required by AGENTS.md, and
+        // breaking it would block releases until the upload key is restored. Promote to an error
+        // once my-upload-key.jks (or KEYSTORE_PATH) is available again.
+        logger.warn(
+          "WARNING: upload keystore not found at ${uploadKey.path}. " +
+            "Release APKs will be signed with the committed debug.keystore, which is NOT valid for " +
+            "Play Store upload and is a security risk. Set KEYSTORE_PATH or restore my-upload-key.jks."
+        )
         storeFile = file("../debug.keystore")
         storePassword = "android"
         keyAlias = "androiddebugkey"

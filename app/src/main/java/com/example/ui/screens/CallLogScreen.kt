@@ -357,6 +357,24 @@ fun CallLogScreen(
         }
     }
 
+    // Stable per-item keys. Deriving the key from the item itself (rather than its position) means
+    // prepending a new call no longer re-keys the whole list. The occurrence suffix only ever
+    // applies to genuinely duplicated ids, so it cannot reintroduce that instability.
+    val callLogItemKeys = remember(filteredGroupedCalls) {
+        val seen = HashMap<String, Int>()
+        filteredGroupedCalls.map { group ->
+            val base = "${group.primaryCall.id}_${group.primaryCall.timestamp}"
+            val occurrences = seen[base]
+            if (occurrences == null) {
+                seen[base] = 1
+                base
+            } else {
+                seen[base] = occurrences + 1
+                "${base}_$occurrences"
+            }
+        }
+    }
+
     androidx.compose.runtime.LaunchedEffect(highlightNumber) {
         if (!highlightNumber.isNullOrBlank()) {
             searchQuery = ""
@@ -723,7 +741,7 @@ fun CallLogScreen(
                     modifier = Modifier.fillMaxSize().testTag("call_log_list"),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    itemsIndexed(filteredGroupedCalls, key = { index, group -> "${group.primaryCall.id}_${group.primaryCall.timestamp}_$index" }) { _, group ->
+                    itemsIndexed(filteredGroupedCalls, key = { index, _ -> callLogItemKeys[index] }) { _, group ->
                 val call = group.primaryCall
                 val isVoicemail = remember(call.phoneNumber) {
                     ContactHelper.isVoicemailNumber(context, call.phoneNumber)

@@ -601,15 +601,7 @@ class MainViewModel(
         viewModelScope.launch {
             CallManager.callLoggedEvent.collect {
                 refreshRecentCalls()
-                kotlinx.coroutines.delay(600)
-                refreshRecentCalls()
-                kotlinx.coroutines.delay(1200)
-                refreshRecentCalls()
             }
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            removeSpam("+1 469-731-3343")
-            removeSpam("4697313343")
         }
     }
 

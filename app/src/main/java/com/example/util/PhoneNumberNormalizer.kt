@@ -22,6 +22,26 @@ object PhoneNumberNormalizer {
         }
     }
 
+    private val nonDigitOrPlus = Regex("[^0-9+]")
+    private val nonDigitPlusStarHash = Regex("[^0-9+*#]")
+
+    /**
+     * toE164 is a pure function of (rawNumber, defaultRegion) but costs a full libphonenumber
+     * parse + validation + format. It is called from Room entity constructors, repository lookups
+     * and every phone-number comparison, so the same strings are parsed thousands of times.
+     */
+    private const val E164_CACHE_MAX = 4096
+    private val e164Cache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > E164_CACHE_MAX
+    }
+
+    private fun cachedE164(key: String, compute: () -> String): String {
+        synchronized(e164Cache) { e164Cache[key]?.let { return it } }
+        val value = compute()
+        synchronized(e164Cache) { e164Cache[key] = value }
+        return value
+    }
+
     /**
      * Resolves the default country ISO code (e.g. "US", "IN", "GB") from the SIM, network, or locale.
      */
@@ -49,6 +69,10 @@ object PhoneNumberNormalizer {
      */
     fun toE164(rawNumber: String?, defaultRegion: String = "US"): String {
         if (rawNumber.isNullOrBlank()) return ""
+        return cachedE164("$defaultRegion\u0000$rawNumber") { computeE164(rawNumber, defaultRegion) }
+    }
+
+    private fun computeE164(rawNumber: String, defaultRegion: String): String {
         val trimmed = rawNumber.trim()
 
         val util = phoneUtil
@@ -135,8 +159,8 @@ object PhoneNumberNormalizer {
         // Short codes, star codes (e.g. *86, 911, 611), or short numbers (< 7 digits)
         // must match exactly and can never fuzzy match standard phone numbers.
         if (d1.length < 7 || d2.length < 7) {
-            val clean1 = s1.replace(Regex("[^0-9+*#]"), "")
-            val clean2 = s2.replace(Regex("[^0-9+*#]"), "")
+            val clean1 = s1.replace(nonDigitPlusStarHash, "")
+            val clean2 = s2.replace(nonDigitPlusStarHash, "")
             return clean1.equals(clean2, ignoreCase = true)
         }
 
@@ -152,8 +176,8 @@ object PhoneNumberNormalizer {
                         // one is a suffix of the other (e.g. 7-digit local number matching 10-digit),
                         // and they do not have conflicting country codes.
                         if (d1.length >= 7 && d2.length >= 7 && (d1.endsWith(d2) || d2.endsWith(d1))) {
-                            val clean1 = s1.replace(Regex("[^0-9+]"), "")
-                            val clean2 = s2.replace(Regex("[^0-9+]"), "")
+                            val clean1 = s1.replace(nonDigitOrPlus, "")
+                            val clean2 = s2.replace(nonDigitOrPlus, "")
                             if (clean1.startsWith("+") && clean2.startsWith("+")) {
                                 val e1 = toE164(clean1, defaultRegion)
                                 val e2 = toE164(clean2, defaultRegion)

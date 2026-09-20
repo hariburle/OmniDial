@@ -748,6 +748,12 @@ object ContactHelper {
         "hk" to "852", "tw" to "886", "ar" to "54", "co" to "57", "cl" to "56"
     )
 
+    // Hoisted out of the hot search path: these were recompiled/re-sorted on every invocation.
+    private val nonDigitOrPlus = Regex("[^0-9+]")
+    private val nonDigitPlusStarHash = Regex("[^0-9+*#]")
+    private val callingCodesInDeclarationOrder = countryCallingCodes.values.toList()
+    private val callingCodesByLengthDesc = countryCallingCodes.values.distinct().sortedByDescending { it.length }
+
     /**
      * Determines current country ISO of device based on cellular network, SIM card, or locale.
      */
@@ -861,7 +867,7 @@ object ContactHelper {
         val clean = phoneNumber.filter { it.isDigit() }
         if (clean.isBlank()) return ""
 
-        for ((_, code) in countryCallingCodes) {
+        for (code in callingCodesInDeclarationOrder) {
             if (clean.startsWith(code) && clean.length > code.length + 5) {
                 return clean.substring(code.length)
             }
@@ -876,7 +882,7 @@ object ContactHelper {
      * Extracts international calling code (e.g. "91" for India, "1" for USA) from a phone number if present.
      */
     fun extractCountryCallingCode(phoneNumber: String): String? {
-        val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
+        val clean = phoneNumber.replace(nonDigitOrPlus, "")
         if (clean.isBlank()) return null
         val digits = when {
             clean.startsWith("+") -> clean.removePrefix("+")
@@ -884,8 +890,7 @@ object ContactHelper {
             clean.startsWith("011") -> clean.removePrefix("011")
             else -> return null
         }
-        val sortedCodes = countryCallingCodes.values.distinct().sortedByDescending { it.length }
-        for (code in sortedCodes) {
+        for (code in callingCodesByLengthDesc) {
             if (digits.startsWith(code) && digits.length > code.length) {
                 return code
             }
@@ -910,20 +915,21 @@ object ContactHelper {
         // Short codes, star codes (e.g. *86, 911, 611), or short numbers (< 7 digits)
         // must match exactly and can never fuzzy match standard telephone numbers.
         if (d1.length < 7 || d2.length < 7) {
-            val clean1 = s1.replace(Regex("[^0-9+*#]"), "")
-            val clean2 = s2.replace(Regex("[^0-9+*#]"), "")
+            val clean1 = s1.replace(nonDigitPlusStarHash, "")
+            val clean2 = s2.replace(nonDigitPlusStarHash, "")
             return clean1.equals(clean2, ignoreCase = true)
         }
+
+        // Cheap exact-digit equality first: both this and the libphonenumber check below only ever
+        // return true, so running the inexpensive one first cannot change the result.
+        val clean1 = s1.replace(nonDigitOrPlus, "")
+        val clean2 = s2.replace(nonDigitOrPlus, "")
+        if (clean1 == clean2) return true
 
         // Libphonenumber Match Check
         if (PhoneNumberNormalizer.isSamePhoneNumber(s1, s2, context)) {
             return true
         }
-
-        val clean1 = s1.replace(Regex("[^0-9+]"), "")
-        val clean2 = s2.replace(Regex("[^0-9+]"), "")
-        if (clean1.isEmpty() || clean2.isEmpty()) return false
-        if (clean1 == clean2) return true
 
         val country1 = extractCountryCallingCode(clean1)
         val country2 = extractCountryCallingCode(clean2)
@@ -968,14 +974,13 @@ object ContactHelper {
             return contactNumber.contains(queryTrimmed, ignoreCase = true)
         }
 
-        // Prevent cross-country matches (e.g. +1 US contact matching +91 India query or vice versa)
+        // Prevent cross-country matches (e.g. +1 US contact matching +91 India query or vice versa).
+        // This is the only rejection path, so it must stay ahead of every positive check below.
         val countryContact = extractCountryCallingCode(contactNumber)
         val countryQuery = extractCountryCallingCode(searchQuery)
         if (countryContact != null && countryQuery != null && countryContact != countryQuery) {
             return false
         }
-
-        if (isSamePhoneNumber(contactNumber, searchQuery)) return true
 
         // Direct digit substring match (e.g. "98765" in "919876543210")
         if (contactDigits.contains(queryDigits)) return true
@@ -992,6 +997,10 @@ object ContactHelper {
         if (contactDigits.length >= 10 && queryDigits.length >= 10) {
             if (contactDigits.takeLast(10) == queryDigits.takeLast(10)) return true
         }
+
+        // libphonenumber is consulted last: every check above only ever returns true, so deferring
+        // the expensive one cannot change the outcome.
+        if (isSamePhoneNumber(contactNumber, searchQuery)) return true
 
         return contactNumber.contains(queryTrimmed, ignoreCase = true)
     }
