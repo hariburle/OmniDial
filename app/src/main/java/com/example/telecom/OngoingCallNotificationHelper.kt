@@ -38,7 +38,9 @@ object OngoingCallNotificationHelper {
     }
 
     fun buildCallNotification(context: Context, callInfo: ActiveCallInfo): Notification {
-        createNotificationChannel(context)
+        // The channel is created once by CallManager.init and CallForegroundService.onCreate.
+        // This builder runs once per second for the duration of every call, so re-registering the
+        // channel here cost a NotificationManager binder round-trip per tick for no reason.
 
         val activityIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP

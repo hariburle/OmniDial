@@ -43,7 +43,7 @@ class ChannelConfigRepository(
                 editor.putLong(tsKey, cfg.updatedTimestamp)
             }
         }
-        editor.commit()
+        editor.apply()
     }
 
     suspend fun getAllConfigs(): List<ChannelConfig> = appRepository.getAllChannelConfigsList()
@@ -51,7 +51,6 @@ class ChannelConfigRepository(
     suspend fun getConfig(channelId: String): ChannelConfig? = appRepository.getChannelConfig(channelId)
 
     suspend fun saveConfigs(configs: List<ChannelConfig>) {
-        val now = nextTimestamp()
         val configsWithTs = configs.map { it.copy(updatedTimestamp = nextTimestamp()) }
         val editor = prefs.edit()
         for (cfg in configsWithTs) {
@@ -67,7 +66,7 @@ class ChannelConfigRepository(
             editor.putLong(tsKey, cfg.updatedTimestamp)
         }
         editor.putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
-        editor.commit()
+        editor.apply()
         appRepository.setChannelConfigs(configsWithTs)
     }
 
@@ -85,7 +84,7 @@ class ChannelConfigRepository(
         editor.putBoolean("channel_enabled_${configWithTs.channelId.lowercase()}", configWithTs.isEnabled)
         editor.putLong(tsKey, configWithTs.updatedTimestamp)
         editor.putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
-        editor.commit()
+        editor.apply()
         appRepository.setChannelConfig(configWithTs)
     }
 
@@ -93,7 +92,7 @@ class ChannelConfigRepository(
         prefs.edit()
             .putBoolean("channel_enabled_${channelId.lowercase()}", isEnabled)
             .putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
-            .commit()
+            .apply()
         appRepository.setChannelEnabled(channelId, isEnabled)
     }
 
@@ -110,7 +109,7 @@ class ChannelConfigRepository(
         }
         editor.putLong(tsKey, now)
         editor.putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
-        editor.commit()
+        editor.apply()
         appRepository.setChannelCustomName(channelId, name)
     }
 
@@ -124,7 +123,7 @@ class ChannelConfigRepository(
         prefs.getBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, false)
 
     fun setCompletedOnboarding(completed: Boolean = true) {
-        prefs.edit().putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, completed).commit()
+        prefs.edit().putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, completed).apply()
     }
 
     suspend fun clearAllConfigs() {
@@ -133,7 +132,7 @@ class ChannelConfigRepository(
         for (k in keysToRemove) {
             editor.remove(k)
         }
-        editor.commit()
+        editor.apply()
         appRepository.clearAllChannelConfigs()
     }
 
@@ -146,12 +145,12 @@ class ChannelConfigRepository(
 
         fun getInstance(context: Context): ChannelConfigRepository {
             return INSTANCE ?: synchronized(this) {
-                val db = AppDatabase.getInstance(context)
-                val repo = AppRepository(db.appDao())
-                val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val instance = ChannelConfigRepository(repo, prefs)
-                INSTANCE = instance
-                instance
+                INSTANCE ?: run {
+                    val db = AppDatabase.getInstance(context)
+                    val repo = AppRepository(db.appDao())
+                    val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    ChannelConfigRepository(repo, prefs).also { INSTANCE = it }
+                }
             }
         }
     }

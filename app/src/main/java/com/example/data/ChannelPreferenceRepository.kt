@@ -3,6 +3,9 @@ package com.example.data
 import android.content.Context
 import com.example.domain.model.CallingChannel
 import com.example.util.PhoneNumberNormalizer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -12,15 +15,25 @@ class ChannelPreferenceRepository(
     val allPreferences: Flow<List<NumberChannelPreference>> =
         appRepository.allNumberChannelPreferences
 
-    private val cachedPreferences = java.util.concurrent.ConcurrentHashMap<String, String>()
+    /**
+     * Swapped atomically rather than cleared-and-refilled, so a concurrent reader can never
+     * observe a half-populated cache and wrongly conclude a number has no preference.
+     */
+    @Volatile
+    private var cachedPreferences: Map<String, String> = emptyMap()
+
+    @Volatile
+    private var cacheReady = false
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        scope.launch {
             allPreferences.collect { list ->
-                cachedPreferences.clear()
-                list.forEach { pref ->
-                    cachedPreferences[pref.normalizedNumber] = pref.preferredChannelId
-                }
+                val next = HashMap<String, String>(list.size)
+                list.forEach { pref -> next[pref.normalizedNumber] = pref.preferredChannelId }
+                cachedPreferences = next
+                cacheReady = true
             }
         }
     }
@@ -36,7 +49,11 @@ class ChannelPreferenceRepository(
     }
 
     suspend fun getPreferredChannelId(phoneNumber: String): String? {
-        return getPreferenceForNumber(phoneNumber)?.preferredChannelId
+        val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
+        // Once warm the cache mirrors the whole table, so a miss is authoritative and the
+        // database round-trip on this hot path is unnecessary.
+        if (cacheReady) return cachedPreferences[normalized]
+        return appRepository.getNumberChannelPreference(normalized)?.preferredChannelId
     }
 
     suspend fun setPreferenceForNumber(
@@ -45,7 +62,7 @@ class ChannelPreferenceRepository(
         customLabel: String? = null
     ) {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        cachedPreferences[normalized] = channelId
+        cachedPreferences = cachedPreferences + (normalized to channelId)
         appRepository.setNumberChannelPreference(normalized, channelId, customLabel)
     }
 
@@ -59,12 +76,12 @@ class ChannelPreferenceRepository(
 
     suspend fun removePreferenceForNumber(phoneNumber: String) {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        cachedPreferences.remove(normalized)
+        cachedPreferences = cachedPreferences - normalized
         appRepository.deleteNumberChannelPreference(normalized)
     }
 
     suspend fun clearAllPreferences() {
-        cachedPreferences.clear()
+        cachedPreferences = emptyMap()
         appRepository.clearAllNumberChannelPreferences()
     }
 
@@ -74,11 +91,11 @@ class ChannelPreferenceRepository(
 
         fun getInstance(context: Context): ChannelPreferenceRepository {
             return INSTANCE ?: synchronized(this) {
-                val db = AppDatabase.getInstance(context)
-                val repo = AppRepository(db.appDao())
-                val instance = ChannelPreferenceRepository(repo)
-                INSTANCE = instance
-                instance
+                INSTANCE ?: run {
+                    val db = AppDatabase.getInstance(context)
+                    val repo = AppRepository(db.appDao())
+                    ChannelPreferenceRepository(repo).also { INSTANCE = it }
+                }
             }
         }
     }

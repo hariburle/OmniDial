@@ -633,11 +633,26 @@ class MainViewModel(
                 }
                 val systemCalls = ContactHelper.fetchDeviceCallHistory(appContext, limit = 100).filterNot { isCallDeleted(it) }
 
+                // Bucketing key for the two matching passes below. Both passes used to be O(n^2)
+                // with a full libphonenumber comparison per pair. Two numbers can only be judged
+                // equal by ContactHelper.isSamePhoneNumber if they agree on their trailing digits
+                // (exact, local-digit, or 10-digit suffix match), so the last 7 digits are a safe
+                // bucket key: collisions only add candidates, which are still verified in full.
+                fun matchKey(num: String): String {
+                    val digits = num.filter { it.isDigit() }
+                    return if (digits.length > 7) digits.takeLast(7) else digits
+                }
+
+                val roomIndex = HashMap<String, MutableList<RecentCall>>()
+                roomCalls.forEach { roomCall ->
+                    roomIndex.getOrPut(matchKey(roomCall.phoneNumber)) { mutableListOf() }.add(roomCall)
+                }
+
                 val merged = mutableListOf<RecentCall>()
                 val handledRoomIds = mutableSetOf<Long>()
 
                 systemCalls.forEach { sysCall ->
-                    val matchingRoomCall = roomCalls.firstOrNull { roomCall ->
+                    val matchingRoomCall = roomIndex[matchKey(sysCall.phoneNumber)]?.firstOrNull { roomCall ->
                         val numMatches = ContactHelper.isSamePhoneNumber(sysCall.phoneNumber, roomCall.phoneNumber)
                         if (!numMatches) return@firstOrNull false
 
@@ -674,14 +689,17 @@ class MainViewModel(
                 // Deduplication pass across merged calls (eliminates any remaining close duplicate records)
                 merged.sortByDescending { it.timestamp }
                 val deduplicated = mutableListOf<RecentCall>()
+                val dedupIndex = HashMap<String, MutableList<Int>>()
                 for (call in merged) {
-                    val existingIdx = deduplicated.indexOfFirst { prev ->
+                    val bucket = dedupIndex[matchKey(call.phoneNumber)]
+                    val existingIdx = bucket?.firstOrNull { idx ->
+                        val prev = deduplicated[idx]
                         val numMatch = ContactHelper.isSamePhoneNumber(call.phoneNumber, prev.phoneNumber)
                         val typeMatch = prev.callType == call.callType || (prev.callType in listOf(1, 3) && call.callType in listOf(1, 3))
                         val timeGap = Math.abs(prev.timestamp - call.timestamp)
                         val maxDur = Math.max(prev.durationSeconds, call.durationSeconds) * 1000L
                         numMatch && typeMatch && (timeGap <= (maxDur + 25000L))
-                    }
+                    } ?: -1
 
                     if (existingIdx != -1) {
                         // Merge richer information into existing entry
@@ -699,6 +717,7 @@ class MainViewModel(
                         )
                         deduplicated[existingIdx] = enriched
                     } else {
+                        dedupIndex.getOrPut(matchKey(call.phoneNumber)) { mutableListOf() }.add(deduplicated.size)
                         deduplicated.add(call)
                     }
                 }

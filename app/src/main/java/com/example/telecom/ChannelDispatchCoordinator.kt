@@ -171,9 +171,7 @@ class ChannelDispatchCoordinator(
 
         fun getInstance(context: Context): ChannelDispatchCoordinator {
             return INSTANCE ?: synchronized(this) {
-                val instance = ChannelDispatchCoordinator(context.applicationContext)
-                INSTANCE = instance
-                instance
+                INSTANCE ?: ChannelDispatchCoordinator(context.applicationContext).also { INSTANCE = it }
             }
         }
     }

@@ -219,9 +219,7 @@ class ChannelDiscoveryManager(
 
         fun getInstance(context: Context): ChannelDiscoveryManager {
             return INSTANCE ?: synchronized(this) {
-                val instance = ChannelDiscoveryManager(context.applicationContext)
-                INSTANCE = instance
-                instance
+                INSTANCE ?: ChannelDiscoveryManager(context.applicationContext).also { INSTANCE = it }
             }
         }
     }
