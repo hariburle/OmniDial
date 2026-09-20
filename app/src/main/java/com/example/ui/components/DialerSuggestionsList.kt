@@ -92,7 +92,7 @@ fun DialerSuggestionsList(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.Bottom,
-                reverseLayout = false
+                reverseLayout = true
             ) {
                 items(uniqueRecents, key = { it.id }) { call ->
                     val callDigits = call.phoneNumber.filter { it.isDigit() }.takeLast(10)
@@ -183,7 +183,7 @@ fun DialerSuggestionsList(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.Bottom,
-                reverseLayout = false
+                reverseLayout = true
             ) {
                 items(searchSuggestions, key = { it.phoneNumber + "_" + it.name }) { match ->
                     DialerMatchSuggestionCard(

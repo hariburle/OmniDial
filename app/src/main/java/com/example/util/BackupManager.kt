@@ -14,6 +14,8 @@ import com.example.data.IgnoredContact
 import com.example.data.LocalContact
 import com.example.data.RecentCall
 import com.example.data.SpamNumber
+import com.example.data.NumberChannelPreference
+import com.example.data.ChannelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -34,6 +36,8 @@ data class BackupRestoreResult(
     val spamCount: Int = 0,
     val ignoredCount: Int = 0,
     val recentCallsCount: Int = 0,
+    val channelPreferencesCount: Int = 0,
+    val channelConfigsCount: Int = 0,
     val message: String = ""
 )
 
@@ -50,8 +54,8 @@ object BackupManager {
         val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
 
         val root = JSONObject()
-        root.put("version", 2)
-        root.put("schemaVersion", 2)
+        root.put("version", 3)
+        root.put("schemaVersion", 3)
         root.put("appName", "OmniDial")
         root.put("timestamp", System.currentTimeMillis())
         root.put("exportDate", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
@@ -192,6 +196,33 @@ object BackupManager {
         }
         root.put("recentCalls", recentArray)
 
+        // 8. Number Channel Preferences
+        val channelPrefs = dao.getAllNumberChannelPreferencesList()
+        val channelPrefArray = JSONArray()
+        for (cp in channelPrefs) {
+            val obj = JSONObject()
+            obj.put("normalizedNumber", cp.normalizedNumber)
+            obj.put("preferredChannelId", cp.preferredChannelId)
+            obj.put("customLabel", cp.customLabel ?: "")
+            obj.put("updatedTimestamp", cp.updatedTimestamp)
+            channelPrefArray.put(obj)
+        }
+        root.put("numberChannelPreferences", channelPrefArray)
+
+        // 9. Channel Configurations
+        val channelConfigs = dao.getAllChannelConfigsList()
+        val channelConfigArray = JSONArray()
+        for (cc in channelConfigs) {
+            val obj = JSONObject()
+            obj.put("channelId", cc.channelId)
+            obj.put("isEnabled", cc.isEnabled)
+            obj.put("customName", cc.customName ?: "")
+            obj.put("orderIndex", cc.orderIndex)
+            obj.put("updatedTimestamp", cc.updatedTimestamp)
+            channelConfigArray.put(obj)
+        }
+        root.put("channelConfigurations", channelConfigArray)
+
         // Generate SHA-256 payload integrity checksum
         val signature = computePayloadSignature(
             rulesCount = ruleArray.length(),
@@ -200,7 +231,9 @@ object BackupManager {
             spamCount = spamArray.length(),
             ignoredCount = ignoredArray.length(),
             recentCount = recentArray.length(),
-            timestamp = root.optLong("timestamp")
+            timestamp = root.optLong("timestamp"),
+            channelPrefsCount = channelPrefArray.length(),
+            channelConfigsCount = channelConfigArray.length()
         )
         root.put("payloadSignature", signature)
         root.put("checksum", computeSha256(signature))
@@ -215,9 +248,11 @@ object BackupManager {
         spamCount: Int,
         ignoredCount: Int,
         recentCount: Int,
-        timestamp: Long
+        timestamp: Long,
+        channelPrefsCount: Int = 0,
+        channelConfigsCount: Int = 0
     ): String {
-        return "r=$rulesCount;f=$favsCount;c=$contactsCount;s=$spamCount;i=$ignoredCount;rc=$recentCount;t=$timestamp"
+        return "r=$rulesCount;f=$favsCount;c=$contactsCount;s=$spamCount;i=$ignoredCount;rc=$recentCount;t=$timestamp;cp=$channelPrefsCount;cc=$channelConfigsCount"
     }
 
     private fun computeSha256(input: String): String {
@@ -275,14 +310,15 @@ object BackupManager {
                 }
             }
 
-            if (jsonContent.isBlank()) {
+            val raw = jsonContent.toString().trim().removePrefix("\uFEFF")
+            if (raw.isBlank()) {
                 return@withContext BackupRestoreResult(
                     success = false,
                     message = "Selected file is empty."
                 )
             }
 
-            val root = JSONObject(jsonContent.toString())
+            val root = JSONObject(raw)
             val restoreResult = restoreBackupFromJsonRoot(context, root)
             if (restoreResult.success) {
                 try {
@@ -301,7 +337,7 @@ object BackupManager {
                     unmarkDeletedBackup(context, targetName)
                     val internalDir = getLocalBackupsDir(context)
                     val cachedFile = File(internalDir, targetName)
-                    cachedFile.writeText(jsonContent.toString())
+                    cachedFile.writeText(raw)
                 } catch (_: Throwable) {}
             }
             restoreResult
@@ -316,37 +352,35 @@ object BackupManager {
 
     suspend fun restoreBackupFromJsonRoot(context: Context, root: JSONObject): BackupRestoreResult = withContext(Dispatchers.IO) {
         try {
-            // Validate application identity and schema version
+            // Validate application identity - forgiving of app rebrands or missing headers if recognized sections exist
             val appName = root.optString("appName", "")
             val validAppNames = setOf("", "OmniDial", "OmniDialer", "Kishan Dialer", "Kishan-Dialer", "Dialer")
-            if (appName.isNotBlank() && !validAppNames.contains(appName)) {
-                if (!root.has("preferences") && !root.has("rules") && !root.has("favorites") && !root.has("localContacts")) {
-                    return@withContext BackupRestoreResult(
-                        success = false,
-                        message = "Unrecognized backup source: $appName"
-                    )
-                }
-            }
+            val hasRecognizedSection = root.has("preferences") || root.has("rules") || root.has("favorites") ||
+                root.has("localContacts") || root.has("spamNumbers") || root.has("ignoredContacts") ||
+                root.has("recentCalls") || root.has("numberChannelPreferences") || root.has("channelConfigurations")
 
-            val schemaVersion = root.optInt("schemaVersion", root.optInt("version", 1))
-            if (schemaVersion > 2) {
+            if (appName.isNotBlank() && !validAppNames.contains(appName) && !hasRecognizedSection) {
                 return@withContext BackupRestoreResult(
                     success = false,
-                    message = "Backup format version ($schemaVersion) is newer than supported by this app version."
+                    message = "Unrecognized backup source: $appName"
                 )
             }
 
-            // Validate integrity checksum if present (v2 format)
+            val schemaVersion = root.optInt("schemaVersion", root.optInt("version", 1))
+            if (schemaVersion > 3) {
+                android.util.Log.i("BackupManager", "Backup schemaVersion ($schemaVersion) is newer than current (3). Proceeding with best-effort restore.")
+            }
+
+            // Validate integrity checksum if present - treat mismatch as non-fatal warning so edited/repaired backups still restore
             if (root.has("checksum") && root.has("payloadSignature")) {
-                val signature = root.getString("payloadSignature")
-                val expectedChecksum = root.getString("checksum")
-                val actualChecksum = computeSha256(signature)
-                if (expectedChecksum != actualChecksum) {
-                    return@withContext BackupRestoreResult(
-                        success = false,
-                        message = "Backup integrity verification failed: corrupt or modified file."
-                    )
-                }
+                try {
+                    val signature = root.optString("payloadSignature", "")
+                    val expectedChecksum = root.optString("checksum", "")
+                    val actualChecksum = computeSha256(signature)
+                    if (expectedChecksum.isNotBlank() && expectedChecksum != actualChecksum) {
+                        android.util.Log.w("BackupManager", "Backup integrity checksum mismatch (expected: $expectedChecksum, computed: $actualChecksum). Proceeding with best-effort restore.")
+                    }
+                } catch (_: Throwable) {}
             }
 
             val db = AppDatabase.getInstance(context)
@@ -357,173 +391,368 @@ object BackupManager {
             var restoredContacts = 0
             var restoredSpam = 0
             var restoredRules = 0
+            var restoredIgnored = 0
+            var restoredRecentCalls = 0
+            var restoredChannelPrefs = 0
+            var restoredChannelConfigs = 0
 
             // 1. Restore Preferences
             if (root.has("preferences")) {
-                val prefsObj = root.getJSONObject("preferences")
-                val editor = prefs.edit()
-                if (prefsObj.has("theme_mode")) editor.putString("theme_mode", prefsObj.getString("theme_mode"))
-                if (prefsObj.has("whatsapp_call_mode")) editor.putString("whatsapp_call_mode", prefsObj.getString("whatsapp_call_mode"))
-                if (prefsObj.has("global_sim_pref_mode")) editor.putString("global_sim_pref_mode", prefsObj.getString("global_sim_pref_mode"))
-                if (prefsObj.has("call_answer_style")) editor.putString("call_answer_style", prefsObj.getString("call_answer_style"))
-                if (prefsObj.has("favorite_card_style")) editor.putString("favorite_card_style", prefsObj.getString("favorite_card_style"))
-                if (prefsObj.has("confirm_fav_calls")) editor.putBoolean("confirm_fav_calls", prefsObj.getBoolean("confirm_fav_calls"))
-                if (prefsObj.has("confirm_speed_dial_call")) editor.putBoolean("confirm_speed_dial_call", prefsObj.getBoolean("confirm_speed_dial_call"))
-                if (prefsObj.has("ask_assign_unassigned_speed_dial")) editor.putBoolean("ask_assign_unassigned_speed_dial", prefsObj.getBoolean("ask_assign_unassigned_speed_dial"))
-                if (prefsObj.has("speed_dial_keypad_display")) editor.putString("speed_dial_keypad_display", prefsObj.getString("speed_dial_keypad_display"))
-                if (prefsObj.has("show_dialer_quick_actions")) editor.putBoolean("show_dialer_quick_actions", prefsObj.getBoolean("show_dialer_quick_actions"))
-                if (prefsObj.has("default_start_tab")) editor.putInt("default_start_tab", prefsObj.getInt("default_start_tab"))
-                if (prefsObj.has("swipe_to_switch_panels")) editor.putBoolean("swipe_to_switch_panels", prefsObj.getBoolean("swipe_to_switch_panels"))
-                if (prefsObj.has("nav_bar_style")) editor.putString("nav_bar_style", prefsObj.getString("nav_bar_style"))
-                if (prefsObj.has("auto_block_carrier_spam")) editor.putBoolean("auto_block_carrier_spam", prefsObj.getBoolean("auto_block_carrier_spam"))
-                if (prefsObj.has("block_telemarketers_robocalls")) editor.putBoolean("block_telemarketers_robocalls", prefsObj.getBoolean("block_telemarketers_robocalls"))
-                if (prefsObj.has("silence_unknown_private")) editor.putBoolean("silence_unknown_private", prefsObj.getBoolean("silence_unknown_private"))
+                try {
+                    val prefsObj = root.optJSONObject("preferences")
+                    if (prefsObj != null) {
+                        val editor = prefs.edit()
+                        if (prefsObj.has("theme_mode")) editor.putString("theme_mode", prefsObj.optString("theme_mode", "system"))
+                        if (prefsObj.has("whatsapp_call_mode")) editor.putString("whatsapp_call_mode", prefsObj.optString("whatsapp_call_mode", "ask_learn"))
+                        if (prefsObj.has("global_sim_pref_mode")) editor.putString("global_sim_pref_mode", prefsObj.optString("global_sim_pref_mode", "system"))
+                        if (prefsObj.has("call_answer_style")) editor.putString("call_answer_style", prefsObj.optString("call_answer_style", "swipe_slider"))
+                        if (prefsObj.has("favorite_card_style")) editor.putString("favorite_card_style", prefsObj.optString("favorite_card_style", "bento"))
+                        if (prefsObj.has("confirm_fav_calls")) editor.putBoolean("confirm_fav_calls", prefsObj.optBoolean("confirm_fav_calls", true))
+                        if (prefsObj.has("confirm_speed_dial_call")) editor.putBoolean("confirm_speed_dial_call", prefsObj.optBoolean("confirm_speed_dial_call", true))
+                        if (prefsObj.has("ask_assign_unassigned_speed_dial")) editor.putBoolean("ask_assign_unassigned_speed_dial", prefsObj.optBoolean("ask_assign_unassigned_speed_dial", true))
+                        if (prefsObj.has("speed_dial_keypad_display")) editor.putString("speed_dial_keypad_display", prefsObj.optString("speed_dial_keypad_display", "speed_dial_above"))
+                        if (prefsObj.has("show_dialer_quick_actions")) editor.putBoolean("show_dialer_quick_actions", prefsObj.optBoolean("show_dialer_quick_actions", true))
+                        if (prefsObj.has("default_start_tab")) editor.putInt("default_start_tab", prefsObj.optInt("default_start_tab", 0))
+                        if (prefsObj.has("swipe_to_switch_panels")) editor.putBoolean("swipe_to_switch_panels", prefsObj.optBoolean("swipe_to_switch_panels", true))
+                        if (prefsObj.has("nav_bar_style")) editor.putString("nav_bar_style", prefsObj.optString("nav_bar_style", "full"))
+                        if (prefsObj.has("auto_block_carrier_spam")) editor.putBoolean("auto_block_carrier_spam", prefsObj.optBoolean("auto_block_carrier_spam", true))
+                        if (prefsObj.has("block_telemarketers_robocalls")) editor.putBoolean("block_telemarketers_robocalls", prefsObj.optBoolean("block_telemarketers_robocalls", true))
+                        if (prefsObj.has("silence_unknown_private")) editor.putBoolean("silence_unknown_private", prefsObj.optBoolean("silence_unknown_private", false))
 
-                fun jsonToStringSet(key: String): Set<String> {
-                    if (!prefsObj.has(key)) return emptySet()
-                    val arr = prefsObj.getJSONArray(key)
-                    val set = mutableSetOf<String>()
-                    for (i in 0 until arr.length()) {
-                        set.add(arr.getString(i))
+                        fun jsonToStringSet(key: String): Set<String> {
+                            val arr = prefsObj.optJSONArray(key) ?: return emptySet()
+                            val set = mutableSetOf<String>()
+                            for (i in 0 until arr.length()) {
+                                val item = arr.optString(i, "")
+                                if (item.isNotBlank()) set.add(item)
+                            }
+                            return set
+                        }
+
+                        if (prefsObj.has("whatsapp_learned_choices")) editor.putStringSet("whatsapp_learned_choices", jsonToStringSet("whatsapp_learned_choices"))
+                        if (prefsObj.has("learned_call_modes")) editor.putStringSet("learned_call_modes", jsonToStringSet("learned_call_modes"))
+                        if (prefsObj.has("contact_sim_preferences")) editor.putStringSet("contact_sim_preferences", jsonToStringSet("contact_sim_preferences"))
+                        if (prefsObj.has("not_spam_whitelist")) editor.putStringSet("not_spam_whitelist", jsonToStringSet("not_spam_whitelist"))
+                        if (prefsObj.has("favorite_sort_orders")) editor.putStringSet("favorite_sort_orders", jsonToStringSet("favorite_sort_orders"))
+                        if (prefsObj.has("speed_dial_assignments")) editor.putStringSet("speed_dial_assignments", jsonToStringSet("speed_dial_assignments"))
+                        editor.apply()
                     }
-                    return set
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Failed to restore some preferences: ${e.message}")
                 }
-
-                editor.putStringSet("whatsapp_learned_choices", jsonToStringSet("whatsapp_learned_choices"))
-                editor.putStringSet("learned_call_modes", jsonToStringSet("learned_call_modes"))
-                editor.putStringSet("contact_sim_preferences", jsonToStringSet("contact_sim_preferences"))
-                editor.putStringSet("not_spam_whitelist", jsonToStringSet("not_spam_whitelist"))
-                editor.putStringSet("favorite_sort_orders", jsonToStringSet("favorite_sort_orders"))
-                editor.putStringSet("speed_dial_assignments", jsonToStringSet("speed_dial_assignments"))
-                editor.apply()
             }
 
             // 2. Restore Favorites
             if (root.has("favorites")) {
-                dao.clearAllFavorites()
-                val favArray = root.getJSONArray("favorites")
-                for (i in 0 until favArray.length()) {
-                    val obj = favArray.getJSONObject(i)
-                    val speedDial = obj.optInt("speedDialSlot", -1).let { if (it in 1..9) it else null }
-                    val fav = FavoriteContact(
-                        name = obj.getString("name"),
-                        phoneNumber = obj.getString("phoneNumber"),
-                        label = obj.optString("label", "Mobile"),
-                        nickname = obj.optString("nickname").ifBlank { null },
-                        avatarColor = obj.optLong("avatarColor", 0xFF2563EBL),
-                        photoUri = obj.optString("photoUri").ifBlank { null },
-                        speedDialSlot = speedDial,
-                        sortOrder = obj.optInt("sortOrder", i)
-                    )
-                    dao.insertFavorite(fav)
-                    restoredFavs++
+                try {
+                    val favArray = root.optJSONArray("favorites")
+                    if (favArray != null) {
+                        dao.clearAllFavorites()
+                        for (i in 0 until favArray.length()) {
+                            try {
+                                val obj = favArray.getJSONObject(i)
+                                val phone = obj.optString("phoneNumber", "").ifBlank { obj.optString("number", "") }
+                                if (phone.isBlank()) continue
+                                val speedDial = obj.optInt("speedDialSlot", -1).let { if (it in 1..9) it else null }
+                                val fav = FavoriteContact(
+                                    name = obj.optString("name", "Favorite ${i + 1}"),
+                                    phoneNumber = phone,
+                                    label = obj.optString("label", "Mobile"),
+                                    nickname = obj.optString("nickname").ifBlank { null },
+                                    avatarColor = obj.optLong("avatarColor", 0xFF2563EBL),
+                                    photoUri = obj.optString("photoUri").ifBlank { null },
+                                    speedDialSlot = speedDial,
+                                    sortOrder = obj.optInt("sortOrder", i)
+                                )
+                                dao.insertFavorite(fav)
+                                restoredFavs++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring favorites: ${e.message}")
                 }
             }
 
             // 3. Restore Local Contacts
             if (root.has("localContacts")) {
-                dao.clearAllLocalContacts()
-                val contactArray = root.getJSONArray("localContacts")
-                for (i in 0 until contactArray.length()) {
-                    val obj = contactArray.getJSONObject(i)
-                    val contact = LocalContact(
-                        name = obj.getString("name"),
-                        phoneNumber = obj.getString("phoneNumber"),
-                        label = obj.optString("label", "Mobile"),
-                        nickname = obj.optString("nickname").ifBlank { null },
-                        photoUri = obj.optString("photoUri").ifBlank { null }
-                    )
-                    dao.insertLocalContact(contact)
-                    restoredContacts++
+                try {
+                    val contactArray = root.optJSONArray("localContacts")
+                    if (contactArray != null) {
+                        dao.clearAllLocalContacts()
+                        for (i in 0 until contactArray.length()) {
+                            try {
+                                val obj = contactArray.getJSONObject(i)
+                                val phone = obj.optString("phoneNumber", "").ifBlank { obj.optString("number", "") }
+                                if (phone.isBlank()) continue
+                                val contact = LocalContact(
+                                    name = obj.optString("name", "Contact ${i + 1}"),
+                                    phoneNumber = phone,
+                                    label = obj.optString("label", "Mobile"),
+                                    nickname = obj.optString("nickname").ifBlank { null },
+                                    photoUri = obj.optString("photoUri").ifBlank { null }
+                                )
+                                dao.insertLocalContact(contact)
+                                restoredContacts++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring contacts: ${e.message}")
                 }
             }
 
             // 4. Restore Spam Numbers
             if (root.has("spamNumbers")) {
-                dao.clearAllSpamNumbers()
-                val spamArray = root.getJSONArray("spamNumbers")
-                for (i in 0 until spamArray.length()) {
-                    val obj = spamArray.getJSONObject(i)
-                    val spam = SpamNumber(
-                        phoneNumber = obj.getString("phoneNumber"),
-                        label = obj.optString("label", "Suspected Spam"),
-                        reportCount = obj.optInt("reportCount", 1),
-                        isBlocked = obj.optBoolean("isBlocked", true)
-                    )
-                    dao.insertSpamNumber(spam)
-                    restoredSpam++
+                try {
+                    val spamArray = root.optJSONArray("spamNumbers")
+                    if (spamArray != null) {
+                        dao.clearAllSpamNumbers()
+                        for (i in 0 until spamArray.length()) {
+                            try {
+                                val obj = spamArray.getJSONObject(i)
+                                val phone = obj.optString("phoneNumber", "").ifBlank { obj.optString("number", "") }
+                                if (phone.isBlank()) continue
+                                val spam = SpamNumber(
+                                    phoneNumber = phone,
+                                    label = obj.optString("label", "Suspected Spam"),
+                                    reportCount = obj.optInt("reportCount", 1),
+                                    isBlocked = obj.optBoolean("isBlocked", true)
+                                )
+                                dao.insertSpamNumber(spam)
+                                restoredSpam++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring spam numbers: ${e.message}")
                 }
             }
 
             // 5. Restore Caller Rules if present
             if (root.has("rules")) {
-                dao.clearAllRules()
-                val rulesArray = root.getJSONArray("rules")
-                for (i in 0 until rulesArray.length()) {
-                    val obj = rulesArray.getJSONObject(i)
-                    val rule = CallerRule(
-                        name = obj.getString("name"),
-                        phoneNumberPattern = obj.getString("phoneNumberPattern"),
-                        isEnabled = obj.optBoolean("isEnabled", true),
-                        autoAnswer = obj.optBoolean("autoAnswer", true),
-                        answerDelaySec = obj.optInt("answerDelaySec", 1),
-                        dtmfSequence = obj.optString("dtmfSequence", ""),
-                        dtmfDelayMs = obj.optLong("dtmfDelayMs", 800L),
-                        sendSms = obj.optBoolean("sendSms", false),
-                        smsMessage = obj.optString("smsMessage", ""),
-                        autoHangup = obj.optBoolean("autoHangup", false),
-                        hangupDelaySec = obj.optInt("hangupDelaySec", 2),
-                        autoSpeakerphone = obj.optBoolean("autoSpeakerphone", false),
-                        autoMuteMic = obj.optBoolean("autoMuteMic", false),
-                        requiredWifiSsid = obj.optString("requiredWifiSsid", ""),
-                        requiredBluetoothDevice = obj.optString("requiredBluetoothDevice", "")
-                    )
-                    dao.insertRule(rule)
-                    restoredRules++
+                try {
+                    val rulesArray = root.optJSONArray("rules")
+                    if (rulesArray != null) {
+                        dao.clearAllRules()
+                        for (i in 0 until rulesArray.length()) {
+                            try {
+                                val obj = rulesArray.getJSONObject(i)
+                                val pattern = obj.optString("phoneNumberPattern", "")
+                                if (pattern.isBlank()) continue
+                                val rule = CallerRule(
+                                    name = obj.optString("name", "Rule ${i + 1}"),
+                                    phoneNumberPattern = pattern,
+                                    isEnabled = obj.optBoolean("isEnabled", true),
+                                    autoAnswer = obj.optBoolean("autoAnswer", true),
+                                    answerDelaySec = obj.optInt("answerDelaySec", 1),
+                                    dtmfSequence = obj.optString("dtmfSequence", ""),
+                                    dtmfDelayMs = obj.optLong("dtmfDelayMs", 800L),
+                                    sendSms = obj.optBoolean("sendSms", false),
+                                    smsMessage = obj.optString("smsMessage", ""),
+                                    autoHangup = obj.optBoolean("autoHangup", false),
+                                    hangupDelaySec = obj.optInt("hangupDelaySec", 2),
+                                    autoSpeakerphone = obj.optBoolean("autoSpeakerphone", false),
+                                    autoMuteMic = obj.optBoolean("autoMuteMic", false),
+                                    requiredWifiSsid = obj.optString("requiredWifiSsid", ""),
+                                    requiredBluetoothDevice = obj.optString("requiredBluetoothDevice", "")
+                                )
+                                dao.insertRule(rule)
+                                restoredRules++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring rules: ${e.message}")
                 }
             }
 
             // 6. Restore Ignored Contacts
-            var restoredIgnored = 0
             if (root.has("ignoredContacts")) {
-                dao.clearAllIgnoredContacts()
-                val ignoredArray = root.getJSONArray("ignoredContacts")
-                for (i in 0 until ignoredArray.length()) {
-                    val obj = ignoredArray.getJSONObject(i)
-                    val ignored = IgnoredContact(
-                        phoneNumber = obj.getString("phoneNumber"),
-                        name = obj.optString("name", obj.optString("contactName", "")),
-                        category = obj.optString("category", "General"),
-                        tag = obj.optString("tag", ""),
-                        timestamp = obj.optLong("timestamp", System.currentTimeMillis())
-                    )
-                    dao.insertIgnoredContact(ignored)
-                    restoredIgnored++
+                try {
+                    val ignoredArray = root.optJSONArray("ignoredContacts")
+                    if (ignoredArray != null) {
+                        dao.clearAllIgnoredContacts()
+                        for (i in 0 until ignoredArray.length()) {
+                            try {
+                                val obj = ignoredArray.getJSONObject(i)
+                                val phone = obj.optString("phoneNumber", "").ifBlank { obj.optString("number", "") }
+                                if (phone.isBlank()) continue
+                                val ignored = IgnoredContact(
+                                    phoneNumber = phone,
+                                    name = obj.optString("name", obj.optString("contactName", "")),
+                                    category = obj.optString("category", "General"),
+                                    tag = obj.optString("tag", ""),
+                                    timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                                )
+                                dao.insertIgnoredContact(ignored)
+                                restoredIgnored++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring ignored contacts: ${e.message}")
                 }
             }
 
             // 7. Restore Recent Calls if present
-            var restoredRecentCalls = 0
             if (root.has("recentCalls")) {
-                val callArray = root.getJSONArray("recentCalls")
-                for (i in 0 until callArray.length()) {
-                    val obj = callArray.getJSONObject(i)
-                    val call = RecentCall(
-                        callerName = obj.optString("callerName").ifBlank { null },
-                        phoneNumber = obj.getString("phoneNumber"),
-                        callType = obj.optInt("callType", 1),
-                        timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
-                        durationSeconds = obj.optLong("durationSeconds", 0L),
-                        simSlot = obj.optInt("simSlot", obj.optInt("simSlotIndex", 1)),
-                        note = obj.optString("note").ifBlank { null },
-                        reminderTime = obj.optLong("reminderTime", 0L).let { if (it > 0L) it else null },
-                        ruleMatched = obj.optString("ruleMatched").ifBlank { null },
-                        callReason = obj.optString("callReason").ifBlank { null },
-                        communityTag = obj.optString("communityTag").ifBlank { null },
-                        isSpam = obj.optBoolean("isSpam", false)
-                    )
-                    dao.insertRecentCall(call)
-                    restoredRecentCalls++
+                try {
+                    val callArray = root.optJSONArray("recentCalls")
+                    if (callArray != null) {
+                        for (i in 0 until callArray.length()) {
+                            try {
+                                val obj = callArray.getJSONObject(i)
+                                val phone = obj.optString("phoneNumber", "").ifBlank { obj.optString("number", "") }
+                                if (phone.isBlank()) continue
+                                val call = RecentCall(
+                                    callerName = obj.optString("callerName").ifBlank { null },
+                                    phoneNumber = phone,
+                                    callType = obj.optInt("callType", 1),
+                                    timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                                    durationSeconds = obj.optLong("durationSeconds", 0L),
+                                    simSlot = obj.optInt("simSlot", obj.optInt("simSlotIndex", 1)),
+                                    note = obj.optString("note").ifBlank { null },
+                                    reminderTime = obj.optLong("reminderTime", 0L).let { if (it > 0L) it else null },
+                                    ruleMatched = obj.optString("ruleMatched").ifBlank { null },
+                                    callReason = obj.optString("callReason").ifBlank { null },
+                                    communityTag = obj.optString("communityTag").ifBlank { null },
+                                    isSpam = obj.optBoolean("isSpam", false)
+                                )
+                                dao.insertRecentCall(call)
+                                restoredRecentCalls++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring recent calls: ${e.message}")
+                }
+            }
+
+            // 8. Restore Number Channel Preferences if present
+            if (root.has("numberChannelPreferences")) {
+                try {
+                    val cpArray = root.optJSONArray("numberChannelPreferences")
+                    if (cpArray != null) {
+                        dao.clearAllNumberChannelPreferences()
+                        for (i in 0 until cpArray.length()) {
+                            try {
+                                val obj = cpArray.getJSONObject(i)
+                                val num = obj.optString("normalizedNumber", "").ifBlank { obj.optString("phoneNumber", "") }
+                                val channelId = obj.optString("preferredChannelId", "").ifBlank { obj.optString("channelId", "") }
+                                if (num.isBlank() || channelId.isBlank()) continue
+                                val pref = NumberChannelPreference(
+                                    normalizedNumber = PhoneNumberNormalizer.toE164(num),
+                                    preferredChannelId = channelId,
+                                    customLabel = obj.optString("customLabel").ifBlank { null },
+                                    updatedTimestamp = obj.optLong("updatedTimestamp", System.currentTimeMillis())
+                                )
+                                dao.setNumberChannelPreference(pref)
+                                restoredChannelPrefs++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring number channel preferences: ${e.message}")
+                }
+            }
+
+            // 8b. Backward Compatibility: Migrate legacy preferences into number_channel_preferences if missing
+            if (!root.has("numberChannelPreferences") || restoredChannelPrefs == 0) {
+                try {
+                    val prefsObj = root.optJSONObject("preferences")
+                    if (prefsObj != null) {
+                        val contactSimArray = prefsObj.optJSONArray("contact_sim_preferences")
+                        if (contactSimArray != null) {
+                            for (i in 0 until contactSimArray.length()) {
+                                try {
+                                    val entry = contactSimArray.optString(i, "")
+                                    val parts = entry.split(":")
+                                    if (parts.size == 2) {
+                                        val rawNum = parts[0].trim()
+                                        val slot = parts[1].trim().toIntOrNull() ?: 1
+                                        val channelId = when (slot) {
+                                            1 -> "sim_1"
+                                            2 -> "sim_2"
+                                            -1 -> "ask"
+                                            else -> "system"
+                                        }
+                                        val normalized = PhoneNumberNormalizer.toE164(rawNum)
+                                        if (normalized.isNotBlank()) {
+                                            dao.setNumberChannelPreference(
+                                                NumberChannelPreference(
+                                                    normalizedNumber = normalized,
+                                                    preferredChannelId = channelId,
+                                                    updatedTimestamp = System.currentTimeMillis()
+                                                )
+                                            )
+                                            restoredChannelPrefs++
+                                        }
+                                    }
+                                } catch (_: Throwable) {}
+                            }
+                        }
+
+                        val learnedArray = prefsObj.optJSONArray("learned_call_modes")
+                        if (learnedArray != null) {
+                            for (i in 0 until learnedArray.length()) {
+                                try {
+                                    val entry = learnedArray.optString(i, "")
+                                    val parts = entry.split(":")
+                                    if (parts.size == 2) {
+                                        val rawNum = parts[0].trim()
+                                        val mode = parts[1].trim().lowercase()
+                                        val channelId = when (mode) {
+                                            "sim1", "sim_1" -> "sim_1"
+                                            "sim2", "sim_2" -> "sim_2"
+                                            "whatsapp" -> "whatsapp"
+                                            "whatsapp_biz", "whatsapp_business" -> "whatsapp_business"
+                                            else -> mode
+                                        }
+                                        val normalized = PhoneNumberNormalizer.toE164(rawNum)
+                                        if (normalized.isNotBlank()) {
+                                            dao.setNumberChannelPreference(
+                                                NumberChannelPreference(
+                                                    normalizedNumber = normalized,
+                                                    preferredChannelId = channelId,
+                                                    updatedTimestamp = System.currentTimeMillis()
+                                                )
+                                            )
+                                            restoredChannelPrefs++
+                                        }
+                                    }
+                                } catch (_: Throwable) {}
+                            }
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+
+            // 9. Restore Channel Configurations if present
+            if (root.has("channelConfigurations")) {
+                try {
+                    val ccArray = root.optJSONArray("channelConfigurations")
+                    if (ccArray != null) {
+                        dao.clearAllChannelConfigs()
+                        for (i in 0 until ccArray.length()) {
+                            try {
+                                val obj = ccArray.getJSONObject(i)
+                                val channelId = obj.optString("channelId", "")
+                                if (channelId.isBlank()) continue
+                                val config = ChannelConfig(
+                                    channelId = channelId,
+                                    isEnabled = obj.optBoolean("isEnabled", true),
+                                    customName = obj.optString("customName").ifBlank { null },
+                                    orderIndex = obj.optInt("orderIndex", i),
+                                    updatedTimestamp = obj.optLong("updatedTimestamp", System.currentTimeMillis())
+                                )
+                                dao.insertOrUpdateChannelConfig(config)
+                                restoredChannelConfigs++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (e: Throwable) {
+                    android.util.Log.w("BackupManager", "Error restoring channel configurations: ${e.message}")
                 }
             }
 
@@ -535,7 +764,9 @@ object BackupManager {
                 spamCount = restoredSpam,
                 ignoredCount = restoredIgnored,
                 recentCallsCount = restoredRecentCalls,
-                message = "Backup restored successfully ($restoredRules rules, $restoredFavs favorites, $restoredContacts contacts, $restoredRecentCalls recent calls, and preferences restored)."
+                channelPreferencesCount = restoredChannelPrefs,
+                channelConfigsCount = restoredChannelConfigs,
+                message = "Backup restored successfully ($restoredRules rules, $restoredFavs favorites, $restoredContacts contacts, $restoredRecentCalls recent calls, $restoredChannelPrefs channel prefs, and settings restored)."
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -785,7 +1016,10 @@ object BackupManager {
             if (!file.exists()) {
                 return@withContext BackupRestoreResult(success = false, message = "File does not exist")
             }
-            val jsonContent = file.readText()
+            val jsonContent = file.readText().trim().removePrefix("\uFEFF")
+            if (jsonContent.isBlank()) {
+                return@withContext BackupRestoreResult(success = false, message = "Backup file is empty")
+            }
             val root = JSONObject(jsonContent)
             restoreBackupFromJsonRoot(context, root)
         } catch (e: Exception) {

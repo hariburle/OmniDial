@@ -8,6 +8,8 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
@@ -39,20 +41,7 @@ fun PopularGridCard(
 ) {
     val context = LocalContext.current
     val discoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) }
-    val waLabel = remember(context) {
-        try {
-            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
-        } catch (_: Exception) {
-            "WhatsApp"
-        }
-    }
-    val phoneLabel = remember(context) {
-        try {
-            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_1") ?: "Phone"
-        } catch (_: Exception) {
-            "Phone"
-        }
-    }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
 
     Card(
         modifier = modifier
@@ -212,14 +201,15 @@ fun PopularGridCard(
                     }
                 }
             } else {
-                val resolvedChannel = remember(preferredCallingMode, discoveryManager) {
+                val resolvedChannel = remember(preferredCallingMode, availableChannels) {
                     if (preferredCallingMode.isBlank() || preferredCallingMode.equals("ask", ignoreCase = true) || preferredCallingMode.equals("ask_always", ignoreCase = true)) {
                         null
                     } else {
-                        discoveryManager.getChannelById(preferredCallingMode) ?: when (preferredCallingMode.lowercase()) {
-                            "cellular", "phone" -> discoveryManager.getChannelById("sim_1") ?: CallingChannel.SystemDefault
-                            else -> null
-                        }
+                        availableChannels.firstOrNull { it.id.equals(preferredCallingMode, ignoreCase = true) }
+                            ?: when (preferredCallingMode.lowercase()) {
+                                "cellular", "phone" -> availableChannels.firstOrNull { it.id == "sim_1" } ?: availableChannels.firstOrNull { it is CallingChannel.CellularSim }
+                                else -> null
+                            }
                     }
                 }
                 val isUnknown = (resolvedChannel == null)

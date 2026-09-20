@@ -9,6 +9,7 @@ import android.provider.CallLog
 import android.provider.ContactsContract
 import androidx.compose.runtime.Immutable
 import com.example.data.RecentCall
+import com.example.telecom.RoleHelper
 
 @Immutable
 data class ContactPhoneNumber(
@@ -479,18 +480,32 @@ object ContactHelper {
     }
 
     /**
-     * Initiates a direct WhatsApp voice call without opening the chat screen.
+     * Initiates a direct WhatsApp or WhatsApp Business voice call without opening the chat screen.
      * Uses Android Contacts Provider VoIP Data item if available, or direct WhatsApp call intent.
      */
-    fun launchWhatsAppCall(context: Context, rawNumber: String) {
+    fun launchWhatsAppCall(context: Context, rawNumber: String, isBusiness: Boolean? = null) {
         val digitsOnly = resolveFullInternationalNumber(context, rawNumber)
+        val resolvedIsBusiness = isBusiness ?: run {
+            try {
+                com.example.data.ChannelPreferenceRepository.getInstance(context).getCachedPreference(rawNumber) == "whatsapp_business"
+            } catch (_: Exception) {
+                false
+            }
+        }
+        val targetPackage = if (resolvedIsBusiness) "com.whatsapp.w4b" else "com.whatsapp"
+        val targetAppName = if (resolvedIsBusiness) "WhatsApp Business" else "WhatsApp"
+        val targetMime = if (resolvedIsBusiness) {
+            "vnd.android.cursor.item/vnd.com.whatsapp.w4b.voip.call"
+        } else {
+            "vnd.android.cursor.item/vnd.com.whatsapp.voip.call"
+        }
 
         if (digitsOnly.isEmpty()) {
-            android.widget.Toast.makeText(context, "Invalid phone number for WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, "Invalid phone number for $targetAppName", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 1. Query Android Contacts Provider for WhatsApp VoIP Call MIME type for this number
+        // 1. Query Android Contacts Provider for VoIP Call MIME type for this number & target app
         try {
             val resolver = context.contentResolver
             val uri = ContactsContract.Data.CONTENT_URI
@@ -500,20 +515,15 @@ object ContactHelper {
                 ContactsContract.Data.DATA3,
                 ContactsContract.Data.MIMETYPE
             )
-            val selection = "${ContactsContract.Data.MIMETYPE} IN (?, ?)"
-            val selectionArgs = arrayOf(
-                "vnd.android.cursor.item/vnd.com.whatsapp.voip.call",
-                "vnd.android.cursor.item/vnd.com.whatsapp.w4b.voip.call"
-            )
+            val selection = "${ContactsContract.Data.MIMETYPE} = ?"
+            val selectionArgs = arrayOf(targetMime)
 
             var targetDataId: Long? = null
-            var targetMimeType: String? = null
 
             resolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
                 val idCol = cursor.getColumnIndex(ContactsContract.Data._ID)
                 val data1Col = cursor.getColumnIndex(ContactsContract.Data.DATA1)
                 val data3Col = cursor.getColumnIndex(ContactsContract.Data.DATA3)
-                val mimeCol = cursor.getColumnIndex(ContactsContract.Data.MIMETYPE)
 
                 while (cursor.moveToNext()) {
                     val data1 = if (data1Col >= 0) cursor.getString(data1Col) ?: "" else ""
@@ -525,19 +535,18 @@ object ContactHelper {
                         rowDigits3.endsWith(digitsOnly) || digitsOnly.endsWith(rowDigits3) ||
                         (rowDigits1.length >= 7 && digitsOnly.contains(rowDigits1))) {
                         targetDataId = if (idCol >= 0) cursor.getLong(idCol) else null
-                        targetMimeType = if (mimeCol >= 0) cursor.getString(mimeCol) else null
                         break
                     }
                 }
             }
 
-            if (targetDataId != null && targetMimeType != null) {
+            if (targetDataId != null) {
                 val directCallIntent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(
                         Uri.parse("content://com.android.contacts/data/$targetDataId"),
-                        targetMimeType
+                        targetMime
                     )
-                    setPackage(if (targetMimeType!!.contains("w4b")) "com.whatsapp.w4b" else "com.whatsapp")
+                    setPackage(targetPackage)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 context.startActivity(directCallIntent)
@@ -547,10 +556,10 @@ object ContactHelper {
             // Proceed to direct scheme fallback
         }
 
-        // 2. Direct VoIP Call Intent via WhatsApp URL scheme
+        // 2. Direct VoIP Call Intent via WhatsApp URL scheme targeted to specific package
         try {
             val callIntent = Intent(Intent.ACTION_VIEW, Uri.parse("whatsapp://call?phone=$digitsOnly")).apply {
-                setPackage("com.whatsapp")
+                setPackage(targetPackage)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(callIntent)
@@ -559,35 +568,45 @@ object ContactHelper {
             // Fallback to chat link
         }
 
-        // 3. Fallback: Open WhatsApp directly
+        // 3. Fallback: Open WhatsApp / WhatsApp Business directly
         try {
             val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=$digitsOnly")).apply {
-                setPackage("com.whatsapp")
+                setPackage(targetPackage)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(fallbackIntent)
         } catch (_: Exception) {
             try {
-                // Try open browser wa.me if whatsapp app not installed
+                // Try open browser wa.me if target app not installed
                 val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digitsOnly")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 context.startActivity(webIntent)
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "WhatsApp is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "$targetAppName is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    fun launchWhatsAppMessage(context: Context, rawNumber: String) {
+    fun launchWhatsAppMessage(context: Context, rawNumber: String, isBusiness: Boolean? = null) {
         val digitsOnly = resolveFullInternationalNumber(context, rawNumber)
+        val resolvedIsBusiness = isBusiness ?: run {
+            try {
+                com.example.data.ChannelPreferenceRepository.getInstance(context).getCachedPreference(rawNumber) == "whatsapp_business"
+            } catch (_: Exception) {
+                false
+            }
+        }
+        val targetPackage = if (resolvedIsBusiness) "com.whatsapp.w4b" else "com.whatsapp"
+        val targetAppName = if (resolvedIsBusiness) "WhatsApp Business" else "WhatsApp"
+
         if (digitsOnly.isEmpty()) {
-            android.widget.Toast.makeText(context, "Invalid phone number for WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, "Invalid phone number for $targetAppName", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=$digitsOnly")).apply {
-                setPackage("com.whatsapp")
+                setPackage(targetPackage)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
@@ -598,7 +617,101 @@ object ContactHelper {
                 }
                 context.startActivity(webIntent)
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "WhatsApp is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "$targetAppName is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Initiates a Google Voice call directly via Telecom account handle or targeted intent.
+     */
+    fun launchGoogleVoiceCall(
+        context: Context,
+        rawNumber: String,
+        accountHandle: android.telecom.PhoneAccountHandle? = null,
+        onCellularFallback: (() -> Unit)? = null
+    ) {
+        val cleanNumber = rawNumber.trim()
+        if (cleanNumber.isBlank()) {
+            android.widget.Toast.makeText(context, "Invalid phone number for Google Voice", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 1. Route via Telecom PhoneAccountHandle if registered with system
+        if (accountHandle != null) {
+            try {
+                val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
+                if (telecomManager != null && RoleHelper.isDefaultDialer(context)) {
+                    val uri = Uri.fromParts("tel", cleanNumber, null)
+                    val extras = android.os.Bundle().apply {
+                        putParcelable(android.telecom.TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accountHandle)
+                    }
+                    telecomManager.placeCall(uri, extras)
+                    return
+                }
+            } catch (_: Exception) {
+                // Fallback to direct intent
+            }
+        }
+
+        // 2. Direct package intent to Google Voice (ACTION_CALL)
+        try {
+            val callIntent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$cleanNumber")).apply {
+                setPackage("com.google.android.apps.googlevoice")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(callIntent)
+            return
+        } catch (_: Exception) {
+            // Fallback to ACTION_DIAL
+        }
+
+        // 3. Fallback to ACTION_DIAL with Google Voice package
+        try {
+            val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber")).apply {
+                setPackage("com.google.android.apps.googlevoice")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(dialIntent)
+            return
+        } catch (_: Exception) {
+            // Fallback to cellular or toast
+        }
+
+        if (onCellularFallback != null) {
+            onCellularFallback()
+        } else {
+            android.widget.Toast.makeText(context, "Google Voice is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Opens Google Voice direct messaging composer for the target phone number.
+     */
+    fun launchGoogleVoiceMessage(context: Context, rawNumber: String, messageText: String? = null) {
+        val cleanNumber = rawNumber.trim()
+        if (cleanNumber.isBlank()) {
+            android.widget.Toast.makeText(context, "Invalid phone number for Google Voice", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$cleanNumber")).apply {
+                setPackage("com.google.android.apps.googlevoice")
+                if (!messageText.isNullOrBlank()) {
+                    putExtra("sms_body", messageText)
+                }
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(smsIntent)
+        } catch (_: Exception) {
+            try {
+                val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse("sms:$cleanNumber")).apply {
+                    setPackage("com.google.android.apps.googlevoice")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(viewIntent)
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "Google Voice is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }

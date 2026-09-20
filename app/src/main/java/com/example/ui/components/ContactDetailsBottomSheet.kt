@@ -650,14 +650,18 @@ fun ContactDetailsBottomSheet(
                                 val legacySlot = preferredSims[pn.number] ?: getPreferredSimSlot(pn.number)
                                 when {
                                     legacyMode == "whatsapp" -> "whatsapp"
+                                    legacyMode == "whatsapp_business" -> "whatsapp_business"
+                                    legacyMode == "google_voice" -> "google_voice"
                                     legacySlot == 1 -> "sim_1"
                                     legacySlot == 2 -> "sim_2"
                                     legacyMode == "cellular" -> "sim_1"
                                     else -> "ask"
                                 }
                             }
-                            val isWhatsAppChannel = effectiveChannelId == "whatsapp" || effectiveChannelId == "whatsapp_business"
-                            val isCellularChannel = effectiveChannelId == "sim_1" || effectiveChannelId == "sim_2" || effectiveChannelId == "system"
+                            val resolvedPreferredChannel = availableChannels.firstOrNull { it.id.equals(effectiveChannelId, ignoreCase = true) }
+                            val isWhatsAppChannel = (resolvedPreferredChannel is CallingChannel.WhatsApp)
+                            val isGoogleVoiceChannel = (resolvedPreferredChannel is CallingChannel.GoogleVoice)
+                            val isCellularChannel = (resolvedPreferredChannel is CallingChannel.CellularSim) || (effectiveChannelId == "system" && availableChannels.any { it is CallingChannel.CellularSim })
 
                             // Row 1: Number + Label (Left) and Action Buttons (Right)
                             Row(
@@ -765,11 +769,16 @@ fun ContactDetailsBottomSheet(
                                         }
                                     }
 
-                                    // 2. Consolidated Message Button (SMS or WhatsApp chat based on channel)
+                                    // 2. Consolidated Message Button (SMS, WhatsApp chat, or Google Voice based on channel)
+                                    val isWaBiz = effectiveChannelId == "whatsapp_business"
+                                    val waBrandColor = if (isWaBiz) Color(0xFF128C7E) else Color(0xFF25D366)
+                                    val gvBrandColor = Color(0xFF0F9D58)
                                     IconButton(
                                         onClick = {
                                             if (isWhatsAppChannel) {
-                                                ContactHelper.launchWhatsAppMessage(context, pn.number)
+                                                ContactHelper.launchWhatsAppMessage(context, pn.number, isBusiness = isWaBiz)
+                                            } else if (isGoogleVoiceChannel) {
+                                                ContactHelper.launchGoogleVoiceMessage(context, pn.number)
                                             } else {
                                                 val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${pn.number}"))
                                                 context.startActivity(smsIntent)
@@ -779,8 +788,16 @@ fun ContactDetailsBottomSheet(
                                             .size(36.dp)
                                             .testTag("btn_message_${pn.number}")
                                     ) {
-                                        val msgBg = if (isWhatsAppChannel) Color(0xFF25D366).copy(alpha = 0.15f) else containerBg
-                                        val msgBorder = if (isWhatsAppChannel) BorderStroke(1.5.dp, Color(0xFF25D366)) else containerBorder
+                                        val msgBg = when {
+                                            isWhatsAppChannel -> waBrandColor.copy(alpha = 0.15f)
+                                            isGoogleVoiceChannel -> gvBrandColor.copy(alpha = 0.15f)
+                                            else -> containerBg
+                                        }
+                                        val msgBorder = when {
+                                            isWhatsAppChannel -> BorderStroke(1.5.dp, waBrandColor)
+                                            isGoogleVoiceChannel -> BorderStroke(1.5.dp, gvBrandColor)
+                                            else -> containerBorder
+                                        }
                                         Surface(
                                             shape = CircleShape,
                                             color = msgBg,
@@ -791,8 +808,15 @@ fun ContactDetailsBottomSheet(
                                                 if (isWhatsAppChannel) {
                                                     Icon(
                                                         imageVector = Icons.Default.Chat,
-                                                        contentDescription = "WhatsApp Message",
-                                                        tint = Color(0xFF25D366),
+                                                        contentDescription = if (isWaBiz) "WhatsApp Business Message" else "WhatsApp Message",
+                                                        tint = waBrandColor,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                } else if (isGoogleVoiceChannel) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Chat,
+                                                        contentDescription = "Google Voice Message",
+                                                        tint = gvBrandColor,
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                 } else {
@@ -811,16 +835,22 @@ fun ContactDetailsBottomSheet(
                                     IconButton(
                                         onClick = {
                                             when {
-                                                isWhatsAppChannel -> {
+                                                isWhatsAppChannel && resolvedPreferredChannel is CallingChannel.WhatsApp -> {
                                                     onDismiss()
-                                                    ContactHelper.launchWhatsAppCall(context, pn.number)
+                                                    ContactHelper.launchWhatsAppCall(context, pn.number, isBusiness = resolvedPreferredChannel.isBusiness)
+                                                }
+                                                isGoogleVoiceChannel -> {
+                                                    onDismiss()
+                                                    val gvHandle = (availableChannels.firstOrNull { it is CallingChannel.GoogleVoice } as? CallingChannel.GoogleVoice)?.phoneAccountHandle
+                                                    ContactHelper.launchGoogleVoiceCall(context, pn.number, accountHandle = gvHandle, onCellularFallback = { onCallNumber(pn.number) })
                                                 }
                                                 isCellularChannel -> {
-                                                    val simSlot = when (effectiveChannelId) {
-                                                        "sim_1" -> 1
-                                                        "sim_2" -> 2
-                                                        else -> null
-                                                    }
+                                                    val simSlot = (resolvedPreferredChannel as? CallingChannel.CellularSim)?.let { it.slotIndex + 1 }
+                                                        ?: when (effectiveChannelId) {
+                                                            "sim_1" -> 1
+                                                            "sim_2" -> 2
+                                                            else -> null
+                                                        }
                                                     if (simSlot != null) {
                                                         onSetPreferredSimSlot?.invoke(pn.number, simSlot)
                                                     }
@@ -832,7 +862,7 @@ fun ContactDetailsBottomSheet(
                                                     }
                                                 }
                                                 else -> {
-                                                    // Preference unknown -> Ask user in confirmation sheet before placing call
+                                                    // Preference unknown or channel disabled -> Ask user in confirmation sheet before placing call
                                                     pendingChannelChoiceNumber = pn
                                                 }
                                             }
@@ -843,11 +873,13 @@ fun ContactDetailsBottomSheet(
                                     ) {
                                         val callBg = when {
                                             isWhatsAppChannel -> Color(0xFF25D366).copy(alpha = 0.18f)
+                                            isGoogleVoiceChannel -> Color(0xFF0F9D58).copy(alpha = 0.18f)
                                             isCellularChannel -> Color(0xFF16A34A).copy(alpha = 0.18f)
                                             else -> containerBg
                                         }
                                         val callBorder = when {
                                             isWhatsAppChannel -> BorderStroke(1.5.dp, Color(0xFF25D366))
+                                            isGoogleVoiceChannel -> BorderStroke(1.5.dp, Color(0xFF0F9D58))
                                             isCellularChannel -> BorderStroke(1.5.dp, Color(0xFF16A34A))
                                             else -> containerBorder
                                         }
@@ -860,6 +892,13 @@ fun ContactDetailsBottomSheet(
                                             Box(contentAlignment = Alignment.Center) {
                                                 if (isWhatsAppChannel) {
                                                     WhatsAppIcon(modifier = Modifier.size(19.dp))
+                                                } else if (isGoogleVoiceChannel) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Phone,
+                                                        contentDescription = "Call via Google Voice",
+                                                        tint = Color(0xFF0F9D58),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
                                                 } else {
                                                     Icon(
                                                         imageVector = Icons.Default.Call,
@@ -981,7 +1020,7 @@ fun ContactDetailsBottomSheet(
                                                     channelPrefRepo.setPreferenceForNumber(pn.number, "whatsapp_business", pn.label)
                                                 }
                                                 preferredModes[pn.number] = "whatsapp_business"
-                                                onSaveLearnedCallMode(pn.number, "whatsapp")
+                                                onSaveLearnedCallMode(pn.number, "whatsapp_business")
                                                 Toast.makeText(context, "★ Preferred channel: ${waBizChannel.displayName}", Toast.LENGTH_SHORT).show()
                                             },
                                             label = { Text(waBizChannel.shortLabel, fontSize = 10.5.sp) },
@@ -992,7 +1031,30 @@ fun ContactDetailsBottomSheet(
                                         )
                                     }
 
-                                    // 4. Reset / Clear Preference (✕)
+                                    // 4. Google Voice Channel (if installed)
+                                    val gvChannel = availableChannels.filterIsInstance<CallingChannel.GoogleVoice>()
+                                        .firstOrNull()
+                                    if (gvChannel != null) {
+                                        val isGvSelected = effectiveChannelId == "google_voice"
+                                        FilterChip(
+                                            selected = isGvSelected,
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    channelPrefRepo.setPreferenceForNumber(pn.number, "google_voice", pn.label)
+                                                }
+                                                preferredModes[pn.number] = "google_voice"
+                                                onSaveLearnedCallMode(pn.number, "google_voice")
+                                                Toast.makeText(context, "★ Preferred channel: ${gvChannel.displayName}", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text(gvChannel.shortLabel, fontSize = 10.5.sp) },
+                                            leadingIcon = if (isGvSelected) {
+                                                { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                            } else null,
+                                            modifier = Modifier.height(26.dp)
+                                        )
+                                    }
+
+                                    // 5. Reset / Clear Preference (✕)
                                     val isAskSelected = effectiveChannelId == "ask" || effectiveChannelId == "ask_always" || effectiveChannelId.isBlank()
                                     FilterChip(
                                         selected = isAskSelected,
@@ -1005,6 +1067,7 @@ fun ContactDetailsBottomSheet(
                                             Toast.makeText(context, "Preference cleared", Toast.LENGTH_SHORT).show()
                                         },
                                         label = { Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                        border = null,
                                         modifier = Modifier.height(26.dp)
                                     )
                                 }
@@ -1088,20 +1151,6 @@ fun ContactDetailsBottomSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (contactCallHistory.isNotEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = "${contactCallHistory.size} calls",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
                     Icon(
                         imageVector = if (isCallHistoryExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = if (isCallHistoryExpanded) "Collapse History" else "Expand History",
@@ -1253,21 +1302,19 @@ fun ContactDetailsBottomSheet(
 
                                         // SIM Slot or WhatsApp Badge for Contact Call History (SIM shown only on multi-SIM devices)
                                         val isWaCall = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
-                                        val activeSims = remember(context) {
+                                        val currentSims = if (activeSims.isNotEmpty()) activeSims else remember(context) {
                                             com.example.telecom.SimHelper.getActiveSimCards(context)
                                         }
-                                        val showBadge = isWaCall || activeSims.size > 1
+                                        val showBadge = isWaCall || currentSims.size > 1
                                         if (showBadge) {
                                             val slot = if (call.simSlot > 0) call.simSlot else 1
-                                            val matchedSim = activeSims.firstOrNull { it.slotIndex + 1 == slot }
+                                            val matchedSim = currentSims.firstOrNull { it.slotIndex + 1 == slot }
                                             val simLabel = if (matchedSim != null && matchedSim.displayName.isNotBlank()) {
                                                 matchedSim.displayName.take(12)
                                             } else {
                                                 "SIM $slot"
                                             }
-                                            val waLabel = remember(context) {
-                                                com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
-                                            }
+                                            val waLabel = availableChannels.firstOrNull { it is CallingChannel.WhatsApp }?.displayName ?: "WhatsApp"
                                             val simColor = if (slot == 2) Color(0xFF16A34A) else Color(0xFF2563EB)
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Surface(
@@ -1522,7 +1569,7 @@ fun ContactDetailsBottomSheet(
                             .fillMaxWidth()
                             .clickable {
                                 numberForActionMenu = null
-                                ContactHelper.launchWhatsAppCall(context, selectedPn.number)
+                                ContactHelper.launchWhatsAppCall(context, selectedPn.number, isBusiness = false)
                             }
                     ) {
                         Row(
@@ -1532,6 +1579,30 @@ fun ContactDetailsBottomSheet(
                         ) {
                             WhatsAppIcon(modifier = Modifier.size(26.dp))
                             Text(text = "Call on WhatsApp", fontWeight = FontWeight.Medium)
+                        }
+                    }
+
+                    // WhatsApp Business Call (if available)
+                    val hasWaBizChannel = availableChannels.any { it is CallingChannel.WhatsApp && it.isBusiness }
+                    if (hasWaBizChannel) {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    numberForActionMenu = null
+                                    ContactHelper.launchWhatsAppCall(context, selectedPn.number, isBusiness = true)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                WhatsAppIcon(modifier = Modifier.size(26.dp))
+                                Text(text = "Call on WhatsApp Business", fontWeight = FontWeight.Medium)
+                            }
                         }
                     }
 
@@ -1835,14 +1906,19 @@ fun ContactDetailsBottomSheet(
                         }
                         is CallingChannel.WhatsApp -> {
                             preferredModes[pnTarget.number] = channel.id
-                            onSaveLearnedCallMode(pnTarget.number, "whatsapp")
+                            onSaveLearnedCallMode(pnTarget.number, if (channel.isBusiness) "whatsapp_business" else "whatsapp")
+                        }
+                        is CallingChannel.GoogleVoice -> {
+                            preferredModes[pnTarget.number] = channel.id
+                            onSaveLearnedCallMode(pnTarget.number, "google_voice")
                         }
                         else -> {}
                     }
                 }
                 onDismiss()
                 when (channel) {
-                    is CallingChannel.WhatsApp -> ContactHelper.launchWhatsAppCall(context, pnTarget.number)
+                    is CallingChannel.WhatsApp -> ContactHelper.launchWhatsAppCall(context, pnTarget.number, isBusiness = channel.isBusiness)
+                    is CallingChannel.GoogleVoice -> ContactHelper.launchGoogleVoiceCall(context, pnTarget.number, accountHandle = channel.phoneAccountHandle, onCellularFallback = { onCallNumber(pnTarget.number) })
                     is CallingChannel.CellularSim -> {
                         val slot = channel.slotIndex + 1
                         onSetPreferredSimSlot?.invoke(pnTarget.number, slot)

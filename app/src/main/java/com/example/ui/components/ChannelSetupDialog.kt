@@ -226,6 +226,14 @@ fun ChannelSetupDialog(
                                                         tint = if (isEnabled) brandColor else MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
+                                                is CallingChannel.GoogleVoice -> {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Phone,
+                                                        contentDescription = null,
+                                                        tint = if (isEnabled) brandColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
                                                 else -> {
                                                     Icon(
                                                         imageVector = Icons.Default.Phone,

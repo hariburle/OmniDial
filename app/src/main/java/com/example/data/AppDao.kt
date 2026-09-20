@@ -187,6 +187,9 @@ interface AppDao {
     @Query("SELECT * FROM number_channel_preferences")
     fun getAllNumberChannelPreferences(): Flow<List<NumberChannelPreference>>
 
+    @Query("SELECT * FROM number_channel_preferences")
+    suspend fun getAllNumberChannelPreferencesList(): List<NumberChannelPreference>
+
     @Query("SELECT * FROM number_channel_preferences WHERE normalized_number = :normalizedNumber LIMIT 1")
     suspend fun getNumberChannelPreference(normalizedNumber: String): NumberChannelPreference?
 

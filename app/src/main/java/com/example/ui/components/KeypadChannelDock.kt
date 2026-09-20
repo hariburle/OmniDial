@@ -127,6 +127,14 @@ fun KeypadChannelDock(
                                 tint = if (isSelected) brandColor else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        is CallingChannel.GoogleVoice -> {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = channel.displayName,
+                                tint = if (isSelected) brandColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                         else -> {
                             Icon(
                                 imageVector = Icons.Default.Phone,

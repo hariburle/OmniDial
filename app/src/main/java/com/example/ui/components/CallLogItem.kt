@@ -60,7 +60,11 @@ fun CallLogItem(
     val formalName = if (isVoicemail) "Voicemail" else (matchedDc?.name?.ifBlank { null } ?: call.callerName?.ifBlank { null })
     val effectiveNickname = if (isVoicemail) null else matchedDc?.nickname?.ifBlank { null }
     val nameToUse = effectiveNickname ?: formalName
+    val isWaBiz = call.callReason?.contains("WhatsApp Business", ignoreCase = true) == true
     val isWhatsApp = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
+    val isGoogleVoice = call.callReason?.contains("Google Voice", ignoreCase = true) == true
+    val waColor = if (isWaBiz) Color(0xFF128C7E) else Color(0xFF25D366)
+    val gvColor = Color(0xFF0F9D58)
     val isCarrierAutoDropped = call.isSpam && (
         call.note?.contains("auto-dropped", ignoreCase = true) == true ||
         call.ruleMatched?.contains("Carrier", ignoreCase = true) == true ||
@@ -68,15 +72,29 @@ fun CallLogItem(
     )
     val noteToShow = if (isCarrierAutoDropped) null else call.note
     val reminderToShow = call.reminderTime
-    val waLabel = remember(context) {
-        try {
-            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
-        } catch (_: Exception) {
-            "WhatsApp"
-        }
+    val discoveryManager = remember(context) { com.example.telecom.ChannelDiscoveryManager.getInstance(context) }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
+    val waLabel = remember(availableChannels, isWaBiz) {
+        val targetId = if (isWaBiz) "whatsapp_business" else "whatsapp"
+        availableChannels.firstOrNull { it.id == targetId }?.displayName
+            ?: try {
+                com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync(targetId)
+                    ?: if (isWaBiz) "WA Business" else "WhatsApp"
+            } catch (_: Exception) {
+                if (isWaBiz) "WA Business" else "WhatsApp"
+            }
+    }
+    val gvLabel = remember(availableChannels) {
+        availableChannels.firstOrNull { it.id == "google_voice" }?.displayName
+            ?: try {
+                com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("google_voice") ?: "Google Voice"
+            } catch (_: Exception) {
+                "Google Voice"
+            }
     }
     val (typeIcon, typeColor, typeLabel) = when {
-        isWhatsApp -> Triple(Icons.AutoMirrored.Filled.CallMade, Color(0xFF25D366), "$waLabel Call")
+        isGoogleVoice -> Triple(Icons.AutoMirrored.Filled.CallMade, gvColor, "$gvLabel Call")
+        isWhatsApp -> Triple(Icons.AutoMirrored.Filled.CallMade, waColor, "$waLabel Call")
         call.callType == 1 -> Triple(Icons.AutoMirrored.Filled.CallReceived, Color(0xFF16A34A), "Incoming")
         call.callType == 2 -> Triple(Icons.AutoMirrored.Filled.CallMade, Color(0xFF2563EB), "Outgoing")
         else -> Triple(Icons.AutoMirrored.Filled.CallMissed, Color(0xFFDC2626), "Missed")
@@ -97,8 +115,10 @@ fun CallLogItem(
     val animatedContainerColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (isHighlighted) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+        } else if (isGoogleVoice) {
+            gvColor.copy(alpha = 0.08f)
         } else if (isWhatsApp) {
-            Color(0xFF25D366).copy(alpha = 0.08f)
+            waColor.copy(alpha = 0.08f)
         } else if (group.isSpam) {
             MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
         } else {
@@ -141,7 +161,7 @@ fun CallLogItem(
                 Box(modifier = Modifier.size(36.dp)) {
                     Surface(
                         shape = CircleShape,
-                        color = if (group.isSpam) Color(0xFFDC2626).copy(alpha = 0.15f) else if (isWhatsApp) Color(0xFF25D366).copy(alpha = 0.18f) else typeColor.copy(alpha = 0.15f),
+                        color = if (group.isSpam) Color(0xFFDC2626).copy(alpha = 0.15f) else if (isGoogleVoice) gvColor.copy(alpha = 0.18f) else if (isWhatsApp) waColor.copy(alpha = 0.18f) else typeColor.copy(alpha = 0.15f),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         if (group.isSpam) {
@@ -174,7 +194,7 @@ fun CallLogItem(
                                 Text(
                                     text = nameToUse.take(1).uppercase(),
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isWhatsApp) Color(0xFF15803D) else typeColor,
+                                    color = if (isGoogleVoice) gvColor else if (isWhatsApp) Color(0xFF15803D) else typeColor,
                                     fontSize = 16.sp
                                 )
                             }
@@ -196,10 +216,28 @@ fun CallLogItem(
                         }
                     }
 
-                    if (isWhatsApp) {
+                    if (isGoogleVoice) {
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF25D366),
+                            color = gvColor,
+                            shadowElevation = 2.dp,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .align(Alignment.BottomEnd)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = gvLabel,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                            }
+                        }
+                    } else if (isWhatsApp) {
+                        Surface(
+                            shape = CircleShape,
+                            color = waColor,
                             shadowElevation = 2.dp,
                             modifier = Modifier
                                 .size(18.dp)
@@ -265,10 +303,36 @@ fun CallLogItem(
                                 )
                             }
                         }
+                        if (isGoogleVoice) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = gvColor.copy(alpha = 0.18f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = null,
+                                        tint = gvColor,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = gvLabel,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = gvColor,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                         if (isWhatsApp) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF25D366).copy(alpha = 0.18f)
+                                color = waColor.copy(alpha = 0.18f)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -280,7 +344,7 @@ fun CallLogItem(
                                         text = waLabel,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF15803D),
+                                        color = if (isWaBiz) Color(0xFF0F766E) else Color(0xFF15803D),
                                         maxLines = 1
                                     )
                                 }
@@ -404,7 +468,14 @@ fun CallLogItem(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
-                        if (isWhatsApp) {
+                        if (isGoogleVoice) {
+                            Text(
+                                text = "• $gvLabel Call",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = gvColor
+                            )
+                        } else if (isWhatsApp) {
                             Text(
                                 text = "• $waLabel Call",
                                 style = MaterialTheme.typography.bodySmall,
@@ -425,12 +496,14 @@ fun CallLogItem(
                             // SIM Badge with Custom Name (shown only on multi-SIM devices)
                             if (activeSims.size > 1) {
                                 val slot = if (call.simSlot > 0) call.simSlot else 1
-                                val customName = remember(slot, activeSims) {
-                                    try {
-                                        com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_$slot")
-                                    } catch (_: Exception) {
-                                        null
-                                    }
+                                val customName = remember(slot, activeSims, availableChannels) {
+                                    availableChannels.filterIsInstance<com.example.domain.model.CallingChannel.CellularSim>()
+                                        .firstOrNull { it.slotIndex + 1 == slot }?.displayName
+                                        ?: try {
+                                            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_$slot")
+                                        } catch (_: Exception) {
+                                            null
+                                        }
                                 }
                                 val matchedSim = activeSims.firstOrNull { it.slotIndex + 1 == slot }
                                 val simLabel = customName ?: if (matchedSim != null && matchedSim.displayName.isNotBlank()) {

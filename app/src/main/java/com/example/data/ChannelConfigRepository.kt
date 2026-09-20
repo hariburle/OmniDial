@@ -39,6 +39,7 @@ class ChannelConfigRepository(
                 } else {
                     editor.remove(key)
                 }
+                editor.putBoolean("channel_enabled_${cfg.channelId.lowercase()}", cfg.isEnabled)
                 editor.putLong(tsKey, cfg.updatedTimestamp)
             }
         }
@@ -62,8 +63,10 @@ class ChannelConfigRepository(
             } else {
                 editor.remove(key)
             }
+            editor.putBoolean("channel_enabled_${cfg.channelId.lowercase()}", cfg.isEnabled)
             editor.putLong(tsKey, cfg.updatedTimestamp)
         }
+        editor.putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
         editor.commit()
         appRepository.setChannelConfigs(configsWithTs)
     }
@@ -79,13 +82,20 @@ class ChannelConfigRepository(
         } else {
             editor.remove(key)
         }
+        editor.putBoolean("channel_enabled_${configWithTs.channelId.lowercase()}", configWithTs.isEnabled)
         editor.putLong(tsKey, configWithTs.updatedTimestamp)
+        editor.putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
         editor.commit()
         appRepository.setChannelConfig(configWithTs)
     }
 
-    suspend fun setChannelEnabled(channelId: String, isEnabled: Boolean) =
+    suspend fun setChannelEnabled(channelId: String, isEnabled: Boolean) {
+        prefs.edit()
+            .putBoolean("channel_enabled_${channelId.lowercase()}", isEnabled)
+            .putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
+            .commit()
         appRepository.setChannelEnabled(channelId, isEnabled)
+    }
 
     suspend fun renameChannel(channelId: String, customName: String?) {
         val name = customName?.trim()?.ifBlank { null }
@@ -99,12 +109,16 @@ class ChannelConfigRepository(
             editor.remove(key)
         }
         editor.putLong(tsKey, now)
+        editor.putBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, true)
         editor.commit()
         appRepository.setChannelCustomName(channelId, name)
     }
 
     fun getCustomNameSync(channelId: String): String? =
         prefs.getString("channel_custom_name_${channelId.lowercase()}", null)?.takeIf { it.isNotBlank() }
+
+    fun isChannelEnabledSync(channelId: String): Boolean =
+        prefs.getBoolean("channel_enabled_${channelId.lowercase()}", true)
 
     fun hasCompletedOnboarding(): Boolean =
         prefs.getBoolean(KEY_HAS_COMPLETED_CHANNEL_ONBOARDING, false)

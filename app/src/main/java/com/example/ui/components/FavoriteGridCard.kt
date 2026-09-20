@@ -54,6 +54,7 @@ fun FavoriteGridCard(
     onDragDelta: (Offset) -> Unit = {},
     onCall: () -> Unit,
     onCallWhatsApp: () -> Unit = {},
+    onCallGoogleVoice: () -> Unit = {},
     onCallUnknown: () -> Unit = {},
     onLongClick: () -> Unit = {},
     onSelect: () -> Unit,
@@ -65,20 +66,7 @@ fun FavoriteGridCard(
 ) {
     val context = LocalContext.current
     val discoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) }
-    val waLabel = remember(context) {
-        try {
-            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
-        } catch (_: Exception) {
-            "WhatsApp"
-        }
-    }
-    val phoneLabel = remember(context) {
-        try {
-            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_1") ?: "Phone"
-        } catch (_: Exception) {
-            "Phone"
-        }
-    }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
 
     val shadowElevation by animateDpAsState(
         targetValue = if (isFloatingOverlay) 16.dp else 1.dp,
@@ -274,23 +262,26 @@ fun FavoriteGridCard(
                     // Normal Mode: Voice-first single Call action (Option B)
                     // If channel preference is unknown/ask, button reads "Call" and triggers onCallUnknown
                     // If preference is known (e.g. Jio, Airtel, WhatsApp, etc.), button reads "Call - <Channel Name>"
-                    val resolvedChannel = remember(preferredCallingMode, discoveryManager) {
+                    val resolvedChannel = remember(preferredCallingMode, availableChannels) {
                         if (preferredCallingMode.isBlank() || preferredCallingMode.equals("ask", ignoreCase = true) || preferredCallingMode.equals("ask_always", ignoreCase = true)) {
                             null
                         } else {
-                            discoveryManager.getChannelById(preferredCallingMode) ?: when (preferredCallingMode.lowercase()) {
-                                "cellular", "phone" -> discoveryManager.getChannelById("sim_1") ?: CallingChannel.SystemDefault
-                                else -> null
-                            }
+                            availableChannels.firstOrNull { it.id.equals(preferredCallingMode, ignoreCase = true) }
+                                ?: when (preferredCallingMode.lowercase()) {
+                                    "cellular", "phone" -> availableChannels.firstOrNull { it.id == "sim_1" } ?: availableChannels.firstOrNull { it is CallingChannel.CellularSim }
+                                    else -> null
+                                }
                         }
                     }
                     val isUnknown = (resolvedChannel == null)
                     val buttonText = if (resolvedChannel != null) "Call - ${resolvedChannel.shortLabel}" else "Call"
                     val brandColor = resolvedChannel?.let { Color(it.brandColorHex) } ?: MaterialTheme.colorScheme.primary
                     val isWhatsApp = (resolvedChannel is CallingChannel.WhatsApp)
+                    val isGoogleVoice = (resolvedChannel is CallingChannel.GoogleVoice)
                     val buttonAction = when {
                         isUnknown -> onCallUnknown
                         isWhatsApp -> onCallWhatsApp
+                        isGoogleVoice -> onCallGoogleVoice
                         else -> onCall
                     }
 
@@ -310,6 +301,13 @@ fun FavoriteGridCard(
                         ) {
                             if (isWhatsApp) {
                                 WhatsAppIcon(modifier = Modifier.size(14.dp))
+                            } else if (isGoogleVoice) {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = null,
+                                    tint = brandColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Call,

@@ -886,6 +886,9 @@ fun MainAppContent(
                         onCallWhatsApp = { num ->
                             viewModel.placeWhatsAppCall(context, num)
                         },
+                        onCallGoogleVoice = { num ->
+                            viewModel.placeGoogleVoiceCall(context, num)
+                        },
                         onCreateRule = { num ->
                             ruleNumberToCreate = num
                             navigateToTab(4)
@@ -949,8 +952,12 @@ fun MainAppContent(
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
                         onCallBack = { recentCall ->
-                            if (recentCall.callReason?.contains("WhatsApp", ignoreCase = true) == true) {
-                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber)
+                            if (recentCall.callReason?.contains("WhatsApp Business", ignoreCase = true) == true) {
+                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber, isBusiness = true)
+                            } else if (recentCall.callReason?.contains("WhatsApp", ignoreCase = true) == true) {
+                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber, isBusiness = false)
+                            } else if (recentCall.callReason?.contains("Google Voice", ignoreCase = true) == true) {
+                                viewModel.placeGoogleVoiceCall(context, recentCall.phoneNumber)
                             } else {
                                 viewModel.placeCall(context, recentCall.phoneNumber, null, overrideSimSlot = recentCall.simSlot)
                             }
@@ -1011,6 +1018,8 @@ fun MainAppContent(
                         onPlaceCall = { num, reason -> viewModel.placeCall(context, num, reason) },
                         onPlaceCallDirect = { num, slot -> viewModel.placeCall(context, num, overrideSimSlot = slot) },
                         onPlaceWhatsAppCall = { num -> viewModel.placeWhatsAppCall(context, num) },
+                        onPlaceWhatsAppCallWithBusiness = { num, isBiz -> viewModel.placeWhatsAppCall(context, num, isBiz) },
+                        onPlaceGoogleVoiceCall = { num -> viewModel.placeGoogleVoiceCall(context, num) },
                         whatsAppCallMode = whatsAppCallMode,
                         onSimulateCall = { num, name -> viewModel.simulateIncomingCall(context, num, name) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },

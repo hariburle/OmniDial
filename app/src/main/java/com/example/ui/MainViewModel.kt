@@ -22,6 +22,7 @@ import com.example.data.FavoriteContact
 import com.example.data.IgnoredContact
 import com.example.data.LocalContact
 import com.example.data.RecentCall
+import com.example.domain.model.CallingChannel
 import com.example.telecom.ActiveCallInfo
 import com.example.telecom.AutomationStep
 import com.example.telecom.CallManager
@@ -175,10 +176,20 @@ class MainViewModel(
 
         if (remember || _whatsAppCallMode.value == "ask_learn") {
             saveLearnedCallMode(prompt.number, method)
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    com.example.data.ChannelPreferenceRepository.getInstance(appContext)
+                        .setPreferenceForNumber(prompt.number, method)
+                } catch (_: Exception) {}
+            }
         }
 
         if (method == "whatsapp") {
-            placeWhatsAppCall(context, prompt.number)
+            placeWhatsAppCall(context, prompt.number, isBusiness = false)
+        } else if (method == "whatsapp_business") {
+            placeWhatsAppCall(context, prompt.number, isBusiness = true)
+        } else if (method == "google_voice") {
+            placeGoogleVoiceCall(context, prompt.number)
         } else {
             placeCall(context, prompt.number, prompt.reason)
         }
@@ -1296,16 +1307,25 @@ class MainViewModel(
         }
     }
 
-    fun placeWhatsAppCall(context: Context, number: String) {
+    fun placeWhatsAppCall(context: Context, number: String, isBusiness: Boolean? = null) {
         val cleanNumber = number.ifBlank { _dialerNumber.value }
         if (cleanNumber.isBlank()) return
 
-        // If in ask_learn mode and user explicitly triggered WhatsApp call, learn the choice directly
-        if (_whatsAppCallMode.value == "ask_learn") {
-            saveLearnedCallMode(cleanNumber, "whatsapp")
+        val targetIsBusiness = isBusiness ?: run {
+            try {
+                com.example.data.ChannelPreferenceRepository.getInstance(context).getCachedPreference(cleanNumber) == "whatsapp_business" ||
+                getPreferredCallingMode(cleanNumber) == "whatsapp_business"
+            } catch (_: Exception) {
+                getPreferredCallingMode(cleanNumber) == "whatsapp_business"
+            }
         }
 
-        ContactHelper.launchWhatsAppCall(context, cleanNumber)
+        // If in ask_learn mode and user explicitly triggered WhatsApp call, learn the choice directly
+        if (_whatsAppCallMode.value == "ask_learn") {
+            saveLearnedCallMode(cleanNumber, if (targetIsBusiness) "whatsapp_business" else "whatsapp")
+        }
+
+        ContactHelper.launchWhatsAppCall(context, cleanNumber, isBusiness = targetIsBusiness)
 
         // Log outgoing WhatsApp call so frequency learning & preferred calling mode work
         viewModelScope.launch(Dispatchers.IO) {
@@ -1320,7 +1340,46 @@ class MainViewModel(
                     callType = android.provider.CallLog.Calls.OUTGOING_TYPE,
                     timestamp = System.currentTimeMillis(),
                     durationSeconds = 0,
-                    callReason = "WhatsApp Call"
+                    callReason = if (targetIsBusiness) "WhatsApp Business Call" else "WhatsApp Call"
+                )
+            )
+            refreshRecentCalls()
+        }
+    }
+
+    fun placeGoogleVoiceCall(context: Context, number: String) {
+        val cleanNumber = number.ifBlank { _dialerNumber.value }
+        if (cleanNumber.isBlank()) return
+
+        // If in ask_learn mode and user explicitly triggered Google Voice call, learn the choice directly
+        if (_whatsAppCallMode.value == "ask_learn") {
+            saveLearnedCallMode(cleanNumber, "google_voice")
+        }
+
+        val gvChannel = com.example.telecom.ChannelDiscoveryManager.getInstance(context)
+            .getChannelById("google_voice") as? CallingChannel.GoogleVoice
+
+        ContactHelper.launchGoogleVoiceCall(
+            context = context,
+            rawNumber = cleanNumber,
+            accountHandle = gvChannel?.phoneAccountHandle,
+            onCellularFallback = { placeCall(context, cleanNumber) }
+        )
+
+        // Log outgoing Google Voice call so frequency learning & preferred calling mode work
+        viewModelScope.launch(Dispatchers.IO) {
+            val contactName = _deviceContacts.value.firstOrNull { dc ->
+                dc.phoneNumber.contains(cleanNumber) || dc.phoneNumbers.any { it.number.contains(cleanNumber) }
+            }?.name ?: favorites.value.firstOrNull { it.phoneNumber.contains(cleanNumber) }?.name
+
+            repository.insertRecentCall(
+                RecentCall(
+                    phoneNumber = cleanNumber,
+                    callerName = contactName ?: cleanNumber,
+                    callType = android.provider.CallLog.Calls.OUTGOING_TYPE,
+                    timestamp = System.currentTimeMillis(),
+                    durationSeconds = 0,
+                    callReason = "Google Voice Call"
                 )
             )
             refreshRecentCalls()
@@ -1328,7 +1387,7 @@ class MainViewModel(
     }
 
     /**
-     * Determines whether cellular or WhatsApp calling is preferred for this contact/number,
+     * Determines whether cellular, WhatsApp, or Google Voice calling is preferred for this contact/number,
      * checking explicitly learned choices, international rules, or recent call history.
      */
     fun getPreferredCallingMode(phoneNumber: String): String {
@@ -1345,6 +1404,14 @@ class MainViewModel(
         val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
         val digits = clean.filter { it.isDigit() }.takeLast(10)
 
+        // 0. Check unified Room ChannelPreferenceRepository
+        try {
+            val channelPref = com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
+            if (channelPref != null && channelPref.isNotBlank() && channelPref != "ask") {
+                return channelPref
+            }
+        } catch (_: Exception) {}
+
         // 1. Check explicitly learned choice
         val learned = _learnedCallModes.value[clean]
             ?: (if (digits.isNotBlank()) _learnedCallModes.value[digits] else null)
@@ -1356,14 +1423,23 @@ class MainViewModel(
             return "whatsapp"
         }
 
-        // 3. Count past WhatsApp calls vs regular cellular calls in recent calls
+        // 3. Count past WhatsApp/Google Voice calls vs regular cellular calls in recent calls
         val calls = recentCalls.value.filter { call ->
             ContactHelper.isSamePhoneNumber(call.phoneNumber, clean)
         }
-        val waCount = calls.count { it.callReason?.contains("WhatsApp", ignoreCase = true) == true }
-        val gsmCount = calls.count { it.callReason?.contains("WhatsApp", ignoreCase = true) != true }
+        val waBizCount = calls.count { it.callReason?.contains("WhatsApp Business", ignoreCase = true) == true }
+        val waCount = calls.count { it.callReason?.contains("WhatsApp", ignoreCase = true) == true && it.callReason?.contains("Business", ignoreCase = true) != true }
+        val gvCount = calls.count { it.callReason?.contains("Google Voice", ignoreCase = true) == true }
+        val gsmCount = calls.count {
+            it.callReason?.contains("WhatsApp", ignoreCase = true) != true &&
+            it.callReason?.contains("Google Voice", ignoreCase = true) != true
+        }
 
-        return if (waCount > gsmCount && waCount > 0) {
+        return if (gvCount > waBizCount && gvCount > waCount && gvCount > gsmCount) {
+            "google_voice"
+        } else if (waBizCount > waCount && waBizCount > gsmCount && waBizCount > gvCount) {
+            "whatsapp_business"
+        } else if (waCount > gsmCount && waCount > gvCount && waCount > 0) {
             "whatsapp"
         } else if (_whatsAppCallMode.value == "ask_learn") {
             "ask"
@@ -1402,12 +1478,49 @@ class MainViewModel(
     }
 
     /**
-     * Places a call honoring the configured WhatsApp calling mode (All International,
+     * Places a call honoring the configured calling mode (All International,
      * Ask Always prompt, Ask & Learn memory, or cellular).
      */
     fun initiateCall(context: Context, number: String, reason: String? = null) {
         val cleanNumber = number.ifBlank { _dialerNumber.value }
         if (cleanNumber.isBlank()) return
+
+        val clean = cleanNumber.replace(Regex("[^0-9+]"), "")
+
+        // 0. Check unified Room ChannelPreferenceRepository
+        val perNumberPref = try {
+            com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(cleanNumber)
+                ?: com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
+        } catch (_: Exception) { null }
+
+        if (perNumberPref != null && perNumberPref.isNotBlank() && perNumberPref != "ask" && perNumberPref != "ask_always") {
+            when (perNumberPref.lowercase()) {
+                "google_voice" -> {
+                    placeGoogleVoiceCall(context, cleanNumber)
+                    return
+                }
+                "whatsapp" -> {
+                    placeWhatsAppCall(context, cleanNumber, isBusiness = false)
+                    return
+                }
+                "whatsapp_business" -> {
+                    placeWhatsAppCall(context, cleanNumber, isBusiness = true)
+                    return
+                }
+                "sim_1", "sim1" -> {
+                    placeCall(context, cleanNumber, reason, overrideSimSlot = 0)
+                    return
+                }
+                "sim_2", "sim2" -> {
+                    placeCall(context, cleanNumber, reason, overrideSimSlot = 1)
+                    return
+                }
+                "cellular", "system" -> {
+                    placeCall(context, cleanNumber, reason)
+                    return
+                }
+            }
+        }
 
         val isInternational = ContactHelper.isInternationalNumber(context, cleanNumber)
         val mode = _whatsAppCallMode.value
@@ -1437,8 +1550,10 @@ class MainViewModel(
             val learnedChoice = _learnedCallModes.value[clean]
                 ?: if (digits.isNotBlank()) _learnedCallModes.value[digits] else null
             if (learnedChoice != null) {
-                if (learnedChoice == "whatsapp") {
-                    placeWhatsAppCall(context, cleanNumber)
+                if (learnedChoice == "whatsapp" || learnedChoice == "whatsapp_business") {
+                    placeWhatsAppCall(context, cleanNumber, isBusiness = (learnedChoice == "whatsapp_business"))
+                } else if (learnedChoice == "google_voice") {
+                    placeGoogleVoiceCall(context, cleanNumber)
                 } else {
                     placeCall(context, cleanNumber, reason)
                 }
@@ -2343,6 +2458,7 @@ class MainViewModel(
                 _learnedCallModes.value = loadLearnedCallModes()
                 refreshContacts()
                 refreshRecentCalls()
+                com.example.telecom.ChannelDiscoveryManager.getInstance(appContext).refreshChannels()
             }
             refreshLocalBackups()
             onComplete(result)
@@ -2381,6 +2497,7 @@ class MainViewModel(
                 _learnedCallModes.value = loadLearnedCallModes()
                 refreshContacts()
                 refreshRecentCalls()
+                com.example.telecom.ChannelDiscoveryManager.getInstance(appContext).refreshChannels()
                 refreshLocalBackups()
             }
             onComplete(result)

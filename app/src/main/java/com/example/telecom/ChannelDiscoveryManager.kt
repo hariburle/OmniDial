@@ -81,14 +81,25 @@ class ChannelDiscoveryManager(
             // 4. Discover Google Voice (if installed)
             val isGoogleVoiceInstalled = isPackageInstalled("com.google.android.apps.googlevoice")
             if (isGoogleVoiceInstalled) {
+                val voiceAccountHandle = try {
+                    val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
+                    telecomManager?.callCapablePhoneAccounts?.firstOrNull { handle ->
+                        handle.componentName.packageName.contains("googlevoice", ignoreCase = true) ||
+                        handle.componentName.packageName.contains("voice", ignoreCase = true)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
                 discovered.add(
                     CallingChannel.GoogleVoice(
                         packageName = "com.google.android.apps.googlevoice",
+                        phoneAccountHandle = voiceAccountHandle,
                         isAvailable = true
                     )
                 )
             }
 
+            rawDiscoveredChannels = discovered
             _allDiscoveredChannels.value = discovered
 
             val currentConfigs = configRepository.getAllConfigs()
@@ -96,33 +107,36 @@ class ChannelDiscoveryManager(
         }
     }
 
-    private fun applyConfigs(configs: List<ChannelConfig>) {
-        val discovered = _allDiscoveredChannels.value
-        if (discovered.isEmpty()) return
+    private var rawDiscoveredChannels: List<CallingChannel> = emptyList()
 
-        if (!configRepository.hasCompletedOnboarding() || configs.isEmpty()) {
-            _availableChannels.value = discovered
-            return
-        }
+    private fun applyConfigs(configs: List<ChannelConfig>) {
+        val base = rawDiscoveredChannels.ifEmpty { _allDiscoveredChannels.value }
+        if (base.isEmpty()) return
 
         val configMap = configs.associateBy { it.channelId }
-        val updatedDiscovered = discovered.map { channel ->
-            val custom = configMap[channel.id]?.customName ?: configRepository.getCustomNameSync(channel.id)
-            if (custom != null) channel.withCustomName(custom) else channel
+        val updatedDiscovered = base.map { channel ->
+            val cfg = configMap[channel.id]
+            val custom = cfg?.customName?.trim()?.takeIf { it.isNotBlank() }
+                ?: configRepository.getCustomNameSync(channel.id)
+            channel.withCustomName(custom)
         }
         _allDiscoveredChannels.value = updatedDiscovered
 
-        val filtered = updatedDiscovered.mapNotNull { channel ->
-            val cfg = configMap[channel.id]
-            if (cfg != null) {
-                if (cfg.isEnabled) {
-                    channel.withCustomName(cfg.customName)
+        val filtered = if (configs.isNotEmpty()) {
+            updatedDiscovered.mapNotNull { channel ->
+                val cfg = configMap[channel.id]
+                if (cfg != null) {
+                    if (cfg.isEnabled) {
+                        channel.withCustomName(cfg.customName?.trim()?.takeIf { it.isNotBlank() })
+                    } else {
+                        null
+                    }
                 } else {
-                    null
+                    channel
                 }
-            } else {
-                channel
             }
+        } else {
+            updatedDiscovered
         }
 
         _availableChannels.value = if (filtered.isNotEmpty()) {
@@ -135,14 +149,18 @@ class ChannelDiscoveryManager(
         }
     }
 
-    fun getChannelById(channelId: String): CallingChannel? {
+    fun getChannelById(channelId: String, allowDisabled: Boolean = false): CallingChannel? {
+        if (!allowDisabled && !configRepository.isChannelEnabledSync(channelId)) {
+            return null
+        }
         // First check in currently active/configured channels
         _availableChannels.value.firstOrNull { it.id.equals(channelId, ignoreCase = true) }?.let {
             return it
         }
-        // Then check all discovered channels
-        _allDiscoveredChannels.value.firstOrNull { it.id.equals(channelId, ignoreCase = true) }?.let {
-            return it
+        if (allowDisabled) {
+            _allDiscoveredChannels.value.firstOrNull { it.id.equals(channelId, ignoreCase = true) }?.let {
+                return it
+            }
         }
         // Fallback checks for fixed IDs with custom name applied
         val custom = configRepository.getCustomNameSync(channelId)

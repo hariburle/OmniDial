@@ -1012,38 +1012,35 @@ fun ContactsScreen(
                     }
 
                     if (otherFilteredOutMatches.isNotEmpty()) {
-                        if (sortedContacts.isNotEmpty()) {
-                            item(key = "header_other_matches") {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        item(key = "header_other_matches") {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.FilterList,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp),
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                            Text(
-                                                text = "Other Matches Outside Filter (${otherFilteredOutMatches.size})",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = if (sortedContacts.isNotEmpty()) {
+                                            "Other Matches Outside Filter (${otherFilteredOutMatches.size})"
+                                        } else {
+                                            "Contacts Outside Filter (${otherFilteredOutMatches.size})"
+                                        },
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                         }
@@ -1061,21 +1058,11 @@ fun ContactsScreen(
                                 }
                             }
 
-                            val badge = when {
-                                smartSortBy == SmartContactSort.NICKNAMES && contact.nickname.isNullOrBlank() -> "No Nickname"
-                                smartSortBy == SmartContactSort.FAVORITES && !isFav -> "Not in Favs"
-                                smartSortBy == SmartContactSort.RECENT -> "No Recents"
-                                smartSortBy == SmartContactSort.FREQUENT -> "Low Activity"
-                                sourceFilter == ContactSourceFilter.APP_ONLY && !contact.isAppOnly -> "Phone Contact"
-                                sourceFilter == ContactSourceFilter.DEVICE && contact.isAppOnly -> "App Only"
-                                else -> "Outside Filter"
-                            }
-
                             ContactRowItem(
                                 contact = contact,
                                 searchQuery = searchQuery,
                                 isFavorite = isFav,
-                                discoveryBadge = badge,
+                                discoveryBadge = null,
                                 onItemClick = { contactForDetailsSheet = contact },
                                 onRequestCall = {
                                     val normContactNum = contact.phoneNumber.replace(Regex("[^0-9+]"), "")

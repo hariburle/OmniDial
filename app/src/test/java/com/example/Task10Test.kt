@@ -111,4 +111,197 @@ class Task10Test {
         assertTrue(viewModel.dismissModalsTrigger.value >= initialTrigger)
         assertFalse(viewModel.isCallScreenMinimized.value)
     }
+
+    @Test
+    fun testMultiChannelBackupAndRestore() = runBlocking {
+        val singletonDb = AppDatabase.getInstance(context)
+        val dao = singletonDb.appDao()
+
+        // Insert channel preference and configuration
+        dao.setNumberChannelPreference(
+            com.example.data.NumberChannelPreference(
+                normalizedNumber = "+15551234567",
+                preferredChannelId = "whatsapp_business",
+                customLabel = "Work WhatsApp",
+                updatedTimestamp = 123456789L
+            )
+        )
+        dao.insertOrUpdateChannelConfig(
+            com.example.data.ChannelConfig(
+                channelId = "sim_2",
+                isEnabled = true,
+                customName = "International Roaming",
+                orderIndex = 1,
+                updatedTimestamp = 123456789L
+            )
+        )
+
+        // Create backup JSON
+        val jsonString = BackupManager.createBackupJson(context)
+        val root = org.json.JSONObject(jsonString)
+        assertTrue(root.has("numberChannelPreferences"))
+        assertTrue(root.has("channelConfigurations"))
+        assertEquals(3, root.getInt("schemaVersion"))
+
+        // Clear tables
+        dao.clearAllNumberChannelPreferences()
+        dao.clearAllChannelConfigs()
+        assertEquals(0, dao.getAllNumberChannelPreferencesList().size)
+        assertEquals(0, dao.getAllChannelConfigsList().size)
+
+        // Restore from JSON root
+        val result = BackupManager.restoreBackupFromJsonRoot(context, root)
+        assertTrue(result.success)
+        assertEquals(1, result.channelPreferencesCount)
+        assertEquals(1, result.channelConfigsCount)
+
+        // Verify data restored correctly
+        val restoredPrefs = dao.getAllNumberChannelPreferencesList()
+        assertEquals(1, restoredPrefs.size)
+        assertEquals("+15551234567", restoredPrefs[0].normalizedNumber)
+        assertEquals("whatsapp_business", restoredPrefs[0].preferredChannelId)
+
+        val restoredConfigs = dao.getAllChannelConfigsList()
+        assertEquals(1, restoredConfigs.size)
+        assertEquals("sim_2", restoredConfigs[0].channelId)
+        assertEquals("International Roaming", restoredConfigs[0].customName)
+    }
+
+    @Test
+    fun testLegacyV1BackupRestoreMigratesSimPreferences() = runBlocking {
+        val singletonDb = AppDatabase.getInstance(context)
+        val dao = singletonDb.appDao()
+        dao.clearAllNumberChannelPreferences()
+
+        // Create a legacy schema v1 JSON without channel tables
+        val legacyJson = org.json.JSONObject().apply {
+            put("version", 1)
+            put("schemaVersion", 1)
+            put("appName", "OmniDial")
+            put("timestamp", System.currentTimeMillis())
+
+            val prefsObj = org.json.JSONObject()
+            val simPrefsArr = org.json.JSONArray().apply {
+                put("+15559876543:1")
+                put("+15559876544:2")
+            }
+            prefsObj.put("contact_sim_preferences", simPrefsArr)
+
+            val learnedArr = org.json.JSONArray().apply {
+                put("+15559876545:whatsapp")
+            }
+            prefsObj.put("learned_call_modes", learnedArr)
+            put("preferences", prefsObj)
+
+            val favArray = org.json.JSONArray().apply {
+                put(org.json.JSONObject().apply {
+                    put("name", "Legacy Mom")
+                    put("phoneNumber", "+15559876543")
+                })
+            }
+            put("favorites", favArray)
+        }
+
+        val result = BackupManager.restoreBackupFromJsonRoot(context, legacyJson)
+        assertTrue(result.success)
+        assertEquals(1, result.favoritesCount)
+        assertTrue(result.channelPreferencesCount >= 2)
+
+        val channelPrefs = dao.getAllNumberChannelPreferencesList()
+        val num1Pref = channelPrefs.find { it.normalizedNumber == "+15559876543" }
+        assertNotNull(num1Pref)
+        assertEquals("sim_1", num1Pref?.preferredChannelId)
+
+        val num2Pref = channelPrefs.find { it.normalizedNumber == "+15559876544" }
+        assertNotNull(num2Pref)
+        assertEquals("sim_2", num2Pref?.preferredChannelId)
+
+        val num3Pref = channelPrefs.find { it.normalizedNumber == "+15559876545" }
+        assertNotNull(num3Pref)
+        assertEquals("whatsapp", num3Pref?.preferredChannelId)
+    }
+
+    @Test
+    fun testFutureSchemaAndCorruptChecksumAreForgiven() = runBlocking {
+        val singletonDb = AppDatabase.getInstance(context)
+        val dao = singletonDb.appDao()
+        dao.clearAllRules()
+
+        // Future version with checksum mismatch and extra unknown properties
+        val futureJson = org.json.JSONObject().apply {
+            put("schemaVersion", 99)
+            put("appName", "OmniDial NextGen")
+            put("futureCloudSyncId", "sync_xyz_999")
+            put("checksum", "tampered_or_invalid_checksum")
+            put("payloadSignature", "r=10;t=12345")
+
+            val rulesArr = org.json.JSONArray().apply {
+                put(org.json.JSONObject().apply {
+                    put("name", "Forward Compatible Rule")
+                    put("phoneNumberPattern", "+18005550199")
+                    put("futureFeatureFlag", true)
+                })
+                // Malformed item without phone number pattern
+                put(org.json.JSONObject().apply {
+                    put("name", "Broken Rule")
+                })
+            }
+            put("rules", rulesArr)
+        }
+
+        val result = BackupManager.restoreBackupFromJsonRoot(context, futureJson)
+        // Must succeed with best-effort restore instead of failing
+        assertTrue(result.success)
+        assertEquals(1, result.rulesCount)
+
+        val rules = dao.getAllRulesList()
+        assertEquals(1, rules.size)
+        assertEquals("Forward Compatible Rule", rules[0].name)
+    }
+
+    @Test
+    fun testGoogleVoiceChannelDispatchAndResolution() = runBlocking {
+        val gvChannel = com.example.domain.model.CallingChannel.GoogleVoice(
+            packageName = "com.google.android.apps.googlevoice",
+            isAvailable = true
+        )
+        assertEquals("google_voice", gvChannel.id)
+        assertEquals(0xFF0F9D58, gvChannel.brandColorHex)
+        assertEquals("Google Voice", gvChannel.displayName)
+
+        // Verify ChannelDispatchCoordinator dispatchCall for Google Voice
+        val coordinator = com.example.telecom.ChannelDispatchCoordinator.getInstance(context)
+        var gvCallDispatchedNumber: String? = null
+        val callResult = coordinator.dispatchCall(
+            phoneNumber = "+15559876543",
+            channel = gvChannel,
+            reason = "Test GV Call",
+            onCellularCall = { _, _ -> },
+            onWhatsAppCall = {},
+            onShowPicker = {},
+            onGoogleVoiceCall = { num -> gvCallDispatchedNumber = num }
+        )
+        assertTrue(callResult is com.example.telecom.DispatchResult.Dispatched)
+        assertEquals(gvChannel, (callResult as com.example.telecom.DispatchResult.Dispatched).channel)
+        assertEquals("+15559876543", gvCallDispatchedNumber)
+
+        // Verify ChannelDispatchCoordinator dispatchMessage for Google Voice
+        var gvMsgDispatchedNumber: String? = null
+        val msgResult = coordinator.dispatchMessage(
+            phoneNumber = "+15559876543",
+            channel = gvChannel,
+            onSms = {},
+            onWhatsAppMessage = {},
+            onGoogleVoiceMessage = { num -> gvMsgDispatchedNumber = num }
+        )
+        assertTrue(msgResult is com.example.telecom.DispatchResult.Dispatched)
+        assertEquals("+15559876543", gvMsgDispatchedNumber)
+
+        // Verify ChannelPreferenceRepository caching and retrieval
+        val prefRepo = com.example.data.ChannelPreferenceRepository.getInstance(context)
+        prefRepo.setPreferenceForNumber("+15559876543", "google_voice")
+        val cached = prefRepo.getCachedPreference("+15559876543")
+        assertEquals("google_voice", cached)
+    }
 }
+

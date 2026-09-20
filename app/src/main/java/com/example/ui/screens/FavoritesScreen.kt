@@ -189,6 +189,7 @@ fun FavoritesScreen(
     globalSimPreferenceMode: String = "system",
     whatsAppCallMode: String = "ask_learn",
     onCallNumberDirect: ((String, Int?) -> Unit)? = null,
+    onCallGoogleVoice: ((String) -> Unit)? = null,
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -209,6 +210,8 @@ fun FavoritesScreen(
     val gridState = rememberLazyGridState()
     val coroutineScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val discoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
 
     var isSearchActive by remember { mutableStateOf(false) }
     var pendingCallConfirmation by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) }
@@ -1029,6 +1032,13 @@ fun FavoritesScreen(
                                             onCallWhatsApp(contact.phoneNumber)
                                         }
                                     },
+                                    onCallGoogleVoice = {
+                                        if (onCallGoogleVoice != null) {
+                                            onCallGoogleVoice(contact.phoneNumber)
+                                        } else {
+                                            ContactHelper.launchGoogleVoiceCall(context, contact.phoneNumber)
+                                        }
+                                    },
                                     onCallUnknown = {
                                         pendingUnknownCallTarget = contact
                                     },
@@ -1436,20 +1446,10 @@ fun FavoritesScreen(
     if (pendingCallConfirmation != null) {
         val (name, number, requestedWhatsApp) = pendingCallConfirmation!!
         val isWhatsApp = requestedWhatsApp || (getPreferredCallingMode(number) == "whatsapp")
-        val waLabel = remember(context) {
-            try {
-                com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
-            } catch (_: Exception) {
-                "WhatsApp"
-            }
-        }
-        val cellularLabel = remember(context) {
-            try {
-                com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_1") ?: "Cellular"
-            } catch (_: Exception) {
-                "Cellular"
-            }
-        }
+        val waChannel = availableChannels.firstOrNull { it is CallingChannel.WhatsApp }
+        val waLabel = waChannel?.shortLabel ?: "WhatsApp"
+        val cellularChannel = availableChannels.firstOrNull { it is CallingChannel.CellularSim }
+        val cellularLabel = cellularChannel?.shortLabel ?: "Cellular"
         CallConfirmationDialog(
             phoneNumber = number,
             contactName = name,
@@ -1560,6 +1560,13 @@ fun FavoritesScreen(
                 }
                 when (selectedChannel) {
                     is CallingChannel.WhatsApp -> onCallWhatsApp(target.phoneNumber)
+                    is CallingChannel.GoogleVoice -> {
+                        if (onCallGoogleVoice != null) {
+                            onCallGoogleVoice(target.phoneNumber)
+                        } else {
+                            ContactHelper.launchGoogleVoiceCall(context, target.phoneNumber, accountHandle = selectedChannel.phoneAccountHandle)
+                        }
+                    }
                     is CallingChannel.CellularSim -> {
                         val slot = selectedChannel.slotIndex + 1
                         if (onCallNumberDirect != null) {

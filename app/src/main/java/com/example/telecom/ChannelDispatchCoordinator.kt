@@ -66,7 +66,12 @@ class ChannelDispatchCoordinator(
         }
 
         // 3. Learned Call Mode Bias
-        if (learnedMode.equals("whatsapp", ignoreCase = true)) {
+        if (learnedMode.equals("whatsapp_business", ignoreCase = true)) {
+            val waBizChannel = discoveryManager.availableChannels.value
+                .filterIsInstance<CallingChannel.WhatsApp>()
+                .firstOrNull { it.isBusiness && it.isAvailable }
+            if (waBizChannel != null) return waBizChannel
+        } else if (learnedMode.equals("whatsapp", ignoreCase = true)) {
             val waChannel = discoveryManager.availableChannels.value
                 .filterIsInstance<CallingChannel.WhatsApp>()
                 .firstOrNull { !it.isBusiness && it.isAvailable }
@@ -88,7 +93,8 @@ class ChannelDispatchCoordinator(
         reason: String? = null,
         onCellularCall: (simSlot: Int?, reason: String?) -> Unit,
         onWhatsAppCall: (phoneNumber: String) -> Unit,
-        onShowPicker: (channels: List<CallingChannel>) -> Unit
+        onShowPicker: (channels: List<CallingChannel>) -> Unit,
+        onGoogleVoiceCall: ((phoneNumber: String) -> Unit)? = null
     ): DispatchResult {
         val cleanNumber = phoneNumber.trim()
         if (cleanNumber.isBlank()) {
@@ -101,6 +107,7 @@ class ChannelDispatchCoordinator(
                 DispatchResult.Dispatched(channel)
             }
             is CallingChannel.WhatsApp -> {
+                ContactHelper.launchWhatsAppCall(context, cleanNumber, isBusiness = channel.isBusiness)
                 onWhatsAppCall(cleanNumber)
                 DispatchResult.Dispatched(channel)
             }
@@ -114,27 +121,41 @@ class ChannelDispatchCoordinator(
                 DispatchResult.ShowPicker(available)
             }
             is CallingChannel.GoogleVoice -> {
-                // Future Task 14.2 integration: fallback to cellular or direct package intent
-                onCellularCall(null, reason)
+                ContactHelper.launchGoogleVoiceCall(
+                    context = context,
+                    rawNumber = cleanNumber,
+                    accountHandle = channel.phoneAccountHandle,
+                    onCellularFallback = { onCellularCall(null, reason) }
+                )
+                onGoogleVoiceCall?.invoke(cleanNumber)
                 DispatchResult.Dispatched(channel)
             }
         }
     }
 
     /**
-     * Dispatches an SMS or WhatsApp instant message based on the selected channel.
+     * Dispatches an SMS, WhatsApp instant message, or Google Voice message based on the selected channel.
      */
     fun dispatchMessage(
         phoneNumber: String,
         channel: CallingChannel,
         onSms: (phoneNumber: String) -> Unit,
-        onWhatsAppMessage: (phoneNumber: String) -> Unit
+        onWhatsAppMessage: (phoneNumber: String) -> Unit,
+        onGoogleVoiceMessage: ((phoneNumber: String) -> Unit)? = null
     ): DispatchResult {
         val clean = phoneNumber.trim()
         if (clean.isBlank()) return DispatchResult.Error("Phone number cannot be empty")
         return when (channel) {
             is CallingChannel.WhatsApp -> {
                 onWhatsAppMessage(clean)
+                DispatchResult.Dispatched(channel)
+            }
+            is CallingChannel.GoogleVoice -> {
+                if (onGoogleVoiceMessage != null) {
+                    onGoogleVoiceMessage(clean)
+                } else {
+                    ContactHelper.launchGoogleVoiceMessage(context, clean)
+                }
                 DispatchResult.Dispatched(channel)
             }
             else -> {

@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,20 +120,20 @@ fun WhatsAppChoiceDialog(
     var rememberChoice by remember(prompt) { mutableStateOf(prompt.isLearnMode) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    val cellularLabel = remember(context) {
-        try {
-            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_1") ?: "Cellular"
-        } catch (_: Exception) {
-            "Cellular"
-        }
-    }
-    val waLabel = remember(context) {
-        try {
-            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("whatsapp") ?: "WhatsApp"
-        } catch (_: Exception) {
-            "WhatsApp"
-        }
-    }
+    val discoveryManager = remember(context) { com.example.telecom.ChannelDiscoveryManager.getInstance(context) }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
+
+    val cellularChannel = availableChannels.firstOrNull { it is CallingChannel.CellularSim }
+    val cellularLabel = cellularChannel?.shortLabel ?: "Cellular"
+    val isCellularAvailable = cellularChannel != null
+
+    val waChannel = availableChannels.firstOrNull { it is CallingChannel.WhatsApp }
+    val waLabel = waChannel?.shortLabel ?: "WhatsApp"
+    val isWaAvailable = waChannel != null
+
+    val gvChannel = availableChannels.firstOrNull { it is CallingChannel.GoogleVoice }
+    val gvLabel = gvChannel?.shortLabel ?: "Google Voice"
+    val isGvAvailable = gvChannel != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -163,28 +164,67 @@ fun WhatsAppChoiceDialog(
                     )
                 }
 
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = { onChooseMethod("cellular", rememberChoice) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
-                    ) {
-                        Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(cellularLabel)
+                    if (isCellularAvailable && isWaAvailable) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { onChooseMethod("cellular", rememberChoice) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                            ) {
+                                Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(cellularLabel)
+                            }
+
+                            Button(
+                                onClick = { onChooseMethod("whatsapp", rememberChoice) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
+                            ) {
+                                WhatsAppIcon(modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(waLabel, color = Color.White)
+                            }
+                        }
+                    } else if (isCellularAvailable) {
+                        Button(
+                            onClick = { onChooseMethod("cellular", rememberChoice) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                        ) {
+                            Icon(imageVector = Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(cellularLabel)
+                        }
+                    } else if (isWaAvailable) {
+                        Button(
+                            onClick = { onChooseMethod("whatsapp", rememberChoice) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
+                        ) {
+                            WhatsAppIcon(modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(waLabel, color = Color.White)
+                        }
                     }
 
-                    Button(
-                        onClick = { onChooseMethod("whatsapp", rememberChoice) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
-                    ) {
-                        WhatsAppIcon(modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(waLabel, color = Color.White)
+                    if (isGvAvailable) {
+                        Button(
+                            onClick = { onChooseMethod("google_voice", rememberChoice) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F9D58))
+                        ) {
+                            Icon(imageVector = Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(gvLabel, color = Color.White)
+                        }
                     }
                 }
 
@@ -265,46 +305,48 @@ fun SimChoiceDialog(
                     val sim1Title = sim1?.displayName?.takeIf { it.isNotBlank() } ?: "SIM 1"
                     val sim2Title = sim2?.displayName?.takeIf { it.isNotBlank() } ?: "SIM 2"
 
-                    // SIM 1 Button
-                    Button(
-                        onClick = { onSelectSim(1) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(sim1Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (sim1 != null && sim1.carrierName.isNotBlank() && sim1.carrierName != sim1Title) {
-                                Text(
-                                    text = sim1.carrierName,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                    if (sim1 != null) {
+                        Button(
+                            onClick = { onSelectSim(1) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(sim1Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (sim1.carrierName.isNotBlank() && sim1.carrierName != sim1Title) {
+                                    Text(
+                                        text = sim1.carrierName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // SIM 2 Button
-                    Button(
-                        onClick = { onSelectSim(2) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
-                        )
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(sim2Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (sim2 != null && sim2.carrierName.isNotBlank() && sim2.carrierName != sim2Title) {
-                                Text(
-                                    text = sim2.carrierName,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                    if (sim2 != null) {
+                        Button(
+                            onClick = { onSelectSim(2) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary
+                            )
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(sim2Title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (sim2.carrierName.isNotBlank() && sim2.carrierName != sim2Title) {
+                                    Text(
+                                        text = sim2.carrierName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -405,6 +447,14 @@ fun MultiChannelChoiceDialog(
                                         WhatsAppIcon(
                                             modifier = Modifier.size(20.dp),
                                             tint = brandColor
+                                        )
+                                    }
+                                    is CallingChannel.GoogleVoice -> {
+                                        Icon(
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = null,
+                                            tint = brandColor,
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                     else -> {
