@@ -94,6 +94,23 @@ object CallManager {
     private var nativeCall: Call? = null
     private var telecomService: TelecomCallService? = null
 
+    /**
+     * Held so it can be unregistered. Without this the framework keeps a reference to the
+     * callback — and through it to the service Context — for the lifetime of the process, and it
+     * keeps delivering state changes after teardown.
+     */
+    private var activeCallCallback: Call.Callback? = null
+
+    private fun unregisterActiveCallCallback() {
+        val callback = activeCallCallback ?: return
+        activeCallCallback = null
+        try {
+            nativeCall?.unregisterCallback(callback)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister call callback: ${e.message}")
+        }
+    }
+
     // Call UI State
     private val _activeCall = MutableStateFlow<ActiveCallInfo?>(null)
     val activeCall: StateFlow<ActiveCallInfo?> = _activeCall.asStateFlow()
@@ -227,6 +244,8 @@ object CallManager {
     }
 
     fun onCallAdded(call: Call, context: Context) {
+        // Must run before nativeCall is reassigned, so the previous call's callback is released.
+        unregisterActiveCallCallback()
         this.nativeCall = call
         this.appContext = context.applicationContext
         val number = extractPhoneNumber(call)
@@ -272,7 +291,7 @@ object CallManager {
         _activeCall.value = initialCallInfo
         _isRingerSilenced.value = false
 
-        call.registerCallback(object : Call.Callback() {
+        val stateCallback = object : Call.Callback() {
             override fun onStateChanged(call: Call, state: Int) {
                 Log.d(TAG, "Call state changed: $state")
                 if (state != Call.STATE_RINGING) {
@@ -315,7 +334,9 @@ object CallManager {
                     }
                 }
             }
-        })
+        }
+        activeCallCallback = stateCallback
+        call.registerCallback(stateCallback)
 
         CallForegroundService.start(context)
         OngoingCallNotificationHelper.showCallNotification(context, initialCallInfo)
@@ -479,6 +500,7 @@ object CallManager {
     fun onCallRemoved(call: Call, context: Context) {
         if (nativeCall == call) {
             handleCallEnded(context, _activeCall.value)
+            unregisterActiveCallCallback()
             nativeCall = null
         }
     }

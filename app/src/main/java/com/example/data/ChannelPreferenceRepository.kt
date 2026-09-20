@@ -15,13 +15,13 @@ class ChannelPreferenceRepository(
     val allPreferences: Flow<List<NumberChannelPreference>> =
         appRepository.allNumberChannelPreferences
 
-    /**
-     * Swapped atomically rather than cleared-and-refilled, so a concurrent reader can never
-     * observe a half-populated cache and wrongly conclude a number has no preference.
-     */
-    @Volatile
-    private var cachedPreferences: Map<String, String> = emptyMap()
+    private val cachedPreferences = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /**
+     * False until the Room observer has delivered its first emission. Before that the cache is
+     * empty for a reason we cannot distinguish from "this number has no preference", so callers
+     * must not treat a miss as authoritative.
+     */
     @Volatile
     private var cacheReady = false
 
@@ -30,9 +30,10 @@ class ChannelPreferenceRepository(
     init {
         scope.launch {
             allPreferences.collect { list ->
-                val next = HashMap<String, String>(list.size)
-                list.forEach { pref -> next[pref.normalizedNumber] = pref.preferredChannelId }
-                cachedPreferences = next
+                cachedPreferences.clear()
+                list.forEach { pref ->
+                    cachedPreferences[pref.normalizedNumber] = pref.preferredChannelId
+                }
                 cacheReady = true
             }
         }
@@ -50,8 +51,8 @@ class ChannelPreferenceRepository(
 
     suspend fun getPreferredChannelId(phoneNumber: String): String? {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        // Once warm the cache mirrors the whole table, so a miss is authoritative and the
-        // database round-trip on this hot path is unnecessary.
+        // Once warm the cache mirrors the whole table, so a miss is authoritative and the database
+        // round-trip on the call-routing hot path is unnecessary.
         if (cacheReady) return cachedPreferences[normalized]
         return appRepository.getNumberChannelPreference(normalized)?.preferredChannelId
     }
@@ -62,7 +63,7 @@ class ChannelPreferenceRepository(
         customLabel: String? = null
     ) {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        cachedPreferences = cachedPreferences + (normalized to channelId)
+        cachedPreferences[normalized] = channelId
         appRepository.setNumberChannelPreference(normalized, channelId, customLabel)
     }
 
@@ -76,12 +77,12 @@ class ChannelPreferenceRepository(
 
     suspend fun removePreferenceForNumber(phoneNumber: String) {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        cachedPreferences = cachedPreferences - normalized
+        cachedPreferences.remove(normalized)
         appRepository.deleteNumberChannelPreference(normalized)
     }
 
     suspend fun clearAllPreferences() {
-        cachedPreferences = emptyMap()
+        cachedPreferences.clear()
         appRepository.clearAllNumberChannelPreferences()
     }
 
