@@ -265,3 +265,39 @@ Ordered by felt improvement per unit of effort. **Phases 1-3 remove no features.
 **Phase 4 — needs product judgement / migration.** 2.6 add the four missing indexes (after 0.6) · 0.5 `@Transaction` restore · 0.6 migration hardening · 1.5 restructure root composition · 2.1 debounce the contacts observer · 2.3 gate sensors to ringing state.
 
 **Phase 5 — optional.** 3.2 baseline profile · 3.3 Compose stability config · dedupe the UI components · simplify ambient automation · hoist entity normalization out of constructors · split the ViewModel · move `apks/` to GitHub Releases.
+
+---
+
+## Implementation log — 2026-09-20
+
+Branch `perf/fixes-phase1-3`, three commits on top of `bb9dd38`. Rollback instructions: `documents/ROLLBACK.md`. Verified with `:app:compileDebugKotlin` (clean) and `:app:testDebugUnitTest` (63/63). **Not yet run on a device.**
+
+### Done
+
+| Commit | Items |
+|---|---|
+| `2eeeb2e` | 0.1 (warning only) · 0.2 · 1.1 · 1.3 (trigger side) · 2.8 (`$index` key) · 3.1 · `toE164` memoization from 2.7 |
+| `ace68fd` | 1.3 (O(M²) dedup and merge indexed by trailing digits) · 2.6 (`commit()`→`apply()`) · 2.5 (four broken double-checked-locking singletons) · 2.2 (partially — see below) · 2.7 (cache-first `getPreferredChannelId`) |
+| `3e2c82d` | 0.3 (`Call.Callback` leak) |
+
+### Corrections to the findings above
+
+Two claims in the source reviews did not survive contact with the code:
+
+- **§1.1 overstated the libphonenumber cost.** For a search query shorter than 7 digits, `ContactHelper.isSamePhoneNumber` exits through its short-code branch (`d1.length < 7 || d2.length < 7`) and never reaches libphonenumber. Since most typing is short prefixes, the per-keystroke cost was dominated by the **regex compilations and the country-code table sort**, not by parsing. Those are now hoisted, which addresses the real cost. libphonenumber is still reached for queries of 7+ digits, and is now consulted last rather than first.
+- **§1.4 / muse #6 (favorites table scanned 4× per call) is not worth fixing.** A favorites table holds on the order of 5–50 rows, so four scans are ~200 comparisons per call — noise next to the recents merge, which was doing millions. Replacing them with a `normalized_number` index lookup would also narrow matching, and a missed favorite silently loses both the caller name on the in-call screen and the spam-whitelisting at `CallManager.kt:639`. **Rejected: real regression risk, negligible gain.** `favorite_contacts` is already correctly indexed, so the change remains available later if the table ever grows.
+
+### Deliberately not done
+
+- **§2.2 the 1 Hz in-call ticker stays.** The review called it fully redundant with `setUsesChronometer`. It is not: `OngoingCallNotificationHelper.kt:120,127,138` embed a formatted elapsed time in `statusText`, `contentText` and the subtext, and the chronometer drives a *separate* field. Deleting the loop would freeze the visible call timer. Only the genuinely redundant part was removed — the per-tick `createNotificationChannel` binder call.
+- **§0.1 is a warning, not a build failure.** `my-upload-key.jks` is absent from the repo, so the debug-keystore fallback is what runs *today*; failing the build would break `assembleRelease`, which `AGENTS.md` requires for publishing. Promote to an error once the upload key is restored.
+- **The `domain/usecase` package was not deleted.** `TrustTier` is declared in `ResolveCallerIdentityUseCase.kt` and is used in production by `TrustBadge.kt`, `InCallScreen.kt:481` and `CallManager.kt`. Removing the package means relocating the enum — a refactor, not a deletion.
+- **The seven "dead" DAO methods were not deleted.** All seven are called by `AppRepository` pass-throughs; whether they are truly dead depends on whether those wrappers have callers, which was not traced.
+- **§1.2, §1.5, §2.1, §2.3, §2.4, §0.4, §0.5, §0.6 and all of Phases 4–5 remain open.** §1.2 (single filter pass, passing the matched number into `ContactRowItem`) and §2.1 (debouncing the contacts observer) are the highest-value remaining items; §1.5 and §2.3 change observable behaviour and need product judgement.
+
+### Still outstanding, unrelated to performance
+
+- `bb9dd38` and `5651a63` have never been pushed to `origin/main`.
+- `stash@{0}` still holds Gemini's abandoned refactor. Its `activeCallCallback` field is now superseded by `3e2c82d`; the rest of it does not compile. Safe to drop.
+- §3.4 is unanswered: it is still not known whether the reported slowness was observed on a debug or a release build. If it was debug, the felt improvement from these fixes will be larger than the release-build improvement, and §3.2 (baseline profile) moves to the top of the list.
+
