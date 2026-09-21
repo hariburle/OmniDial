@@ -33,6 +33,8 @@ import com.example.util.ContactHelper
 import com.example.util.ContactPhoneNumber
 import com.example.util.DeviceContact
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -523,6 +525,7 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val isRefreshingRecents = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val refreshRecentsChannel = Channel<Unit>(Channel.CONFLATED)
     private val contactsMutex = kotlinx.coroutines.sync.Mutex()
     private var hasSeededInitialCalls = false
 
@@ -587,12 +590,29 @@ class MainViewModel(
         refreshLocalBackups()
         registerContactsObserver()
         registerCallLogObserver()
+        viewModelScope.launch(Dispatchers.IO) {
+            for (trigger in refreshRecentsChannel) {
+                executeRecentCallsRefresh()
+            }
+        }
         viewModelScope.launch {
             CallManager.activeCall.collect { call ->
                 if (call != null) {
                     if (call.state != android.telecom.Call.STATE_DISCONNECTED) {
                         dismissAllModals()
                     } else {
+                        refreshRecentCalls()
+                        launch {
+                            delay(600)
+                            refreshRecentCalls()
+                            delay(1500)
+                            refreshRecentCalls()
+                        }
+                    }
+                } else {
+                    refreshRecentCalls()
+                    launch {
+                        delay(600)
                         refreshRecentCalls()
                     }
                 }
@@ -601,15 +621,24 @@ class MainViewModel(
         viewModelScope.launch {
             CallManager.callLoggedEvent.collect {
                 refreshRecentCalls()
+                launch {
+                    delay(600)
+                    refreshRecentCalls()
+                    delay(1500)
+                    refreshRecentCalls()
+                }
             }
         }
     }
 
     fun refreshRecentCalls() {
+        refreshRecentsChannel.trySend(Unit)
+    }
+
+    private suspend fun executeRecentCallsRefresh() {
         if (!isRefreshingRecents.compareAndSet(false, true)) return
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
+        try {
+            fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
 
                 fun isCallDeleted(call: RecentCall): Boolean {
                     val digits = normDigits(call.phoneNumber)
@@ -740,7 +769,6 @@ class MainViewModel(
             } finally {
                 isRefreshingRecents.set(false)
             }
-        }
     }
 
     fun refreshContacts() {
@@ -896,9 +924,10 @@ class MainViewModel(
         }
     }
 
-    private fun registerCallLogObserver() {
+    fun registerCallLogObserver() {
+        if (callLogObserver != null) return
         try {
-            callLogObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
                 override fun onChange(selfChange: Boolean, uri: Uri?) {
                     super.onChange(selfChange, uri)
                     refreshRecentCalls()
@@ -907,10 +936,11 @@ class MainViewModel(
             appContext.contentResolver.registerContentObserver(
                 CallLog.Calls.CONTENT_URI,
                 true,
-                callLogObserver!!
+                observer
             )
+            callLogObserver = observer
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("MainViewModel", "Could not register callLogObserver: ${e.message}")
         }
     }
 

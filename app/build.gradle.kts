@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.File
 import java.util.Base64
 
 plugins {
@@ -44,7 +45,7 @@ android {
       keyPassword = "android"
     }
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+      val keystorePath = System.getenv("KEYSTORE_PATH")?.ifBlank { null } ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
       keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
@@ -102,26 +103,39 @@ secrets {
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
 
 val releaseSigningConfig = android.signingConfigs.getByName("release")
-val configuredStoreFile = releaseSigningConfig.storeFile
-val configuredStorePassword = releaseSigningConfig.storePassword
-val configuredKeyAlias = releaseSigningConfig.keyAlias
-val configuredKeyPassword = releaseSigningConfig.keyPassword
+val configuredStoreFilePath = releaseSigningConfig.storeFile?.absolutePath ?: ""
+val configuredStorePassword = releaseSigningConfig.storePassword ?: ""
+val configuredKeyAlias = releaseSigningConfig.keyAlias ?: ""
+val configuredKeyPassword = releaseSigningConfig.keyPassword ?: ""
 val rootDirPath = rootDir.absolutePath
 
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+  inputs.property("storeFilePath", configuredStoreFilePath)
+  inputs.property("storePassword", configuredStorePassword)
+  inputs.property("keyAlias", configuredKeyAlias)
+  inputs.property("keyPassword", configuredKeyPassword)
+  inputs.property("rootDirPath", rootDirPath)
+
   doFirst {
+    val storePath = inputs.properties["storeFilePath"] as String
+    val storePass = inputs.properties["storePassword"] as String
+    val alias = inputs.properties["keyAlias"] as String
+    val keyPass = inputs.properties["keyPassword"] as String
+    val rootDirAbsPath = inputs.properties["rootDirPath"] as String
+
     val missing = mutableListOf<String>()
 
-    if (configuredStoreFile == null || !configuredStoreFile.exists()) {
-      missing.add("Release keystore file not found at: ${configuredStoreFile?.absolutePath ?: "unspecified"}")
+    val storeFile = File(storePath)
+    if (storePath.isBlank() || !storeFile.isFile) {
+      missing.add("Release keystore file not found at: ${if (storePath.isBlank()) "unspecified" else storePath}")
     }
-    if (configuredStorePassword.isNullOrBlank()) {
+    if (storePass.isBlank()) {
       missing.add("Keystore password is missing (set STORE_PASSWORD environment variable)")
     }
-    if (configuredKeyAlias.isNullOrBlank()) {
+    if (alias.isBlank()) {
       missing.add("Key alias is missing (set KEY_ALIAS environment variable, defaults to 'upload')")
     }
-    if (configuredKeyPassword.isNullOrBlank()) {
+    if (keyPass.isBlank()) {
       missing.add("Key password is missing (set KEY_PASSWORD environment variable)")
     }
 
@@ -138,7 +152,7 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach {
         |
         |HOW TO FIX:
         |1. Place your release keystore at:
-        |   $rootDirPath/my-upload-key.jks
+        |   $rootDirAbsPath/my-upload-key.jks
         |   (or set KEYSTORE_PATH to point to your keystore file).
         |2. Set the STORE_PASSWORD environment variable to your keystore password.
         |3. Set the KEY_PASSWORD environment variable to your key password.

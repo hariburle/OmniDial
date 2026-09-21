@@ -506,6 +506,7 @@ object CallManager {
     }
 
     private fun handleCallEnded(context: Context, callInfo: ActiveCallInfo?) {
+        OmniCallRedirectionService.dismissRedirectionNotification(context)
         _isRingerSilenced.value = false
         releaseProximityWakeLock()
         TelecomVoipHelper.endVoipCall()
@@ -679,6 +680,7 @@ object CallManager {
     }
 
     fun dismissActiveCall() {
+        appContext?.let { OmniCallRedirectionService.dismissRedirectionNotification(it) }
         _activeCall.value = null
         _automationState.value = null
         _isMuted.value = false

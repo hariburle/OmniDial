@@ -174,6 +174,7 @@ class OmniCallRedirectionService : CallRedirectionService() {
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setFullScreenIntent(pendingIntent, true)
                 .setAutoCancel(true)
+                .setTimeoutAfter(4000L)
                 .setContentIntent(pendingIntent)
                 .addAction(
                     android.R.drawable.sym_action_call,
@@ -190,5 +191,15 @@ class OmniCallRedirectionService : CallRedirectionService() {
 
     companion object {
         private const val TAG = "OmniCallRedirection"
+        const val NOTIFICATION_ID = 902
+
+        fun dismissRedirectionNotification(context: Context) {
+            try {
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                nm?.cancel(NOTIFICATION_ID)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to cancel redirection notification", e)
+            }
+        }
     }
 }

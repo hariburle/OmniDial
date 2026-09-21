@@ -126,7 +126,10 @@ fun SettingsScreen(
                         )
                     }
                     Button(
-                        onClick = { showChannelConfigDialog = true },
+                        onClick = {
+                            discoveryManager.refreshChannels()
+                            showChannelConfigDialog = true
+                        },
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.testTag("manage_channels_button")
                     ) {

@@ -45,6 +45,7 @@ class ChannelDiscoveryManager(
                             subscriptionId = sim.subscriptionId,
                             carrierName = sim.carrierName.ifBlank { sim.displayName },
                             isRoaming = sim.isRoaming,
+                            deviceSimName = sim.deviceSimName ?: sim.displayName,
                             isAvailable = true
                         )
                     )

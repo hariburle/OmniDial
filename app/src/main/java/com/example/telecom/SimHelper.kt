@@ -20,7 +20,8 @@ data class SimInfo(
     val carrierName: String,     // e.g. "Spectrum", "Verizon"
     val number: String? = null,
     val isDefault: Boolean = false,
-    val isRoaming: Boolean = false
+    val isRoaming: Boolean = false,
+    val deviceSimName: String? = null // custom name from device's SIM management (e.g., "US", "IN")
 )
 
 object SimHelper {
@@ -53,12 +54,7 @@ object SimHelper {
 
                 for (info in activeList) {
                     val slot = info.simSlotIndex // 0 for SIM 1, 1 for SIM 2
-                    val isEnabled = try {
-                        com.example.data.ChannelConfigRepository.getInstance(context).isChannelEnabledSync("sim_${slot + 1}")
-                    } catch (_: Exception) {
-                        true
-                    }
-                    if (!isEnabled) continue
+                    if (slot < 0) continue
 
                     val display = info.displayName?.toString()?.trim()
                     val carrier = info.carrierName?.toString()?.trim()
@@ -67,11 +63,15 @@ object SimHelper {
                     } catch (_: Exception) {
                         null
                     }
-                    val name = customName?.takeIf { it.isNotBlank() } ?: when {
-                        !display.isNullOrBlank() && !display.equals("CARD $slot", ignoreCase = true) -> display
+
+                    // Extract device-managed custom name (e.g. "US", "IN") if not generic CARD index
+                    val deviceSimName = when {
+                        !display.isNullOrBlank() && !display.equals("CARD $slot", ignoreCase = true) && !display.equals("CARD ${slot + 1}", ignoreCase = true) -> display
                         !carrier.isNullOrBlank() -> carrier
                         else -> "SIM ${slot + 1}"
                     }
+
+                    val name = customName?.takeIf { it.isNotBlank() } ?: deviceSimName
 
                     val isRoaming = try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -91,7 +91,8 @@ object SimHelper {
                             carrierName = carrier ?: name,
                             number = info.number?.takeIf { it.isNotBlank() },
                             isDefault = (info.subscriptionId == defaultSubId),
-                            isRoaming = isRoaming
+                            isRoaming = isRoaming,
+                            deviceSimName = deviceSimName
                         )
                     )
                 }

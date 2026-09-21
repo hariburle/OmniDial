@@ -820,32 +820,43 @@ fun DialerScreen(
                         CompositionLocalProvider(
                             LocalTextInputService provides null
                         ) {
-                            BasicTextField(
-                                value = tFV,
-                                onValueChange = { newValue ->
-                                    selectionState = newValue.selection
-                                    keyboardController?.hide()
-                                },
-                                readOnly = true,
-                                textStyle = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Center
-                                ),
-                                singleLine = true,
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("dialer_number_display"),
-                                decorationBox = { innerTextField ->
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        innerTextField()
-                                    }
+                            @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+                            androidx.compose.ui.platform.InterceptPlatformTextInput(
+                                interceptor = { _, _ ->
+                                    kotlinx.coroutines.awaitCancellation()
                                 }
-                            )
+                            ) {
+                                BasicTextField(
+                                    value = tFV,
+                                    onValueChange = { newValue ->
+                                        selectionState = newValue.selection
+                                        keyboardController?.hide()
+                                        if (newValue.text != localNumber) {
+                                            val sanitized = newValue.text.filter { it.isDigit() || it == '+' || it == '*' || it == '#' || it == ',' || it == ';' }
+                                            updateLocalNumber(sanitized)
+                                        }
+                                    },
+                                    readOnly = false,
+                                    textStyle = MaterialTheme.typography.headlineMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("dialer_number_display"),
+                                    decorationBox = { innerTextField ->
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            innerTextField()
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
 

@@ -35,11 +35,30 @@ sealed interface CallingChannel {
         val carrierName: String,
         val isRoaming: Boolean,
         val customName: String? = null,
+        val deviceSimName: String? = null,
         override val isAvailable: Boolean = true
     ) : CallingChannel {
         override val id: String = if (slotIndex == 0) "sim_1" else "sim_2"
-        override val displayName: String = customName?.takeIf { it.isNotBlank() } ?: "SIM ${slotIndex + 1} ($carrierName)"
-        override val shortLabel: String = customName?.takeIf { it.isNotBlank() } ?: "SIM ${slotIndex + 1}"
+
+        private val baseLabel: String
+            get() = customName?.takeIf { it.isNotBlank() }
+                ?: deviceSimName?.takeIf { it.isNotBlank() }
+                ?: "SIM ${slotIndex + 1}"
+
+        override val displayName: String
+            get() {
+                val base = baseLabel
+                val carrier = carrierName.trim()
+                return when {
+                    carrier.isBlank() || base.equals(carrier, ignoreCase = true) -> base
+                    base.contains(carrier, ignoreCase = true) -> base
+                    else -> "$base ($carrier)"
+                }
+            }
+
+        override val shortLabel: String
+            get() = baseLabel
+
         override val brandColorHex: Long = if (slotIndex == 0) 0xFF3B82F6 else 0xFF8B5CF6 // Blue for SIM 1, Purple for SIM 2
         override val category: ChannelCategory = ChannelCategory.CELLULAR
     }

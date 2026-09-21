@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -229,6 +230,8 @@ class MainActivity : ComponentActivity() {
         if (currentCall != null && currentCall.state != android.telecom.Call.STATE_DISCONNECTED) {
             com.example.telecom.OngoingCallNotificationHelper.showCallNotification(this, currentCall)
         }
+        com.example.telecom.OmniCallRedirectionService.dismissRedirectionNotification(this)
+        viewModel.registerCallLogObserver()
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshCallRedirectionStatus()
         if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
@@ -503,6 +506,9 @@ fun MainAppContent(
     // Clear focus on startup and tab change so keyboard never pops unexpectedly
     LaunchedEffect(selectedTab) {
         focusManager.clearFocus()
+        if (selectedTab == 1) {
+            viewModel.refreshRecentCalls()
+        }
     }
 
     LaunchedEffect(activeCall?.state) {
@@ -510,6 +516,9 @@ fun MainAppContent(
                 activeCall?.state != Call.STATE_DISCONNECTED &&
                 activeCall?.state != Call.STATE_DISCONNECTING
         (context as? MainActivity)?.updateLockScreenFlags(hasActive)
+        if (!hasActive) {
+            viewModel.refreshRecentCalls()
+        }
     }
 
     LaunchedEffect(pendingNavTab) {
@@ -629,6 +638,9 @@ fun MainAppContent(
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        com.example.telecom.OmniCallRedirectionService.dismissRedirectionNotification(context)
+        viewModel.registerCallLogObserver()
+        channelDiscoveryManager.refreshChannels()
         hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(context)
         } else true
@@ -643,17 +655,20 @@ fun MainAppContent(
     ) {
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshSimCards()
+        channelDiscoveryManager.refreshChannels()
     }
 
     // Request necessary runtime permissions
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
+        viewModel.registerCallLogObserver()
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshSimCards()
         viewModel.refreshRecentCalls()
         viewModel.refreshContacts()
         viewModel.syncWithDeviceContacts()
+        channelDiscoveryManager.refreshChannels()
     }
 
     LaunchedEffect(Unit) {
@@ -676,6 +691,14 @@ fun MainAppContent(
         }
         if (ungranted.isNotEmpty()) {
             permissionLauncher.launch(ungranted.toTypedArray())
+        } else {
+            channelDiscoveryManager.refreshChannels()
+        }
+    }
+
+    LaunchedEffect(showChannelOnboarding) {
+        if (showChannelOnboarding) {
+            channelDiscoveryManager.refreshChannels()
         }
     }
 
@@ -782,27 +805,60 @@ fun MainAppContent(
                             }
                         }
                         "compact" -> {
-                            NavigationBar(
-                                modifier = Modifier.testTag("bottom_nav_bar")
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 3.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .height(52.dp)
+                                    .testTag("bottom_nav_bar")
                             ) {
-                                val navItems = listOf(
-                                    Triple(0, Icons.Default.Star, "Favorites"),
-                                    Triple(1, Icons.Default.History, "Recents"),
-                                    Triple(2, Icons.Default.Dialpad, "Keypad"),
-                                    Triple(3, Icons.Default.Contacts, "Contacts"),
-                                    Triple(4, Icons.Default.SmartToy, "Rules")
-                                )
-                                navItems.forEach { (tabIdx, icon, name) ->
-                                    NavigationBarItem(
-                                        selected = selectedTab == tabIdx,
-                                        onClick = {
-                                            if (tabIdx == 4) ruleNumberToCreate = null
-                                            navigateToTab(tabIdx)
-                                        },
-                                        icon = { Icon(icon, contentDescription = name) },
-                                        alwaysShowLabel = false,
-                                        modifier = Modifier.testTag("nav_${name.lowercase()}")
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val navItems = listOf(
+                                        Triple(0, Icons.Default.Star, "Favorites"),
+                                        Triple(1, Icons.Default.History, "Recents"),
+                                        Triple(2, Icons.Default.Dialpad, "Keypad"),
+                                        Triple(3, Icons.Default.Contacts, "Contacts"),
+                                        Triple(4, Icons.Default.SmartToy, "Rules")
                                     )
+                                    navItems.forEach { (tabIdx, icon, name) ->
+                                        val isSelected = selectedTab == tabIdx
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .clickable {
+                                                    if (tabIdx == 4) ruleNumberToCreate = null
+                                                    navigateToTab(tabIdx)
+                                                }
+                                                .testTag("nav_${name.lowercase()}"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                                                modifier = Modifier
+                                                    .height(32.dp)
+                                                    .width(52.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = icon,
+                                                        contentDescription = name,
+                                                        tint = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -288,6 +288,15 @@ fun ChannelSetupDialog(
                                     value = currentName,
                                     onValueChange = { customNamesState[channel.id] = it },
                                     label = { Text("Display Name / Label", style = MaterialTheme.typography.labelSmall) },
+                                    supportingText = if (channel is CallingChannel.CellularSim && !channel.deviceSimName.isNullOrBlank()) {
+                                        {
+                                            Text(
+                                                text = "Device SIM: ${channel.deviceSimName} (${channel.carrierName})",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    } else null,
                                     singleLine = true,
                                     modifier = Modifier
                                         .fillMaxWidth()
