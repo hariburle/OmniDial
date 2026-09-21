@@ -44,26 +44,11 @@ android {
       keyPassword = "android"
     }
     create("release") {
-      val uploadKey = file(System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks")
-      if (uploadKey.exists()) {
-        storeFile = uploadKey
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = "upload"
-        keyPassword = System.getenv("KEY_PASSWORD")
-      } else {
-        // Not a hard failure: assembleRelease is the publishing path required by AGENTS.md, and
-        // breaking it would block releases until the upload key is restored. Promote to an error
-        // once my-upload-key.jks (or KEYSTORE_PATH) is available again.
-        logger.warn(
-          "WARNING: upload keystore not found at ${uploadKey.path}. " +
-            "Release APKs will be signed with the committed debug.keystore, which is NOT valid for " +
-            "Play Store upload and is a security risk. Set KEYSTORE_PATH or restore my-upload-key.jks."
-        )
-        storeFile = file("../debug.keystore")
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
-      }
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+      storeFile = file(keystorePath)
+      storePassword = System.getenv("STORE_PASSWORD")
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+      keyPassword = System.getenv("KEY_PASSWORD")
     }
   }
 
@@ -115,6 +100,55 @@ secrets {
 }
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
+
+val releaseSigningConfig = android.signingConfigs.getByName("release")
+val configuredStoreFile = releaseSigningConfig.storeFile
+val configuredStorePassword = releaseSigningConfig.storePassword
+val configuredKeyAlias = releaseSigningConfig.keyAlias
+val configuredKeyPassword = releaseSigningConfig.keyPassword
+val rootDirPath = rootDir.absolutePath
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+  doFirst {
+    val missing = mutableListOf<String>()
+
+    if (configuredStoreFile == null || !configuredStoreFile.exists()) {
+      missing.add("Release keystore file not found at: ${configuredStoreFile?.absolutePath ?: "unspecified"}")
+    }
+    if (configuredStorePassword.isNullOrBlank()) {
+      missing.add("Keystore password is missing (set STORE_PASSWORD environment variable)")
+    }
+    if (configuredKeyAlias.isNullOrBlank()) {
+      missing.add("Key alias is missing (set KEY_ALIAS environment variable, defaults to 'upload')")
+    }
+    if (configuredKeyPassword.isNullOrBlank()) {
+      missing.add("Key password is missing (set KEY_PASSWORD environment variable)")
+    }
+
+    if (missing.isNotEmpty()) {
+      throw GradleException(
+        """
+        |
+        |================================================================================
+        |RELEASE BUILD SIGNING CONFIGURATION ERROR:
+        |Release builds cannot use debug keys or proceed without valid release signing.
+        |
+        |The following required signing configuration items are missing:
+        |${missing.joinToString("\n") { "  - $it" }}
+        |
+        |HOW TO FIX:
+        |1. Place your release keystore at:
+        |   $rootDirPath/my-upload-key.jks
+        |   (or set KEYSTORE_PATH to point to your keystore file).
+        |2. Set the STORE_PASSWORD environment variable to your keystore password.
+        |3. Set the KEY_PASSWORD environment variable to your key password.
+        |4. (Optional) Set KEY_ALIAS if different from default ('upload').
+        |================================================================================
+        """.trimMargin()
+      )
+    }
+  }
+}
 
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
