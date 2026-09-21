@@ -984,6 +984,8 @@ fun FavoritesScreen(
 
                                                     val fromCol = fromIdx % columnsCount
                                                     val toCol = toIdx % columnsCount
+                                                    val fromRow = fromIdx / columnsCount
+                                                    val toRow = toIdx / columnsCount
 
                                                     // Check if drop is in the center swap zone (inner 60% of card)
                                                     val inCenterX = currentCenter.x >= (left + w * 0.2f) && currentCenter.x <= (left + w * 0.8f)
@@ -991,8 +993,8 @@ fun FavoritesScreen(
                                                     val isDirectSwap = inCenterX && inCenterY
 
                                                     val next = localFavorites.toMutableList()
-                                                    if (isDirectSwap || fromCol == toCol) {
-                                                        // Same column movement OR direct center drop on another card -> Direct 2D Swap
+                                                    if (isDirectSwap || fromCol == toCol || fromRow == toRow) {
+                                                        // Same column, same row, OR direct center drop on another card -> Direct 2D Swap
                                                         Collections.swap(next, fromIdx, toIdx)
                                                     } else {
                                                         // Edge/boundary drop across columns -> Shift & make space (insert)
@@ -1005,8 +1007,11 @@ fun FavoritesScreen(
                                                         val item = next.removeAt(fromIdx)
                                                         next.add(insertIdx, item)
                                                     }
+                                                    val orderChanged = next != localFavorites
                                                     localFavorites = next
-                                                    lastSwappedTargetId = targetKey
+                                                    // Only lock the target when the order actually changed;
+                                                    // a no-op must not swallow further drag input over the same card
+                                                    if (orderChanged) lastSwappedTargetId = targetKey
                                                     try {
                                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                     } catch (_: Exception) {}
