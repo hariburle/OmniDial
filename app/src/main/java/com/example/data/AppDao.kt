@@ -70,6 +70,9 @@ interface AppDao {
     @Query("DELETE FROM recent_calls WHERE (phoneNumber = :phoneNumber OR normalized_number = :normalizedNumber) AND ABS(timestamp - :timestamp) < 60000")
     suspend fun deleteRecentCallByNumberAndTimestamp(phoneNumber: String, normalizedNumber: String, timestamp: Long)
 
+    @Query("DELETE FROM recent_calls")
+    suspend fun clearAllRecentCalls()
+
     @Query("SELECT * FROM recent_calls ORDER BY timestamp DESC")
     suspend fun getAllRecentCallsList(): List<RecentCall>
 
@@ -183,4 +186,77 @@ interface AppDao {
 
     @Query("DELETE FROM contact_sim_preferences")
     suspend fun clearAllContactSimPreferences()
+
+    @Query("SELECT * FROM number_channel_preferences")
+    fun getAllNumberChannelPreferences(): Flow<List<NumberChannelPreference>>
+
+    @Query("SELECT * FROM number_channel_preferences")
+    suspend fun getAllNumberChannelPreferencesList(): List<NumberChannelPreference>
+
+    @Query("SELECT * FROM number_channel_preferences WHERE normalized_number = :normalizedNumber LIMIT 1")
+    suspend fun getNumberChannelPreference(normalizedNumber: String): NumberChannelPreference?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setNumberChannelPreference(pref: NumberChannelPreference)
+
+    @Query("DELETE FROM number_channel_preferences WHERE normalized_number = :normalizedNumber")
+    suspend fun deleteNumberChannelPreference(normalizedNumber: String)
+
+    @Query("DELETE FROM number_channel_preferences")
+    suspend fun clearAllNumberChannelPreferences()
+
+    @Query("SELECT * FROM channel_configurations ORDER BY order_index ASC")
+    fun getAllChannelConfigs(): Flow<List<ChannelConfig>>
+
+    @Query("SELECT * FROM channel_configurations ORDER BY order_index ASC")
+    suspend fun getAllChannelConfigsList(): List<ChannelConfig>
+
+    @Query("SELECT * FROM channel_configurations WHERE channel_id = :channelId LIMIT 1")
+    suspend fun getChannelConfig(channelId: String): ChannelConfig?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateChannelConfig(config: ChannelConfig)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateChannelConfigs(configs: List<ChannelConfig>)
+
+    @Query("UPDATE channel_configurations SET is_enabled = :isEnabled, updated_timestamp = :timestamp WHERE channel_id = :channelId")
+    suspend fun setChannelEnabled(channelId: String, isEnabled: Boolean, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE channel_configurations SET custom_name = :customName, updated_timestamp = :timestamp WHERE channel_id = :channelId")
+    suspend fun setChannelCustomName(channelId: String, customName: String?, timestamp: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM channel_configurations WHERE channel_id = :channelId")
+    suspend fun deleteChannelConfig(channelId: String)
+
+    @Query("DELETE FROM channel_configurations")
+    suspend fun clearAllChannelConfigs()
+
+    @Query("SELECT * FROM contact_default_numbers")
+    fun getAllDefaultNumbers(): Flow<List<ContactDefaultNumber>>
+
+    @Query("SELECT * FROM contact_default_numbers")
+    suspend fun getAllDefaultNumbersList(): List<ContactDefaultNumber>
+
+    @Query("SELECT * FROM contact_default_numbers WHERE normalized_number = :normalizedNumber LIMIT 1")
+    suspend fun getDefaultNumber(normalizedNumber: String): ContactDefaultNumber?
+
+    @Query("SELECT * FROM contact_default_numbers WHERE contact_id = :contactId LIMIT 1")
+    suspend fun getDefaultNumberByContactId(contactId: Long): ContactDefaultNumber?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDefaultNumber(defaultNumber: ContactDefaultNumber)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDefaultNumbers(defaultNumbers: List<ContactDefaultNumber>)
+
+    @Query("DELETE FROM contact_default_numbers WHERE normalized_number = :normalizedNumber")
+    suspend fun deleteDefaultNumber(normalizedNumber: String)
+
+    @Query("DELETE FROM contact_default_numbers WHERE contact_id = :contactId")
+    suspend fun deleteDefaultNumberByContactId(contactId: Long)
+
+    @Query("DELETE FROM contact_default_numbers")
+    suspend fun clearAllDefaultNumbers()
 }
+

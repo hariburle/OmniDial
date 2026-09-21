@@ -86,4 +86,50 @@ class ExampleUnitTest {
         assertEquals("Nicknames", nicknamesSort.label)
         assertEquals("Contacts with Nicknames", nicknamesSort.description)
     }
+
+    @Test
+    fun testT9SecondaryNumberMatchPreservesMatchingNumberAndLabel() {
+        val contact = DeviceContact(
+            name = "Kishan Patel",
+            phoneNumber = "+919876543210",
+            label = "India Mobile",
+            phoneNumbers = listOf(
+                ContactPhoneNumber("+919876543210", "India Mobile"),
+                ContactPhoneNumber("+16505551234", "US Work")
+            )
+        )
+
+        val results = com.example.util.T9Helper.search(listOf(contact), "6505551234")
+        assertEquals(1, results.size)
+        val match = results[0]
+        assertEquals("Kishan Patel", match.name)
+        // Must return the matched US Work number, NOT the default India Mobile number
+        assertEquals("+16505551234", match.phoneNumber)
+        assertEquals("US Work", match.label)
+        assertEquals(2, match.allPhoneNumbers.size)
+    }
+
+    @Test
+    fun testT9NameSearchReturnsAllPhoneNumbersForContact() {
+        val contact = DeviceContact(
+            name = "Alice Smith",
+            phoneNumber = "+15551111111",
+            label = "Mobile",
+            phoneNumbers = listOf(
+                ContactPhoneNumber("+15551111111", "Mobile"),
+                ContactPhoneNumber("+15552222222", "Home"),
+                ContactPhoneNumber("+15553333333", "Work")
+            )
+        )
+
+        // "25423" corresponds to "ALICE"
+        val results = com.example.util.T9Helper.search(listOf(contact), "25423")
+        assertEquals(1, results.size)
+        val match = results[0]
+        assertEquals("Alice Smith", match.name)
+        assertEquals(3, match.allPhoneNumbers.size)
+        assertEquals("+15551111111", match.allPhoneNumbers[0].number)
+        assertEquals("+15552222222", match.allPhoneNumbers[1].number)
+        assertEquals("+15553333333", match.allPhoneNumbers[2].number)
+    }
 }

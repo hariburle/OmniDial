@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -61,11 +62,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Dialpad
@@ -79,7 +80,11 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import android.app.PendingIntent
 import android.app.RemoteAction
+import androidx.compose.runtime.collectAsState
+import com.example.data.ChannelConfigRepository
 import com.example.telecom.CallNotificationReceiver
+import com.example.telecom.ChannelDiscoveryManager
+import com.example.ui.components.ChannelSetupDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -215,6 +220,7 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra("EXTRA_IN_CALL", false)) {
             viewModel.maximizeCall()
         }
+        viewModel.refreshRecentCalls()
     }
 
     override fun onResume() {
@@ -224,6 +230,8 @@ class MainActivity : ComponentActivity() {
         if (currentCall != null && currentCall.state != android.telecom.Call.STATE_DISCONNECTED) {
             com.example.telecom.OngoingCallNotificationHelper.showCallNotification(this, currentCall)
         }
+        com.example.telecom.OmniCallRedirectionService.dismissRedirectionNotification(this)
+        viewModel.registerCallLogObserver()
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshCallRedirectionStatus()
         if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
@@ -448,6 +456,7 @@ fun MainAppContent(
     val rules by viewModel.rules.collectAsStateWithLifecycle()
     val recentCalls by viewModel.recentCalls.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val defaultContactNumbers by viewModel.defaultContactNumbers.collectAsStateWithLifecycle()
     val ignoredContacts by viewModel.ignoredContacts.collectAsStateWithLifecycle()
     val spamNumbers by viewModel.spamNumbers.collectAsStateWithLifecycle()
     val automationLogs by viewModel.automationLogs.collectAsStateWithLifecycle()
@@ -498,6 +507,9 @@ fun MainAppContent(
     // Clear focus on startup and tab change so keyboard never pops unexpectedly
     LaunchedEffect(selectedTab) {
         focusManager.clearFocus()
+        if (selectedTab == 1) {
+            viewModel.refreshRecentCalls()
+        }
     }
 
     LaunchedEffect(activeCall?.state) {
@@ -505,6 +517,9 @@ fun MainAppContent(
                 activeCall?.state != Call.STATE_DISCONNECTED &&
                 activeCall?.state != Call.STATE_DISCONNECTING
         (context as? MainActivity)?.updateLockScreenFlags(hasActive)
+        if (!hasActive) {
+            viewModel.refreshRecentCalls()
+        }
     }
 
     LaunchedEffect(pendingNavTab) {
@@ -529,11 +544,12 @@ fun MainAppContent(
         if (currentIntent != null) {
             val navTab = currentIntent.getStringExtra("EXTRA_NAV_TAB")
             val navTabIndex = currentIntent.getIntExtra("EXTRA_NAV_TAB_INDEX", -1)
+            val initialTabExtra = currentIntent.getIntExtra("EXTRA_INITIAL_TAB", -1)
             val highlightNum = currentIntent.getStringExtra("EXTRA_HIGHLIGHT_NUMBER")
             val isDial = com.example.util.ContactHelper.isDialOrTelIntent(currentIntent)
             val extracted = com.example.util.ContactHelper.extractPhoneNumberFromIntent(currentIntent)
 
-            if (navTab == "RECENTS" || navTabIndex == 1) {
+            if (navTab == "RECENTS" || navTabIndex == 1 || initialTabExtra == 1) {
                 navigateToTab(1)
                 if (!highlightNum.isNullOrBlank()) {
                     highlightNumber = highlightNum
@@ -563,6 +579,12 @@ fun MainAppContent(
             }
         }
     }
+
+    val channelConfigRepo = remember { ChannelConfigRepository.getInstance(context) }
+    val channelDiscoveryManager = remember { ChannelDiscoveryManager.getInstance(context) }
+    val channelConfigs by channelConfigRepo.allConfigs.collectAsState(initial = emptyList())
+    val allDiscoveredChannels by channelDiscoveryManager.allDiscoveredChannels.collectAsState()
+    var showChannelOnboarding by remember { mutableStateOf(!channelConfigRepo.hasCompletedOnboarding()) }
 
     var showDefaultAppPrompt by remember { mutableStateOf(true) }
     var showOverlayPrompt by remember { mutableStateOf(true) }
@@ -617,6 +639,9 @@ fun MainAppContent(
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        com.example.telecom.OmniCallRedirectionService.dismissRedirectionNotification(context)
+        viewModel.registerCallLogObserver()
+        channelDiscoveryManager.refreshChannels()
         hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(context)
         } else true
@@ -631,17 +656,20 @@ fun MainAppContent(
     ) {
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshSimCards()
+        channelDiscoveryManager.refreshChannels()
     }
 
     // Request necessary runtime permissions
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
+        viewModel.registerCallLogObserver()
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshSimCards()
         viewModel.refreshRecentCalls()
         viewModel.refreshContacts()
         viewModel.syncWithDeviceContacts()
+        channelDiscoveryManager.refreshChannels()
     }
 
     LaunchedEffect(Unit) {
@@ -664,6 +692,14 @@ fun MainAppContent(
         }
         if (ungranted.isNotEmpty()) {
             permissionLauncher.launch(ungranted.toTypedArray())
+        } else {
+            channelDiscoveryManager.refreshChannels()
+        }
+    }
+
+    LaunchedEffect(showChannelOnboarding) {
+        if (showChannelOnboarding) {
+            channelDiscoveryManager.refreshChannels()
         }
     }
 
@@ -770,27 +806,60 @@ fun MainAppContent(
                             }
                         }
                         "compact" -> {
-                            NavigationBar(
-                                modifier = Modifier.testTag("bottom_nav_bar")
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 3.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .height(52.dp)
+                                    .testTag("bottom_nav_bar")
                             ) {
-                                val navItems = listOf(
-                                    Triple(0, Icons.Default.Star, "Favorites"),
-                                    Triple(1, Icons.Default.History, "Recents"),
-                                    Triple(2, Icons.Default.Dialpad, "Keypad"),
-                                    Triple(3, Icons.Default.Contacts, "Contacts"),
-                                    Triple(4, Icons.Default.SmartToy, "Rules")
-                                )
-                                navItems.forEach { (tabIdx, icon, name) ->
-                                    NavigationBarItem(
-                                        selected = selectedTab == tabIdx,
-                                        onClick = {
-                                            if (tabIdx == 4) ruleNumberToCreate = null
-                                            navigateToTab(tabIdx)
-                                        },
-                                        icon = { Icon(icon, contentDescription = name) },
-                                        alwaysShowLabel = false,
-                                        modifier = Modifier.testTag("nav_${name.lowercase()}")
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val navItems = listOf(
+                                        Triple(0, Icons.Default.Star, "Favorites"),
+                                        Triple(1, Icons.Default.History, "Recents"),
+                                        Triple(2, Icons.Default.Dialpad, "Keypad"),
+                                        Triple(3, Icons.Default.Contacts, "Contacts"),
+                                        Triple(4, Icons.Default.SmartToy, "Rules")
                                     )
+                                    navItems.forEach { (tabIdx, icon, name) ->
+                                        val isSelected = selectedTab == tabIdx
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .clickable {
+                                                    if (tabIdx == 4) ruleNumberToCreate = null
+                                                    navigateToTab(tabIdx)
+                                                }
+                                                .testTag("nav_${name.lowercase()}"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                                                modifier = Modifier
+                                                    .height(32.dp)
+                                                    .width(52.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = icon,
+                                                        contentDescription = name,
+                                                        tint = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -860,6 +929,7 @@ fun MainAppContent(
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
                         learnedCallModes = learnedCallModes,
+                        whatsAppCallMode = whatsAppCallMode,
                         onSelectNumber = { num ->
                             viewModel.setDialerNumber(num)
                             navigateToTab(2)
@@ -867,8 +937,14 @@ fun MainAppContent(
                         onCallNumber = { num ->
                             viewModel.initiateCall(context, num)
                         },
+                        onCallNumberDirect = { num, slot ->
+                            viewModel.placeCall(context, num, overrideSimSlot = slot)
+                        },
                         onCallWhatsApp = { num ->
                             viewModel.placeWhatsAppCall(context, num)
+                        },
+                        onCallGoogleVoice = { num ->
+                            viewModel.placeGoogleVoiceCall(context, num)
                         },
                         onCreateRule = { num ->
                             ruleNumberToCreate = num
@@ -932,8 +1008,16 @@ fun MainAppContent(
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
-                        onCallBack = { num ->
-                            viewModel.initiateCall(context, num)
+                        onCallBack = { recentCall ->
+                            if (recentCall.callReason?.contains("WhatsApp Business", ignoreCase = true) == true) {
+                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber, isBusiness = true)
+                            } else if (recentCall.callReason?.contains("WhatsApp", ignoreCase = true) == true) {
+                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber, isBusiness = false)
+                            } else if (recentCall.callReason?.contains("Google Voice", ignoreCase = true) == true) {
+                                viewModel.placeGoogleVoiceCall(context, recentCall.phoneNumber)
+                            } else {
+                                viewModel.placeCall(context, recentCall.phoneNumber, null, overrideSimSlot = recentCall.simSlot)
+                            }
                         },
                         onCreateRuleForNumber = { num ->
                             ruleNumberToCreate = num
@@ -989,10 +1073,13 @@ fun MainAppContent(
                         onClearDigits = { viewModel.clearDigits() },
                         onSelectContactNumber = { num -> viewModel.setDialerNumber(num) },
                         onPlaceCall = { num, reason -> viewModel.placeCall(context, num, reason) },
+                        onPlaceCallDirect = { num, slot -> viewModel.placeCall(context, num, overrideSimSlot = slot) },
                         onPlaceWhatsAppCall = { num -> viewModel.placeWhatsAppCall(context, num) },
+                        onPlaceWhatsAppCallWithBusiness = { num, isBiz -> viewModel.placeWhatsAppCall(context, num, isBiz) },
+                        onPlaceGoogleVoiceCall = { num -> viewModel.placeGoogleVoiceCall(context, num) },
+                        whatsAppCallMode = whatsAppCallMode,
                         onSimulateCall = { num, name -> viewModel.simulateIncomingCall(context, num, name) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
-                        learnedCallModes = learnedCallModes,
                         onCreateRuleForNumber = { num ->
                             ruleNumberToCreate = num
                             navigateToTab(4)
@@ -1018,10 +1105,12 @@ fun MainAppContent(
                         speedDialKeypadDisplay = speedDialKeypadDisplay,
                         showDialerQuickActions = showDialerQuickActions,
                         deviceContacts = deviceContacts,
-                        precomputedSearchContacts = searchContacts
+                        precomputedSearchContacts = searchContacts,
+                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) }
                     )
                     3 -> ContactsScreen(
                         favorites = favorites,
+                        defaultContactNumbers = defaultContactNumbers,
                         recentCalls = recentCalls,
                         deviceContacts = deviceContacts,
                         activeSims = activeSims,
@@ -1029,6 +1118,7 @@ fun MainAppContent(
                         onPlaceWhatsAppCall = { num -> viewModel.placeWhatsAppCall(context, num) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
+                        whatsAppCallMode = whatsAppCallMode,
                         getPreferredSimSlot = { num -> viewModel.getPreferredSimSlot(num) },
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
@@ -1038,6 +1128,9 @@ fun MainAppContent(
                         },
                         onCallNumber = { num ->
                             viewModel.initiateCall(context, num)
+                        },
+                        onCallNumberDirect = { num, slot ->
+                            viewModel.placeCall(context, num, overrideSimSlot = slot)
                         },
                         onCreateRule = { num ->
                             ruleNumberToCreate = num
@@ -1131,14 +1224,24 @@ fun MainAppContent(
                         navBarStyle = navBarStyle,
                         onSetNavBarStyle = { viewModel.setNavBarStyle(it) },
                         onExportBackup = { uri, onDone -> viewModel.exportBackup(uri, onDone) },
-                        onImportBackup = { uri, onDone -> viewModel.importBackup(uri, onDone) },
+                        onImportBackup = { uri, onProgress, onDone -> viewModel.importBackup(uri, onProgress, onDone) },
                         localBackups = localBackups,
                         onCreateLocalBackup = { onDone -> viewModel.createLocalBackup(onDone) },
-                        onRestoreLocalBackup = { file, onDone -> viewModel.restoreLocalBackup(file, onDone) },
+                        onRestoreLocalBackup = { file, onProgress, onDone -> viewModel.restoreLocalBackup(file, onProgress, onDone) },
                         onDeleteLocalBackup = { file -> viewModel.deleteLocalBackup(file) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
                         onSetGlobalSimPreferenceMode = { viewModel.setGlobalSimPreferenceMode(it) },
                         activeSims = activeSims,
+                        channelConfigs = channelConfigs,
+                        discoveredChannels = allDiscoveredChannels,
+                        onSaveChannelConfigs = { configs ->
+                            coroutineScope.launch {
+                                channelConfigRepo.saveConfigs(configs)
+                                channelDiscoveryManager.refreshChannels()
+                                viewModel.refreshSimCards()
+                                viewModel.refreshRecentCalls()
+                            }
+                        },
                         dismissModalsTrigger = dismissModalsTrigger
                     )
                 }
@@ -1250,6 +1353,27 @@ fun MainAppContent(
                     showDefaultAppPrompt = false
                 },
                 onDismiss = { showDefaultAppPrompt = false }
+            )
+        }
+
+        // Channel Discovery & First-Launch Onboarding Dialog
+        if (!isCallScreenVisible && showChannelOnboarding && allDiscoveredChannels.isNotEmpty()) {
+            ChannelSetupDialog(
+                discoveredChannels = allDiscoveredChannels,
+                existingConfigs = channelConfigs,
+                isOnboarding = true,
+                onSave = { configs ->
+                    coroutineScope.launch {
+                        channelConfigRepo.saveConfigs(configs)
+                        channelConfigRepo.setCompletedOnboarding(true)
+                        channelDiscoveryManager.refreshChannels()
+                        showChannelOnboarding = false
+                    }
+                },
+                onDismiss = {
+                    channelConfigRepo.setCompletedOnboarding(true)
+                    showChannelOnboarding = false
+                }
             )
         }
 
@@ -1463,7 +1587,7 @@ private fun FloatingCallPill(
                         .testTag("floating_pill_speaker_btn")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.VolumeUp,
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = if (isSpeakerOn) "Speaker Off" else "Speaker On",
                         tint = if (isSpeakerOn) Color(0xFF15803D) else Color.White,
                         modifier = Modifier.size(19.dp)
@@ -1620,7 +1744,7 @@ fun PipCallContent(viewModel: MainViewModel) {
                         .testTag("pip_speaker_btn")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.VolumeUp,
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = if (isSpeakerOn) "Speaker Off" else "Speaker On",
                         tint = if (isSpeakerOn) Color(0xFF15803D) else Color.White,
                         modifier = Modifier.size(16.dp)

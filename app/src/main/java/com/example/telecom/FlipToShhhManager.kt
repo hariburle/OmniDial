@@ -317,6 +317,7 @@ object FlipToShhhManager : SensorEventListener {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun vibrate(context: Context, pattern: LongArray) {
         try {
             val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator

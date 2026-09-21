@@ -58,6 +58,9 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BluetoothAudio
@@ -75,10 +78,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -301,7 +302,7 @@ fun InCallScreen(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                    imageVector = if (isRingerSilenced) Icons.Default.VolumeOff else Icons.Default.NotificationsActive,
+                                    imageVector = if (isRingerSilenced) Icons.AutoMirrored.Filled.VolumeOff else Icons.Default.NotificationsActive,
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
                                     tint = if (isRingerSilenced) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
@@ -417,7 +418,7 @@ fun InCallScreen(
 
                     // SIM & Roaming Indicator Badge
                     val simLabel = if (!callInfo.simDisplayName.isNullOrBlank()) {
-                        "SIM ${callInfo.simSlot} (${callInfo.simDisplayName})"
+                        callInfo.simDisplayName
                     } else {
                         "SIM ${callInfo.simSlot}"
                     }
@@ -753,7 +754,7 @@ fun InCallScreen(
                                     },
                                     icon = {
                                         Icon(
-                                            imageVector = Icons.Default.Message,
+                                            imageVector = Icons.AutoMirrored.Filled.Message,
                                             contentDescription = null,
                                             modifier = Modifier.size(14.dp)
                                         )
@@ -825,7 +826,7 @@ fun InCallScreen(
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = if (noteSaved) Icons.Default.CheckCircle else Icons.Default.NoteAdd,
+                                                imageVector = if (noteSaved) Icons.Default.CheckCircle else Icons.AutoMirrored.Filled.NoteAdd,
                                                 contentDescription = null,
                                                 tint = if (noteSaved) Color(0xFF16A34A) else MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(18.dp)

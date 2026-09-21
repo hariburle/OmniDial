@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +31,11 @@ import com.example.ui.components.BackupManagementCard
 import com.example.ui.components.CallRedirectionCard
 import com.example.ui.components.SpamManagementDialog
 import com.example.ui.components.WhatsAppIcon
+import androidx.compose.foundation.horizontalScroll
+import com.example.data.ChannelConfig
+import com.example.domain.model.CallingChannel
+import com.example.telecom.ChannelDiscoveryManager
+import com.example.ui.components.ChannelSetupDialog
 import com.example.util.BackupManager
 import com.example.util.BackupRestoreResult
 import kotlinx.coroutines.launch
@@ -64,20 +70,26 @@ fun SettingsScreen(
     callAnswerStyle: String,
     onSetCallAnswerStyle: (String) -> Unit,
     onExportBackup: ((android.net.Uri, (Boolean) -> Unit) -> Unit)? = null,
-    onImportBackup: ((android.net.Uri, (BackupRestoreResult) -> Unit) -> Unit)? = null,
+    onImportBackup: ((android.net.Uri, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     localBackups: List<java.io.File> = emptyList(),
     onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)? = null,
-    onRestoreLocalBackup: ((java.io.File, (BackupRestoreResult) -> Unit) -> Unit)? = null,
+    onRestoreLocalBackup: ((java.io.File, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
     onSetGlobalSimPreferenceMode: (String) -> Unit = {},
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
+    channelConfigs: List<ChannelConfig> = emptyList(),
+    discoveredChannels: List<CallingChannel> = emptyList(),
+    onSaveChannelConfigs: ((List<ChannelConfig>) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var showSpamDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showChannelConfigDialog by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
+    val discoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) }
+    val effectiveDiscoveredChannels = if (discoveredChannels.isNotEmpty()) discoveredChannels else discoveryManager.allDiscoveredChannels.collectAsState().value
 
     Column(
         modifier = modifier
@@ -87,7 +99,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Appearance",
+            text = "Manage Channels",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -97,78 +109,83 @@ fun SettingsScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(text = "Theme Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    val themeOptions = listOf(
-                        Triple("system", "System", Icons.Default.BrightnessAuto),
-                        Triple("light", "Light", Icons.Default.LightMode),
-                        Triple("dark", "Dark", Icons.Default.DarkMode)
-                    )
-                    themeOptions.forEach { (mode, label, icon) ->
-                        val selected = themeMode == mode
-                        Card(
-                            onClick = { onSetThemeMode(mode) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (selected)
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                                else
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                            ),
-                            border = BorderStroke(
-                                if (selected) 2.dp else 1.dp,
-                                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("theme_option_$mode")
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 10.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Channel Selection & Custom Labels",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Choose which channels appear in OmniDial, and customize their names",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            discoveryManager.refreshChannels()
+                            showChannelConfigDialog = true
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("manage_channels_button")
+                    ) {
+                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Manage", fontSize = 12.sp)
+                    }
+                }
+
+                // Summary chips of configured channels
+                if (effectiveDiscoveredChannels.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val configMap = channelConfigs.associateBy { it.channelId }
+                        effectiveDiscoveredChannels.forEach { ch ->
+                            val cfg = configMap[ch.id]
+                            val isEnabled = cfg?.isEnabled ?: true
+                            val displayName = cfg?.customName?.takeIf { it.isNotBlank() } ?: ch.shortLabel
+                            val brandColor = Color(ch.brandColorHex)
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isEnabled) brandColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                border = BorderStroke(1.dp, if (isEnabled) brandColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier.padding(vertical = 2.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(width = 46.dp, height = 36.dp)
-                                        .background(
-                                            when (mode) {
-                                                "light" -> Color(0xFFF8FAFC)
-                                                "dark" -> Color(0xFF0F172A)
-                                                else -> MaterialTheme.colorScheme.surface
-                                            },
-                                            RoundedCornerShape(8.dp)
-                                        )
-                                        .border(
-                                            1.dp,
-                                            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                            RoundedCornerShape(8.dp)
-                                        ),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = when (mode) {
-                                            "light" -> Color(0xFFEAB308)
-                                            "dark" -> Color(0xFF93C5FD)
-                                            else -> MaterialTheme.colorScheme.primary
-                                        },
-                                        modifier = Modifier.size(18.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .background(if (isEnabled) brandColor else Color.Gray, CircleShape)
                                     )
+                                    Text(
+                                        text = displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (isEnabled) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                    if (!isEnabled) {
+                                        Text(
+                                            text = "(Off)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Center
-                                )
                             }
                         }
                     }
@@ -176,12 +193,10 @@ fun SettingsScreen(
             }
         }
 
-
-
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Calling Channels",
+            text = "Channel Preferences",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -194,10 +209,10 @@ fun SettingsScreen(
                 val options = listOf(
                     listOf(
                         Triple("ask_learn", "Ask & Learn", "Prompts once & memorizes choice") to Icons.Default.Psychology,
-                        Triple("ask_always", "Ask Always", "Prompt cellular vs WhatsApp") to Icons.Default.HelpOutline
+                        Triple("ask_always", "Ask Always", "Prompt channel on every call") to Icons.AutoMirrored.Filled.HelpOutline
                     ),
                     listOf(
-                        Triple("all_international", "International", "Direct foreign numbers to WhatsApp") to Icons.Default.Public,
+                        Triple("all_international", "Avoid Roaming", "Direct foreign numbers to VoIP / WhatsApp") to Icons.Default.Public,
                         Triple("never", "Cellular Only", "Standard carrier calls only") to Icons.Default.PhoneDisabled
                     )
                 )
@@ -290,93 +305,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
 
-        Text(
-            text = "Dual SIM Management",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                val simModeOptions = listOf(
-                    Triple("system", "System", "Highlights default SIM across contacts without clutter") to Icons.Default.PhoneAndroid,
-                    Triple("ask_learn", "Ask & Learn", "Highlights default SIM and allows customizing SIM per contact") to Icons.Default.Psychology,
-                    Triple("international", "International", "Select SIM for overseas numbers; domestic uses default") to Icons.Default.Public
-                )
-                simModeOptions.forEach { (info, icon) ->
-                    val (mode, label, desc) = info
-                    val isSelected = globalSimPreferenceMode == mode
-                    Card(
-                        onClick = { onSetGlobalSimPreferenceMode(mode) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected)
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                        ),
-                        border = BorderStroke(
-                            if (isSelected) 2.dp else 1.dp,
-                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("sim_pref_mode_$mode")
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = desc,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Selected",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Bluetooth & Car Redirection",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        CallRedirectionCard()
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -650,29 +579,92 @@ fun SettingsScreen(
                         onCheckedChange = onSetSwipeToSwitchPanels,
                         modifier = Modifier.testTag("swipe_to_switch_panels_switch")
                     )
+                }            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Appearance & Navigation",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // 1. Theme Mode
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Theme Mode",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val themeOptions = listOf(
+                            Triple("system", "System", Icons.Default.BrightnessAuto),
+                            Triple("light", "Light", Icons.Default.LightMode),
+                            Triple("dark", "Dark", Icons.Default.DarkMode)
+                        )
+                        themeOptions.forEach { (mode, label, icon) ->
+                            val selected = themeMode == mode
+                            Card(
+                                onClick = { onSetThemeMode(mode) },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selected)
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                ),
+                                border = BorderStroke(
+                                    if (selected) 2.dp else 1.dp,
+                                    if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("theme_option_$mode")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 10.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 HorizontalDivider()
 
-                // Visual Navigation Bar Style Selector
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ViewCarousel,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Navigation Bar Style",
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-
+                // 2. Navigation Bar Style
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Navigation Bar Style",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -682,18 +674,17 @@ fun SettingsScreen(
                             Triple("compact", "Compact", "Icons only"),
                             Triple("indicator", "Minimal", "Gesture bar")
                         )
-
                         navOptions.forEach { (styleKey, title, subtitle) ->
                             val isSelected = navBarStyle == styleKey
                             Card(
                                 onClick = { onSetNavBarStyle(styleKey) },
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
                                 ),
                                 border = BorderStroke(
                                     if (isSelected) 2.dp else 1.dp,
-                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -702,82 +693,10 @@ fun SettingsScreen(
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    // Visual Mockup of the Bar
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(28.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.surface,
-                                                RoundedCornerShape(6.dp)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        when (styleKey) {
-                                            "full" -> {
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    repeat(3) { i ->
-                                                        Column(
-                                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                                        ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .size(7.dp)
-                                                                    .background(
-                                                                        if (i == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                                                        CircleShape
-                                                                    )
-                                                            )
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .size(width = 10.dp, height = 2.dp)
-                                                                    .background(
-                                                                        if (i == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                                                        RoundedCornerShape(1.dp)
-                                                                    )
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            "compact" -> {
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    repeat(3) { i ->
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(9.dp)
-                                                                .background(
-                                                                    if (i == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                                                    CircleShape
-                                                                )
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            "indicator" -> {
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Box(modifier = Modifier.size(5.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape))
-                                                    Box(modifier = Modifier.size(width = 16.dp, height = 4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-                                                    Box(modifier = Modifier.size(5.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape))
-                                                }
-                                            }
-                                        }
-                                    }
-
                                     Text(
                                         text = title,
                                         style = MaterialTheme.typography.labelMedium,
@@ -788,7 +707,7 @@ fun SettingsScreen(
                                         text = subtitle,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 9.5.sp
+                                        fontSize = 9.sp
                                     )
                                 }
                             }
@@ -798,80 +717,126 @@ fun SettingsScreen(
 
                 HorizontalDivider()
 
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // 3. Incoming Call Answering Style
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Incoming Call Answering Style",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val answerStyles = listOf(
+                            Triple("swipe_slider", "Slide", "Slider") to Icons.Default.Swipe,
+                            Triple("swipe_up", "Swipe Up", "Gesture") to Icons.Default.KeyboardArrowUp,
+                            Triple("button_tap", "Buttons", "Direct tap") to Icons.Default.TouchApp
+                        )
+                        answerStyles.forEach { (info, icon) ->
+                            val (style, label, desc) = info
+                            val isSelected = callAnswerStyle == style
+                            Card(
+                                onClick = { onSetCallAnswerStyle(style) },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                ),
+                                border = BorderStroke(
+                                    if (isSelected) 2.dp else 1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("call_answer_style_$style")
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = desc,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 9.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                // 4. Default Startup Screen
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Default Startup Screen",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Home,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                        val tabs = listOf(
+                            0 to ("Favorites" to Icons.Default.Star),
+                            1 to ("Recents" to Icons.Default.History),
+                            2 to ("Keypad" to Icons.Default.Dialpad),
+                            3 to ("Contacts" to Icons.Default.Contacts)
                         )
-                        Text(
-                            text = "Default Startup Screen",
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Text(
-                        text = "Tap a tab below to choose which screen opens when launching the dialer",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    // Interactive App Navigation Bar
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                        tonalElevation = 2.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp, horizontal = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceAround,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val tabs = listOf(
-                                0 to ("Favorites" to Icons.Default.Star),
-                                1 to ("Recents" to Icons.Default.History),
-                                2 to ("Keypad" to Icons.Default.Dialpad),
-                                3 to ("Contacts" to Icons.Default.Contacts)
-                            )
-                            tabs.forEach { (index, tabData) ->
-                                val (label, icon) = tabData
-                                val isSelected = defaultStartTab == index
-                                Surface(
-                                    onClick = { onSetDefaultStartTab(index) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        tabs.forEach { (index, tabData) ->
+                            val (label, icon) = tabData
+                            val isSelected = defaultStartTab == index
+                            Card(
+                                onClick = { onSetDefaultStartTab(index) },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                ),
+                                border = BorderStroke(
+                                    if (isSelected) 2.dp else 1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("nav_tab_button_$index")
+                            ) {
+                                Column(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("nav_tab_button_$index")
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp, horizontal = 2.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier.padding(vertical = 8.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = label,
-                                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                        Text(
-                                            text = label,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = label,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             }
                         }
@@ -883,185 +848,12 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Incoming Call Answering Style",
+            text = "Bluetooth & Car Redirection",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Choose the gesture or interaction style for incoming phone calls",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                val answerStyles = listOf(
-                    Triple(
-                        "swipe_slider",
-                        "Slide to Answer",
-                        "Horizontal slider"
-                    ),
-                    Triple(
-                        "swipe_up",
-                        "Swipe Up",
-                        "Google Phone gesture"
-                    ),
-                    Triple(
-                        "button_tap",
-                        "Direct Buttons",
-                        "Single tap to Answer"
-                    )
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    answerStyles.forEach { (style, label, desc) ->
-                        val isSelected = callAnswerStyle == style
-                        Card(
-                            onClick = { onSetCallAnswerStyle(style) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isSelected)
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                                else
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                            ),
-                            border = BorderStroke(
-                                if (isSelected) 2.dp else 1.dp,
-                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("call_answer_style_$style")
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 10.dp, horizontal = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                // Live Mockup of the Answering Style UI
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(64.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surface,
-                                            RoundedCornerShape(8.dp)
-                                        )
-                                        .border(
-                                            1.dp,
-                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                            RoundedCornerShape(8.dp)
-                                        )
-                                        .padding(4.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        // Top caller hint
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                                            Box(modifier = Modifier.size(width = 24.dp, height = 3.dp).background(MaterialTheme.colorScheme.onSurface, RoundedCornerShape(1.dp)))
-                                        }
-
-                                        // Gesture preview
-                                        when (style) {
-                                            "swipe_slider" -> {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(20.dp)
-                                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                                                        .padding(horizontal = 2.dp),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFFDC2626), CircleShape), contentAlignment = Alignment.Center) {
-                                                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
-                                                        }
-                                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF16A34A), CircleShape), contentAlignment = Alignment.Center) {
-                                                            Icon(Icons.Default.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
-                                                        }
-                                                    }
-                                                    Box(modifier = Modifier.size(14.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                                                }
-                                            }
-                                            "swipe_up" -> {
-                                                Column(
-                                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                                                ) {
-                                                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(14.dp))
-                                                    Box(modifier = Modifier.size(16.dp).background(Color(0xFF16A34A), CircleShape), contentAlignment = Alignment.Center) {
-                                                        Icon(Icons.Default.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
-                                                    }
-                                                }
-                                            }
-                                            "button_tap" -> {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Box(modifier = Modifier.size(18.dp).background(Color(0xFFDC2626), CircleShape), contentAlignment = Alignment.Center) {
-                                                        Icon(Icons.Default.CallEnd, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
-                                                    }
-                                                    Box(modifier = Modifier.size(18.dp).background(Color(0xFF16A34A), CircleShape), contentAlignment = Alignment.Center) {
-                                                        Icon(Icons.Default.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        // Status bar at bottom
-                                        Box(
-                                            modifier = Modifier
-                                                .size(width = 16.dp, height = 2.dp)
-                                                .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(1.dp))
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = desc,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 8.5.sp,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        CallRedirectionCard()
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1154,6 +946,7 @@ fun SettingsScreen(
             onLoadingChanged = { /* handled */ }
         )
 
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // Footer credit
@@ -1244,6 +1037,19 @@ fun SettingsScreen(
                     Text("OK")
                 }
             }
+        )
+    }
+
+    if (showChannelConfigDialog) {
+        ChannelSetupDialog(
+            discoveredChannels = effectiveDiscoveredChannels,
+            existingConfigs = channelConfigs,
+            isOnboarding = false,
+            onSave = { configs ->
+                onSaveChannelConfigs?.invoke(configs)
+                showChannelConfigDialog = false
+            },
+            onDismiss = { showChannelConfigDialog = false }
         )
     }
 }

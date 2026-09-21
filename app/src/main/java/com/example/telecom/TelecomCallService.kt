@@ -54,6 +54,8 @@ class TelecomCallService : InCallService() {
         OngoingCallNotificationHelper.cancelCallNotification(applicationContext)
     }
 
+    @Deprecated("Deprecated in Java", ReplaceWith("onCallEndpointChanged"))
+    @Suppress("DEPRECATION")
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
         super.onCallAudioStateChanged(audioState)
         Log.d(TAG, "onCallAudioStateChanged: $audioState")

@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -37,16 +38,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Person
@@ -83,6 +86,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -90,6 +95,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import com.example.data.ChannelPreferenceRepository
+import com.example.domain.model.CallingChannel
+import com.example.telecom.ChannelDiscoveryManager
+import com.example.util.PhoneNumberNormalizer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -146,11 +156,18 @@ fun ContactDetailsBottomSheet(
     getPreferredSimSlot: (String) -> Int = { 0 },
     onSetPreferredSimSlot: ((String, Int) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
+    whatsAppCallMode: String = "ask_learn",
+    onCallNumberDirect: ((String, Int?) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
+    val channelPrefRepo = remember { ChannelPreferenceRepository.getInstance(context) }
+    val discoveryManager = remember { ChannelDiscoveryManager.getInstance(context) }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
+    val numberChannelPrefs by channelPrefRepo.allPreferences.collectAsState(initial = emptyList())
 
     var showEditDialog by remember { mutableStateOf(false) }
     var showCreateContactDialog by remember { mutableStateOf(false) }
@@ -172,17 +189,24 @@ fun ContactDetailsBottomSheet(
     var editLabel by remember(contact) { mutableStateOf(contact.label) }
     var editNickname by remember(contact, favoriteContact) { mutableStateOf(effectiveNickname) }
 
-    // Current default/primary number for this contact - reactive to user changes
-    var currentDefaultNumber by remember(favoriteContact?.phoneNumber, contact.phoneNumber) {
+    val stableContactKey = remember(contact.contactId, contact.name) {
+        contact.contactId?.toString() ?: contact.name
+    }
+
+    val initialDefaultNumber = remember(stableContactKey) {
         val favNum = favoriteContact?.phoneNumber
-        val initNum = if (contact.phoneNumber.isNotBlank()) {
+        if (contact.phoneNumber.isNotBlank()) {
             contact.phoneNumber
         } else if (favNum != null && ContactHelper.isSamePhoneNumber(favNum, contact.phoneNumber)) {
             favNum
         } else {
             favNum ?: contact.phoneNumbers.firstOrNull()?.number ?: ""
         }
-        mutableStateOf(initNum)
+    }
+
+    // Current default/primary number for this contact - reactive to user changes
+    var currentDefaultNumber by remember(stableContactKey) {
+        mutableStateOf(initialDefaultNumber)
     }
     var numberForActionMenu by remember { mutableStateOf<ContactPhoneNumber?>(null) }
     val preferredModes = remember { mutableStateMapOf<String, String>() }
@@ -193,6 +217,7 @@ fun ContactDetailsBottomSheet(
 
     var contactCallHistory by remember { mutableStateOf<List<RecentCall>>(emptyList()) }
     var isLoadingHistory by remember { mutableStateOf(true) }
+    var pendingChannelChoiceNumber by remember { mutableStateOf<ContactPhoneNumber?>(null) }
 
     LaunchedEffect(contact) {
         isLoadingHistory = true
@@ -268,7 +293,14 @@ fun ContactDetailsBottomSheet(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         IconButton(
-                            onClick = onToggleFavorite,
+                            onClick = {
+                                onToggleFavorite()
+                                Toast.makeText(
+                                    context,
+                                    if (isFavorite) "Removed from Favorites" else "★ Added to Favorites",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
                             modifier = Modifier
                                 .size(36.dp)
                                 .testTag("contact_details_star_toggle")
@@ -420,14 +452,6 @@ fun ContactDetailsBottomSheet(
                         )
                     }
 
-                    if (contact.label.isNotBlank() && contact.label != "Mobile") {
-                        Text(
-                            text = contact.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
                     if (isUnknownNumber) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Button(
@@ -562,9 +586,9 @@ fun ContactDetailsBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val orderedNumbers = remember(contact, currentDefaultNumber) {
+                    val displayedNumbers = remember(stableContactKey) {
                         val all = if (contact.phoneNumbers.isNotEmpty()) contact.phoneNumbers else listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
-                        val defNum = currentDefaultNumber.ifBlank { contact.phoneNumber }
+                        val defNum = initialDefaultNumber.ifBlank { contact.phoneNumber }
                         if (defNum.isNotBlank()) {
                             val defaultPn = all.firstOrNull { pn ->
                                 pn.number == defNum || ContactHelper.isSamePhoneNumber(pn.number, defNum)
@@ -579,16 +603,15 @@ fun ContactDetailsBottomSheet(
                         }
                     }
 
-                    orderedNumbers.forEachIndexed { index, pn ->
+                    displayedNumbers.forEachIndexed { index, pn ->
                         val normPn = pn.number.filter { it.isDigit() }.takeLast(10)
                         val favDigits = favoriteContact?.phoneNumber?.filter { it.isDigit() }?.takeLast(10) ?: ""
                         val isThisNumberFavorite = isFavorite && (
                             (favDigits.length >= 7 && normPn == favDigits) ||
-                            (orderedNumbers.size == 1)
+                            (displayedNumbers.size == 1)
                         )
-                        val defNum = currentDefaultNumber.ifBlank { contact.phoneNumber }
-                        val isDefaultNumber = if (defNum.isNotBlank()) {
-                            pn.number == defNum || ContactHelper.isSamePhoneNumber(pn.number, defNum)
+                        val isDefaultNumber = if (currentDefaultNumber.isNotBlank()) {
+                            pn.number == currentDefaultNumber || ContactHelper.isSamePhoneNumber(pn.number, currentDefaultNumber)
                         } else {
                             index == 0
                         }
@@ -598,9 +621,9 @@ fun ContactDetailsBottomSheet(
                                 .fillMaxWidth()
                                 .clip(
                                     when {
-                                        orderedNumbers.size == 1 -> RoundedCornerShape(16.dp)
+                                        displayedNumbers.size == 1 -> RoundedCornerShape(16.dp)
                                         index == 0 -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                                        index == orderedNumbers.lastIndex -> RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+                                        index == displayedNumbers.lastIndex -> RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
                                         else -> RoundedCornerShape(0.dp)
                                     }
                                 )
@@ -614,13 +637,37 @@ fun ContactDetailsBottomSheet(
                                     }
                                 )
                                 .background(
-                                    if (isThisNumberFavorite) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                    if (isDefaultNumber) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                    else if (isThisNumberFavorite) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                                     else Color.Transparent
                                 )
                                 .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
-                            val containerBg = MaterialTheme.colorScheme.surfaceVariant
-                            val containerBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            val containerBg = MaterialTheme.colorScheme.surface
+                            val containerBorder = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                            // Per-Number Channel Preference
+                            val normalizedPn = remember(pn.number) {
+                                PhoneNumberNormalizer.toE164(pn.number)
+                            }
+                            val savedPref = numberChannelPrefs.firstOrNull { it.normalizedNumber == normalizedPn }
+                            val effectiveChannelId = savedPref?.preferredChannelId ?: run {
+                                val legacyMode = preferredModes[pn.number] ?: getPreferredCallingMode(pn.number)
+                                val legacySlot = preferredSims[pn.number] ?: getPreferredSimSlot(pn.number)
+                                when {
+                                    legacyMode == "whatsapp" -> "whatsapp"
+                                    legacyMode == "whatsapp_business" -> "whatsapp_business"
+                                    legacyMode == "google_voice" -> "google_voice"
+                                    legacySlot == 1 -> "sim_1"
+                                    legacySlot == 2 -> "sim_2"
+                                    legacyMode == "cellular" -> "sim_1"
+                                    else -> "ask"
+                                }
+                            }
+                            val resolvedPreferredChannel = availableChannels.firstOrNull { it.id.equals(effectiveChannelId, ignoreCase = true) }
+                            val isWhatsAppChannel = (resolvedPreferredChannel is CallingChannel.WhatsApp)
+                            val isGoogleVoiceChannel = (resolvedPreferredChannel is CallingChannel.GoogleVoice)
+                            val isCellularChannel = (resolvedPreferredChannel is CallingChannel.CellularSim) || (effectiveChannelId == "system" && availableChannels.any { it is CallingChannel.CellularSim })
 
                             // Row 1: Number + Label (Left) and Action Buttons (Right)
                             Row(
@@ -693,136 +740,180 @@ fun ContactDetailsBottomSheet(
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    val isMobileLabel = pn.label.isBlank() || pn.label.equals("mobile", ignoreCase = true) || pn.label.contains("mobile", ignoreCase = true)
-                                    val currentPrefMode = getPreferredCallingMode(pn.number)
-                                    val isWaPref = currentPrefMode == "whatsapp"
-                                    val isPhonePref = currentPrefMode == "cellular"
-
-                                    // 1. Star / Favorite toggle button
+                                    // 1. Star / Default Number toggle button
                                     IconButton(
                                         onClick = {
-                                            if (isThisNumberFavorite) {
-                                                onToggleFavorite()
-                                                Toast.makeText(context, "Removed from Favorites", Toast.LENGTH_SHORT).show()
+                                            if (isDefaultNumber) {
+                                                currentDefaultNumber = ""
+                                                onClearDefaultNumber()
+                                                Toast.makeText(context, "Default number cleared", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 currentDefaultNumber = pn.number
                                                 onSetAsDefaultNumber(pn.number, pn.label)
-                                                Toast.makeText(context, "★ Added to Favorites", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "★ Set as default: ${pn.number}", Toast.LENGTH_SHORT).show()
                                             }
                                         },
                                         modifier = Modifier
-                                            .size(34.dp)
+                                            .size(36.dp)
                                             .testTag("star_toggle_${pn.number}")
                                     ) {
                                         Surface(
                                             shape = CircleShape,
-                                            color = containerBg,
-                                            border = containerBorder,
+                                            color = if (isDefaultNumber) Color(0xFFF59E0B).copy(alpha = 0.15f) else containerBg,
+                                            border = if (isDefaultNumber) BorderStroke(1.5.dp, Color(0xFFF59E0B)) else containerBorder,
                                             modifier = Modifier.fillMaxSize()
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(
-                                                    imageVector = if (isThisNumberFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                                    contentDescription = if (isThisNumberFavorite) "Remove Favorite" else "Add Favorite",
-                                                    tint = if (isThisNumberFavorite) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(16.dp)
+                                                    imageVector = if (isDefaultNumber) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                                    contentDescription = if (isDefaultNumber) "Default number (Tap to clear)" else "Set as default number",
+                                                    tint = if (isDefaultNumber) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
                                                 )
                                             }
                                         }
                                     }
 
-                                    // 2. SMS Button
+                                    // 2. Consolidated Message Button (SMS, WhatsApp chat, or Google Voice based on channel)
+                                    val isWaBiz = effectiveChannelId == "whatsapp_business"
+                                    val waBrandColor = if (isWaBiz) Color(0xFF128C7E) else Color(0xFF25D366)
+                                    val gvBrandColor = Color(0xFF0F9D58)
                                     IconButton(
                                         onClick = {
-                                            val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${pn.number}"))
-                                            context.startActivity(smsIntent)
+                                            if (isWhatsAppChannel) {
+                                                ContactHelper.launchWhatsAppMessage(context, pn.number, isBusiness = isWaBiz)
+                                            } else if (isGoogleVoiceChannel) {
+                                                ContactHelper.launchGoogleVoiceMessage(context, pn.number)
+                                            } else {
+                                                val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${pn.number}"))
+                                                context.startActivity(smsIntent)
+                                            }
                                         },
-                                        modifier = Modifier.size(34.dp)
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("btn_message_${pn.number}")
                                     ) {
+                                        val msgBg = when {
+                                            isWhatsAppChannel -> waBrandColor.copy(alpha = 0.15f)
+                                            isGoogleVoiceChannel -> gvBrandColor.copy(alpha = 0.15f)
+                                            else -> containerBg
+                                        }
+                                        val msgBorder = when {
+                                            isWhatsAppChannel -> BorderStroke(1.5.dp, waBrandColor)
+                                            isGoogleVoiceChannel -> BorderStroke(1.5.dp, gvBrandColor)
+                                            else -> containerBorder
+                                        }
                                         Surface(
                                             shape = CircleShape,
-                                            color = containerBg,
-                                            border = containerBorder,
+                                            color = msgBg,
+                                            border = msgBorder,
                                             modifier = Modifier.fillMaxSize()
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.Message,
-                                                    contentDescription = "SMS",
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    // 3 & 4. WhatsApp Message & WhatsApp Call (Only if Mobile)
-                                    if (isMobileLabel) {
-                                        IconButton(
-                                            onClick = {
-                                                ContactHelper.launchWhatsAppMessage(context, pn.number)
-                                            },
-                                            modifier = Modifier.size(34.dp)
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = containerBg,
-                                                border = containerBorder,
-                                                modifier = Modifier.fillMaxSize()
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
+                                                if (isWhatsAppChannel) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Chat,
-                                                        contentDescription = "WhatsApp Message",
-                                                        tint = Color(0xFF25D366),
-                                                        modifier = Modifier.size(16.dp)
+                                                        imageVector = Icons.AutoMirrored.Filled.Chat,
+                                                        contentDescription = if (isWaBiz) "WhatsApp Business Message" else "WhatsApp Message",
+                                                        tint = waBrandColor,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                } else if (isGoogleVoiceChannel) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.Chat,
+                                                        contentDescription = "Google Voice Message",
+                                                        tint = gvBrandColor,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.Message,
+                                                        contentDescription = "SMS Message",
+                                                        tint = if (isCellularChannel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
                                                     )
                                                 }
                                             }
                                         }
-
-                                        IconButton(
-                                            onClick = {
-                                                ContactHelper.launchWhatsAppCall(context, pn.number)
-                                            },
-                                            modifier = Modifier.size(34.dp)
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (isWaPref) Color(0xFF25D366) else containerBg,
-                                                border = if (isWaPref) null else containerBorder,
-                                                modifier = Modifier.fillMaxSize()
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    WhatsAppIcon(modifier = Modifier.size(20.dp))
-                                                }
-                                            }
-                                        }
                                     }
 
-                                    // 5. Quick Phone Call Button
+                                    // 3. Consolidated Call Button (Direct dial if channel known; confirmation sheet if unknown)
                                     IconButton(
                                         onClick = {
-                                            onDismiss()
-                                            onCallNumber(pn.number)
+                                            when {
+                                                resolvedPreferredChannel is CallingChannel.WhatsApp -> {
+                                                    onDismiss()
+                                                    ContactHelper.launchWhatsAppCall(context, pn.number, isBusiness = resolvedPreferredChannel.isBusiness)
+                                                }
+                                                isGoogleVoiceChannel -> {
+                                                    onDismiss()
+                                                    val gvHandle = (availableChannels.firstOrNull { it is CallingChannel.GoogleVoice } as? CallingChannel.GoogleVoice)?.phoneAccountHandle
+                                                    ContactHelper.launchGoogleVoiceCall(context, pn.number, accountHandle = gvHandle, onCellularFallback = { onCallNumber(pn.number) })
+                                                }
+                                                isCellularChannel -> {
+                                                    val simSlot = (resolvedPreferredChannel as? CallingChannel.CellularSim)?.let { it.slotIndex + 1 }
+                                                        ?: when (effectiveChannelId) {
+                                                            "sim_1" -> 1
+                                                            "sim_2" -> 2
+                                                            else -> null
+                                                        }
+                                                    if (simSlot != null) {
+                                                        onSetPreferredSimSlot?.invoke(pn.number, simSlot)
+                                                    }
+                                                    onDismiss()
+                                                    if (onCallNumberDirect != null) {
+                                                        onCallNumberDirect(pn.number, simSlot)
+                                                    } else {
+                                                        onCallNumber(pn.number)
+                                                    }
+                                                }
+                                                else -> {
+                                                    // Preference unknown or channel disabled -> Ask user in confirmation sheet before placing call
+                                                    pendingChannelChoiceNumber = pn
+                                                }
+                                            }
                                         },
-                                        modifier = Modifier.size(34.dp)
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("btn_call_${pn.number}")
                                     ) {
+                                        val callBg = when {
+                                            isWhatsAppChannel -> Color(0xFF25D366).copy(alpha = 0.18f)
+                                            isGoogleVoiceChannel -> Color(0xFF0F9D58).copy(alpha = 0.18f)
+                                            isCellularChannel -> Color(0xFF16A34A).copy(alpha = 0.18f)
+                                            else -> containerBg
+                                        }
+                                        val callBorder = when {
+                                            isWhatsAppChannel -> BorderStroke(1.5.dp, Color(0xFF25D366))
+                                            isGoogleVoiceChannel -> BorderStroke(1.5.dp, Color(0xFF0F9D58))
+                                            isCellularChannel -> BorderStroke(1.5.dp, Color(0xFF16A34A))
+                                            else -> containerBorder
+                                        }
                                         Surface(
                                             shape = CircleShape,
-                                            color = if (isPhonePref) Color(0xFF16A34A) else containerBg,
-                                            border = if (isPhonePref) null else containerBorder,
+                                            color = callBg,
+                                            border = callBorder,
                                             modifier = Modifier.fillMaxSize()
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Call,
-                                                    contentDescription = "Phone Call",
-                                                    tint = if (isPhonePref) Color.White else Color(0xFF16A34A),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
+                                                if (isWhatsAppChannel) {
+                                                    WhatsAppIcon(modifier = Modifier.size(19.dp))
+                                                } else if (isGoogleVoiceChannel) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Phone,
+                                                        contentDescription = "Call via Google Voice",
+                                                        tint = Color(0xFF0F9D58),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Call,
+                                                        contentDescription = "Call",
+                                                        tint = if (isCellularChannel) Color(0xFF16A34A) else MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -831,128 +922,166 @@ fun ContactDetailsBottomSheet(
 
                             Spacer(modifier = Modifier.height(6.dp))
 
-                            // Row 2: Preferred Channel Selector (Teach mode without placing calls)
-                            val currentPref = preferredModes[pn.number] ?: getPreferredCallingMode(pn.number)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "Preferred Channel:",
+                                    text = "Channel:",
                                     style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    FilterChip(
-                                        selected = currentPref == "cellular",
-                                        onClick = {
-                                            preferredModes[pn.number] = "cellular"
-                                            onSaveLearnedCallMode(pn.number, "cellular")
-                                            Toast.makeText(context, "★ Preferred mode set: Phone", Toast.LENGTH_SHORT).show()
-                                        },
-                                        label = { Text("Phone", fontSize = 10.5.sp) },
-                                        leadingIcon = if (currentPref == "cellular") {
-                                            { Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(12.dp)) }
-                                        } else null,
-                                        modifier = Modifier.height(26.dp)
-                                    )
-                                    FilterChip(
-                                        selected = currentPref == "whatsapp",
-                                        onClick = {
-                                            preferredModes[pn.number] = "whatsapp"
-                                            onSaveLearnedCallMode(pn.number, "whatsapp")
-                                            Toast.makeText(context, "★ Preferred mode set: WhatsApp", Toast.LENGTH_SHORT).show()
-                                        },
-                                        label = { Text("WhatsApp", fontSize = 10.5.sp) },
-                                        leadingIcon = if (currentPref == "whatsapp") {
-                                            { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(12.dp)) }
-                                        } else null,
-                                        modifier = Modifier.height(26.dp)
-                                    )
-                                    if (currentPref == "cellular" || currentPref == "whatsapp") {
-                                        IconButton(
-                                            onClick = {
-                                                preferredModes[pn.number] = "ask"
-                                                onSaveLearnedCallMode(pn.number, "ask")
-                                                Toast.makeText(context, "★ Preference reset to Ask & Learn", Toast.LENGTH_SHORT).show()
-                                            },
-                                            modifier = Modifier.size(26.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Clear preference",
-                                                modifier = Modifier.size(14.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // SIM row: shown when phone has multiple SIMs and current preference is cellular / default (not WhatsApp)
-                            val isIntlNumber = remember(pn.number) {
-                                com.example.util.PhoneNumberNormalizer.isInternational(context, pn.number)
-                            }
-                            val isEditable = (globalSimPreferenceMode == "ask_learn") || (globalSimPreferenceMode == "international" && isIntlNumber)
-
-                            if (activeSims.size > 1 && currentPref != "whatsapp") {
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                // Row 3: SIM Selector (Shows actual SIM card names as pills)
-                                val currentSimPref = preferredSims[pn.number] ?: getPreferredSimSlot(pn.number)
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    modifier = Modifier.horizontalScroll(rememberScrollState())
                                 ) {
-                                    Text(
-                                        text = "SIM:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.horizontalScroll(rememberScrollState())
-                                    ) {
-                                        activeSims.forEach { sim ->
-                                            val simName = sim.displayName.ifBlank { "SIM ${sim.slotIndex + 1}" }
-                                            val isSelected = when (currentSimPref) {
-                                                0 -> sim.isDefault || (activeSims.none { it.isDefault } && sim.slotIndex == 0)
-                                                else -> currentSimPref == (sim.slotIndex + 1)
-                                            }
-
+                                    // 1. Cellular SIM Channels
+                                    val simChannels = availableChannels.filterIsInstance<CallingChannel.CellularSim>()
+                                    if (simChannels.isNotEmpty()) {
+                                        simChannels.forEach { simChan ->
+                                            val isSelected = effectiveChannelId == simChan.id ||
+                                                (effectiveChannelId == "system" && simChan.slotIndex == 0)
                                             FilterChip(
                                                 selected = isSelected,
                                                 onClick = {
-                                                    if (isEditable) {
-                                                        preferredSims[pn.number] = sim.slotIndex + 1
-                                                        onSetPreferredSimSlot?.invoke(pn.number, sim.slotIndex + 1)
-                                                        Toast.makeText(context, "★ Preferred SIM: $simName", Toast.LENGTH_SHORT).show()
-                                                    } else {
-                                                        if (globalSimPreferenceMode == "system") {
-                                                            Toast.makeText(context, "System SIM ($simName) is default. Change in Settings to customize.", Toast.LENGTH_SHORT).show()
-                                                        } else {
-                                                            Toast.makeText(context, "Domestic numbers use System SIM ($simName).", Toast.LENGTH_SHORT).show()
-                                                        }
+                                                    coroutineScope.launch {
+                                                        channelPrefRepo.setPreferenceForNumber(pn.number, simChan.id, pn.label)
                                                     }
+                                                    preferredSims[pn.number] = simChan.slotIndex + 1
+                                                    onSetPreferredSimSlot?.invoke(pn.number, simChan.slotIndex + 1)
+                                                    preferredModes[pn.number] = "cellular"
+                                                    onSaveLearnedCallMode(pn.number, "cellular")
+                                                    Toast.makeText(context, "★ Preferred for ${pn.label.ifBlank { "number" }}: ${simChan.displayName}", Toast.LENGTH_SHORT).show()
                                                 },
                                                 label = {
                                                     Text(
-                                                        text = if (sim.isDefault && globalSimPreferenceMode == "system") "$simName (Default)" else simName,
+                                                        text = simChan.displayName,
                                                         fontSize = 10.5.sp,
                                                         maxLines = 1
                                                     )
                                                 },
+                                                leadingIcon = if (isSelected) {
+                                                    { Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                                } else null,
                                                 modifier = Modifier.height(26.dp)
                                             )
                                         }
+                                    } else {
+                                        val isPhoneSelected = effectiveChannelId == "system" || effectiveChannelId == "sim_1"
+                                        val phoneLabel = remember(context) {
+                                            com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_1") ?: "Phone"
+                                        }
+                                        FilterChip(
+                                            selected = isPhoneSelected,
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    channelPrefRepo.setPreferenceForNumber(pn.number, "sim_1", pn.label)
+                                                }
+                                                preferredModes[pn.number] = "cellular"
+                                                onSaveLearnedCallMode(pn.number, "cellular")
+                                                Toast.makeText(context, "★ Preferred channel: $phoneLabel", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text(phoneLabel, fontSize = 10.5.sp) },
+                                            leadingIcon = if (isPhoneSelected) {
+                                                { Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                            } else null,
+                                            modifier = Modifier.height(26.dp)
+                                        )
                                     }
+
+                                    // 2. WhatsApp Channel (Personal)
+                                    val waChannel = availableChannels.filterIsInstance<CallingChannel.WhatsApp>()
+                                        .firstOrNull { !it.isBusiness }
+                                    if (waChannel != null) {
+                                        val isWaSelected = effectiveChannelId == "whatsapp"
+                                        FilterChip(
+                                            selected = isWaSelected,
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    channelPrefRepo.setPreferenceForNumber(pn.number, "whatsapp", pn.label)
+                                                }
+                                                preferredModes[pn.number] = "whatsapp"
+                                                onSaveLearnedCallMode(pn.number, "whatsapp")
+                                                Toast.makeText(context, "★ Preferred channel: ${waChannel.displayName}", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text(waChannel.shortLabel, fontSize = 10.5.sp) },
+                                            leadingIcon = if (isWaSelected) {
+                                                { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                            } else null,
+                                            modifier = Modifier.height(26.dp)
+                                        )
+                                    }
+
+                                    // 3. WhatsApp Business Channel (if installed)
+                                    val waBizChannel = availableChannels.filterIsInstance<CallingChannel.WhatsApp>()
+                                        .firstOrNull { it.isBusiness }
+                                    if (waBizChannel != null) {
+                                        val isWaBizSelected = effectiveChannelId == "whatsapp_business"
+                                        FilterChip(
+                                            selected = isWaBizSelected,
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    channelPrefRepo.setPreferenceForNumber(pn.number, "whatsapp_business", pn.label)
+                                                }
+                                                preferredModes[pn.number] = "whatsapp_business"
+                                                onSaveLearnedCallMode(pn.number, "whatsapp_business")
+                                                Toast.makeText(context, "★ Preferred channel: ${waBizChannel.displayName}", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text(waBizChannel.shortLabel, fontSize = 10.5.sp) },
+                                            leadingIcon = if (isWaBizSelected) {
+                                                { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                            } else null,
+                                            modifier = Modifier.height(26.dp)
+                                        )
+                                    }
+
+                                    // 4. Google Voice Channel (if installed)
+                                    val gvChannel = availableChannels.filterIsInstance<CallingChannel.GoogleVoice>()
+                                        .firstOrNull()
+                                    if (gvChannel != null) {
+                                        val isGvSelected = effectiveChannelId == "google_voice"
+                                        FilterChip(
+                                            selected = isGvSelected,
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    channelPrefRepo.setPreferenceForNumber(pn.number, "google_voice", pn.label)
+                                                }
+                                                preferredModes[pn.number] = "google_voice"
+                                                onSaveLearnedCallMode(pn.number, "google_voice")
+                                                Toast.makeText(context, "★ Preferred channel: ${gvChannel.displayName}", Toast.LENGTH_SHORT).show()
+                                            },
+                                            label = { Text(gvChannel.shortLabel, fontSize = 10.5.sp) },
+                                            leadingIcon = if (isGvSelected) {
+                                                { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                            } else null,
+                                            modifier = Modifier.height(26.dp)
+                                        )
+                                    }
+
+                                    // 5. Reset / Clear Preference (✕)
+                                    val isAskSelected = effectiveChannelId == "ask" || effectiveChannelId == "ask_always" || effectiveChannelId.isBlank()
+                                    FilterChip(
+                                        selected = isAskSelected,
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                channelPrefRepo.setPreferenceForNumber(pn.number, "ask", pn.label)
+                                            }
+                                            preferredModes[pn.number] = "ask"
+                                            onSaveLearnedCallMode(pn.number, "ask")
+                                            Toast.makeText(context, "Preference cleared", Toast.LENGTH_SHORT).show()
+                                        },
+                                        label = { Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                        border = null,
+                                        modifier = Modifier.height(26.dp)
+                                    )
                                 }
                             }
                         }
 
-                        if (index < contact.phoneNumbers.lastIndex) {
+                        if (index < displayedNumbers.lastIndex) {
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                 modifier = Modifier.padding(horizontal = 12.dp)
@@ -991,6 +1120,8 @@ fun ContactDetailsBottomSheet(
                 }
             }
 
+            var isCallHistoryExpanded by remember { mutableStateOf(false) }
+
             // -------------------------------------------------------------
             // CALL HISTORY SECTION (Native Android Dialer Style)
             // -------------------------------------------------------------
@@ -999,7 +1130,9 @@ fun ContactDetailsBottomSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { isCallHistoryExpanded = !isCallHistoryExpanded }
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1021,31 +1154,30 @@ fun ContactDetailsBottomSheet(
                     )
                 }
 
-                if (contactCallHistory.isNotEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                    ) {
-                        Text(
-                            text = "${contactCallHistory.size} calls",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isCallHistoryExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isCallHistoryExpanded) "Collapse History" else "Expand History",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            AnimatedVisibility(visible = isCallHistoryExpanded) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.height(6.dp))
 
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                 if (isLoadingHistory) {
                     Box(
                         modifier = Modifier
@@ -1177,18 +1309,19 @@ fun ContactDetailsBottomSheet(
 
                                         // SIM Slot or WhatsApp Badge for Contact Call History (SIM shown only on multi-SIM devices)
                                         val isWaCall = call.callReason?.contains("WhatsApp", ignoreCase = true) == true
-                                        val activeSims = remember(context) {
+                                        val currentSims = if (activeSims.isNotEmpty()) activeSims else remember(context) {
                                             com.example.telecom.SimHelper.getActiveSimCards(context)
                                         }
-                                        val showBadge = isWaCall || activeSims.size > 1
+                                        val showBadge = isWaCall || currentSims.size > 1
                                         if (showBadge) {
                                             val slot = if (call.simSlot > 0) call.simSlot else 1
-                                            val matchedSim = activeSims.firstOrNull { it.slotIndex + 1 == slot }
+                                            val matchedSim = currentSims.firstOrNull { it.slotIndex + 1 == slot }
                                             val simLabel = if (matchedSim != null && matchedSim.displayName.isNotBlank()) {
-                                                matchedSim.displayName.take(8)
+                                                matchedSim.displayName.take(12)
                                             } else {
                                                 "SIM $slot"
                                             }
+                                            val waLabel = availableChannels.firstOrNull { it is CallingChannel.WhatsApp }?.displayName ?: "WhatsApp"
                                             val simColor = if (slot == 2) Color(0xFF16A34A) else Color(0xFF2563EB)
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Surface(
@@ -1196,7 +1329,7 @@ fun ContactDetailsBottomSheet(
                                                 color = if (isWaCall) Color(0xFF25D366).copy(alpha = 0.2f) else simColor.copy(alpha = 0.12f)
                                             ) {
                                                 Text(
-                                                    text = if (isWaCall) "WhatsApp" else simLabel,
+                                                    text = if (isWaCall) waLabel else simLabel,
                                                     fontSize = 9.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = if (isWaCall) Color(0xFF166534) else simColor,
@@ -1243,7 +1376,7 @@ fun ContactDetailsBottomSheet(
                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Notes,
+                                                    imageVector = Icons.AutoMirrored.Filled.Notes,
                                                     contentDescription = "Note",
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(12.dp)
@@ -1287,6 +1420,8 @@ fun ContactDetailsBottomSheet(
                     }
                 }
             }
+        }
+    }
         }
     }
 
@@ -1441,7 +1576,7 @@ fun ContactDetailsBottomSheet(
                             .fillMaxWidth()
                             .clickable {
                                 numberForActionMenu = null
-                                ContactHelper.launchWhatsAppCall(context, selectedPn.number)
+                                ContactHelper.launchWhatsAppCall(context, selectedPn.number, isBusiness = false)
                             }
                     ) {
                         Row(
@@ -1451,6 +1586,30 @@ fun ContactDetailsBottomSheet(
                         ) {
                             WhatsAppIcon(modifier = Modifier.size(26.dp))
                             Text(text = "Call on WhatsApp", fontWeight = FontWeight.Medium)
+                        }
+                    }
+
+                    // WhatsApp Business Call (if available)
+                    val hasWaBizChannel = availableChannels.any { it is CallingChannel.WhatsApp && it.isBusiness }
+                    if (hasWaBizChannel) {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    numberForActionMenu = null
+                                    ContactHelper.launchWhatsAppCall(context, selectedPn.number, isBusiness = true)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                WhatsAppIcon(modifier = Modifier.size(26.dp))
+                                Text(text = "Call on WhatsApp Business", fontWeight = FontWeight.Medium)
+                            }
                         }
                     }
 
@@ -1731,5 +1890,64 @@ fun ContactDetailsBottomSheet(
             }
         )
     }
+
+    if (pendingChannelChoiceNumber != null) {
+        val pnTarget = pendingChannelChoiceNumber!!
+        MultiChannelChoiceDialog(
+            phoneNumber = pnTarget.number,
+            contactName = contact.name,
+            channels = availableChannels,
+            initialRememberChoice = (whatsAppCallMode == "ask_learn"),
+            showRememberChoice = (whatsAppCallMode != "ask_always"),
+            onSelectChannel = { channel, rememberChoice ->
+                if (rememberChoice) {
+                    coroutineScope.launch {
+                        channelPrefRepo.setPreferenceForNumber(pnTarget.number, channel.id, pnTarget.label)
+                    }
+                    when (channel) {
+                        is CallingChannel.CellularSim -> {
+                            preferredSims[pnTarget.number] = channel.slotIndex + 1
+                            onSetPreferredSimSlot?.invoke(pnTarget.number, channel.slotIndex + 1)
+                            preferredModes[pnTarget.number] = "cellular"
+                            onSaveLearnedCallMode(pnTarget.number, "cellular")
+                        }
+                        is CallingChannel.WhatsApp -> {
+                            preferredModes[pnTarget.number] = channel.id
+                            onSaveLearnedCallMode(pnTarget.number, if (channel.isBusiness) "whatsapp_business" else "whatsapp")
+                        }
+                        is CallingChannel.GoogleVoice -> {
+                            preferredModes[pnTarget.number] = channel.id
+                            onSaveLearnedCallMode(pnTarget.number, "google_voice")
+                        }
+                        else -> {}
+                    }
+                }
+                onDismiss()
+                when (channel) {
+                    is CallingChannel.WhatsApp -> ContactHelper.launchWhatsAppCall(context, pnTarget.number, isBusiness = channel.isBusiness)
+                    is CallingChannel.GoogleVoice -> ContactHelper.launchGoogleVoiceCall(context, pnTarget.number, accountHandle = channel.phoneAccountHandle, onCellularFallback = { onCallNumber(pnTarget.number) })
+                    is CallingChannel.CellularSim -> {
+                        val slot = channel.slotIndex + 1
+                        onSetPreferredSimSlot?.invoke(pnTarget.number, slot)
+                        if (onCallNumberDirect != null) {
+                            onCallNumberDirect(pnTarget.number, slot)
+                        } else {
+                            onCallNumber(pnTarget.number)
+                        }
+                    }
+                    else -> {
+                        if (onCallNumberDirect != null) {
+                            onCallNumberDirect(pnTarget.number, null)
+                        } else {
+                            onCallNumber(pnTarget.number)
+                        }
+                    }
+                }
+                pendingChannelChoiceNumber = null
+            },
+            onDismiss = { pendingChannelChoiceNumber = null }
+        )
+    }
 }
+
 

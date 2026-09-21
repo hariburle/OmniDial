@@ -40,6 +40,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import com.example.util.HapticFeedbackHelper
 
 data class KeypadKey(val digit: Char, val subText: String = "")
@@ -108,6 +121,7 @@ fun Keypad(
     }
 }
 
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun KeypadButton(
@@ -120,31 +134,43 @@ private fun KeypadButton(
     onRelease: () -> Unit,
     onLongPress: (() -> Unit)? = null
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    LaunchedEffect(interactionSource) {
-        interactionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is PressInteraction.Release, is PressInteraction.Cancel -> onRelease()
-                else -> {}
-            }
-        }
-    }
+    var isPressed by remember { mutableStateOf(false) }
+    val currentOnPress by rememberUpdatedState(onPress)
+    val currentOnRelease by rememberUpdatedState(onRelease)
+    val currentOnLongPress by rememberUpdatedState(onLongPress)
+    val viewConfig = LocalViewConfiguration.current
 
     val buttonShape = RoundedCornerShape(14.dp)
 
     Surface(
         modifier = modifier
             .clip(buttonShape)
-            .combinedClickable(
-                interactionSource = interactionSource,
-                indication = ripple(bounded = true),
-                onClick = onPress,
-                onLongClick = onLongPress
-            )
+            .pointerInput(key.digit) {
+                coroutineScope {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        isPressed = true
+                        currentOnPress()
+
+                        var longPressJob: Job? = null
+                        if (currentOnLongPress != null) {
+                            longPressJob = launch {
+                                delay(viewConfig.longPressTimeoutMillis)
+                                currentOnLongPress?.invoke()
+                            }
+                        }
+
+                        val up = waitForUpOrCancellation()
+                        longPressJob?.cancel()
+                        isPressed = false
+                        currentOnRelease()
+                    }
+                }
+            }
             .testTag("keypad_digit_${key.digit}"),
         shape = buttonShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        color = if (isPressed) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         Row(

@@ -32,10 +32,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.FavoriteContact
+import com.example.domain.model.CallingChannel
+import com.example.telecom.ChannelDiscoveryManager
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -51,6 +54,8 @@ fun FavoriteGridCard(
     onDragDelta: (Offset) -> Unit = {},
     onCall: () -> Unit,
     onCallWhatsApp: () -> Unit = {},
+    onCallGoogleVoice: () -> Unit = {},
+    onCallUnknown: () -> Unit = {},
     onLongClick: () -> Unit = {},
     onSelect: () -> Unit,
     onCreateRule: () -> Unit,
@@ -59,6 +64,10 @@ fun FavoriteGridCard(
     onSpeedDialClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val discoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
+
     val shadowElevation by animateDpAsState(
         targetValue = if (isFloatingOverlay) 16.dp else 1.dp,
         label = "drag_shadow"
@@ -67,21 +76,7 @@ fun FavoriteGridCard(
     val cardModifier = if (!isFloatingOverlay) {
         modifier
             .fillMaxWidth()
-            .pointerInput(contact.id) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { onDragStart() },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        onDragDelta(dragAmount)
-                    }
-                )
-            }
-            .combinedClickable(
-                onClick = { onLongClick() },
-                onLongClick = { onDragStart() }
-            )
+            .clickable { onSelect() }
     } else {
         modifier.fillMaxWidth()
     }
@@ -125,21 +120,20 @@ fun FavoriteGridCard(
                         color = Color(contact.avatarColor),
                         modifier = Modifier.size(avatarSize)
                     ) {
-                        if (!contact.photoUri.isNullOrBlank()) {
-                            AsyncImage(
-                                model = contact.photoUri,
-                                contentDescription = contact.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            val initialChar = (contact.nickname?.takeIf { it.isNotBlank() } ?: contact.name).take(1).uppercase()
+                            Text(
+                                text = initialChar,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
                             )
-                        } else {
-                            Box(contentAlignment = Alignment.Center) {
-                                val initialChar = (contact.nickname?.takeIf { it.isNotBlank() } ?: contact.name).take(1).uppercase()
-                                Text(
-                                    text = initialChar,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
+                            if (!contact.photoUri.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = contact.photoUri,
+                                    contentDescription = contact.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             }
                         }
@@ -265,114 +259,70 @@ fun FavoriteGridCard(
                         }
                     }
                 } else {
-                    // Normal Mode: Bento action buttons
-                    if (preferredCallingMode == "ask" || preferredCallingMode == "ask_always") {
-                        // Ask & Learn or Ask Always mode: Dual dialers side-by-side
+                    // Normal Mode: Voice-first single Call action (Option B)
+                    // If channel preference is unknown/ask, button reads "Call" and triggers onCallUnknown
+                    // If preference is known (e.g. Jio, Airtel, WhatsApp, etc.), button reads "Call - <Channel Name>"
+                    val resolvedChannel = remember(preferredCallingMode, availableChannels) {
+                        if (preferredCallingMode.isBlank() || preferredCallingMode.equals("ask", ignoreCase = true) || preferredCallingMode.equals("ask_always", ignoreCase = true)) {
+                            null
+                        } else {
+                            availableChannels.firstOrNull { it.id.equals(preferredCallingMode, ignoreCase = true) }
+                                ?: when (preferredCallingMode.lowercase()) {
+                                    "cellular", "phone" -> availableChannels.firstOrNull { it.id == "sim_1" } ?: availableChannels.firstOrNull { it is CallingChannel.CellularSim }
+                                    else -> null
+                                }
+                        }
+                    }
+                    val isUnknown = (resolvedChannel == null)
+                    val buttonText = if (resolvedChannel != null) "Call - ${resolvedChannel.shortLabel}" else "Call"
+                    val brandColor = resolvedChannel?.let { Color(it.brandColorHex) } ?: MaterialTheme.colorScheme.primary
+                    val isWhatsApp = (resolvedChannel is CallingChannel.WhatsApp)
+                    val isGoogleVoice = (resolvedChannel is CallingChannel.GoogleVoice)
+                    val buttonAction = when {
+                        isUnknown -> onCallUnknown
+                        isWhatsApp -> onCallWhatsApp
+                        isGoogleVoice -> onCallGoogleVoice
+                        else -> onCall
+                    }
+
+                    Surface(
+                        onClick = buttonAction,
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (resolvedChannel != null) brandColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(28.dp)
+                            .testTag("fav_call_btn_${contact.id}")
+                    ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(28.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Phone dialer
-                            Surface(
-                                onClick = onCall,
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .testTag("fav_call_btn_${contact.id}")
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Call,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Phone",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                            if (isWhatsApp) {
+                                WhatsAppIcon(modifier = Modifier.size(14.dp))
+                            } else if (isGoogleVoice) {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = null,
+                                    tint = brandColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Call,
+                                    contentDescription = null,
+                                    tint = brandColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
                             }
-
-                            // WhatsApp dialer
-                            Surface(
-                                onClick = onCallWhatsApp,
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF25D366).copy(alpha = 0.15f),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .testTag("fav_wa_btn_${contact.id}")
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    WhatsAppIcon(modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "WhatsApp",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1E7E34)
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // Single preferred mode pill button
-                        Surface(
-                            onClick = if (preferredCallingMode == "whatsapp") onCallWhatsApp else onCall,
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (preferredCallingMode == "whatsapp") Color(0xFF25D366).copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(28.dp)
-                                .testTag("fav_call_btn_${contact.id}")
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (preferredCallingMode == "whatsapp") {
-                                    WhatsAppIcon(modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "WhatsApp",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF1E7E34)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Call,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Phone",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = buttonText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = brandColor
+                            )
                         }
                     }
                 }

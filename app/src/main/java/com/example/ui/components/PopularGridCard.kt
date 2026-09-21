@@ -8,6 +8,10 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,6 +23,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.domain.model.CallingChannel
+import com.example.telecom.ChannelDiscoveryManager
 import com.example.ui.models.PopularContactItem
 
 @Composable
@@ -33,6 +39,10 @@ fun PopularGridCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val discoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) }
+    val availableChannels by discoveryManager.availableChannels.collectAsState()
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -191,109 +201,58 @@ fun PopularGridCard(
                     }
                 }
             } else {
-                if (preferredCallingMode == "ask" || preferredCallingMode == "ask_always") {
+                val resolvedChannel = remember(preferredCallingMode, availableChannels) {
+                    if (preferredCallingMode.isBlank() || preferredCallingMode.equals("ask", ignoreCase = true) || preferredCallingMode.equals("ask_always", ignoreCase = true)) {
+                        null
+                    } else {
+                        availableChannels.firstOrNull { it.id.equals(preferredCallingMode, ignoreCase = true) }
+                            ?: when (preferredCallingMode.lowercase()) {
+                                "cellular", "phone" -> availableChannels.firstOrNull { it.id == "sim_1" } ?: availableChannels.firstOrNull { it is CallingChannel.CellularSim }
+                                else -> null
+                            }
+                    }
+                }
+                val isUnknown = (resolvedChannel == null)
+                val buttonText = if (resolvedChannel != null) "Call - ${resolvedChannel.shortLabel}" else "Call"
+                val brandColor = resolvedChannel?.let { Color(it.brandColorHex) } ?: MaterialTheme.colorScheme.primary
+                val isWhatsApp = (resolvedChannel is CallingChannel.WhatsApp)
+                val buttonAction = when {
+                    isUnknown -> onCall
+                    isWhatsApp -> onCallWhatsApp
+                    else -> onCall
+                }
+
+                Surface(
+                    onClick = buttonAction,
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (resolvedChannel != null) brandColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(28.dp)
+                        .testTag("pop_call_btn_${item.phoneNumber}")
+                ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(28.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            onClick = onCall,
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .testTag("pop_call_btn_${item.phoneNumber}")
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Call,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Phone",
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                        if (isWhatsApp) {
+                            WhatsAppIcon(modifier = Modifier.size(14.dp))
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = null,
+                                tint = brandColor,
+                                modifier = Modifier.size(13.dp)
+                            )
                         }
-
-                        Surface(
-                            onClick = onCallWhatsApp,
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF25D366).copy(alpha = 0.15f),
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .testTag("pop_wa_btn_${item.phoneNumber}")
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                WhatsAppIcon(modifier = Modifier.size(13.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "WhatsApp",
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E7E34)
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Surface(
-                        onClick = if (preferredCallingMode == "whatsapp") onCallWhatsApp else onCall,
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (preferredCallingMode == "whatsapp") Color(0xFF25D366).copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(28.dp)
-                            .testTag("pop_call_btn_${item.phoneNumber}")
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (preferredCallingMode == "whatsapp") {
-                                WhatsAppIcon(modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "WhatsApp",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF1E7E34)
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Call,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Phone",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = buttonText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = brandColor
+                        )
                     }
                 }
             }

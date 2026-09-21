@@ -20,7 +20,8 @@ data class SimInfo(
     val carrierName: String,     // e.g. "Spectrum", "Verizon"
     val number: String? = null,
     val isDefault: Boolean = false,
-    val isRoaming: Boolean = false
+    val isRoaming: Boolean = false,
+    val deviceSimName: String? = null // custom name from device's SIM management (e.g., "US", "IN")
 )
 
 object SimHelper {
@@ -53,13 +54,24 @@ object SimHelper {
 
                 for (info in activeList) {
                     val slot = info.simSlotIndex // 0 for SIM 1, 1 for SIM 2
+                    if (slot < 0) continue
+
                     val display = info.displayName?.toString()?.trim()
                     val carrier = info.carrierName?.toString()?.trim()
-                    val name = when {
-                        !display.isNullOrBlank() && !display.equals("CARD $slot", ignoreCase = true) -> display
+                    val customName = try {
+                        com.example.data.ChannelConfigRepository.getInstance(context).getCustomNameSync("sim_${slot + 1}")
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    // Extract device-managed custom name (e.g. "US", "IN") if not generic CARD index
+                    val deviceSimName = when {
+                        !display.isNullOrBlank() && !display.equals("CARD $slot", ignoreCase = true) && !display.equals("CARD ${slot + 1}", ignoreCase = true) -> display
                         !carrier.isNullOrBlank() -> carrier
                         else -> "SIM ${slot + 1}"
                     }
+
+                    val name = customName?.takeIf { it.isNotBlank() } ?: deviceSimName
 
                     val isRoaming = try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -71,15 +83,28 @@ object SimHelper {
                         false
                     }
 
+                    val simNumber: String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        try {
+                            subscriptionManager.getPhoneNumber(info.subscriptionId).takeIf { it.isNotBlank() }
+                        } catch (_: SecurityException) {
+                            @Suppress("DEPRECATION")
+                            info.number?.takeIf { it.isNotBlank() }
+                        }
+                    } else {
+                        @Suppress("DEPRECATION")
+                        info.number?.takeIf { it.isNotBlank() }
+                    }
+
                     simList.add(
                         SimInfo(
                             slotIndex = slot,
                             subscriptionId = info.subscriptionId,
                             displayName = name,
                             carrierName = carrier ?: name,
-                            number = info.number?.takeIf { it.isNotBlank() },
+                            number = simNumber,
                             isDefault = (info.subscriptionId == defaultSubId),
-                            isRoaming = isRoaming
+                            isRoaming = isRoaming,
+                            deviceSimName = deviceSimName
                         )
                     )
                 }

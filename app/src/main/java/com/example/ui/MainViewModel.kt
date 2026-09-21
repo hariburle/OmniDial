@@ -22,6 +22,7 @@ import com.example.data.FavoriteContact
 import com.example.data.IgnoredContact
 import com.example.data.LocalContact
 import com.example.data.RecentCall
+import com.example.domain.model.CallingChannel
 import com.example.telecom.ActiveCallInfo
 import com.example.telecom.AutomationStep
 import com.example.telecom.CallManager
@@ -32,6 +33,8 @@ import com.example.util.ContactHelper
 import com.example.util.ContactPhoneNumber
 import com.example.util.DeviceContact
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -175,10 +178,20 @@ class MainViewModel(
 
         if (remember || _whatsAppCallMode.value == "ask_learn") {
             saveLearnedCallMode(prompt.number, method)
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    com.example.data.ChannelPreferenceRepository.getInstance(appContext)
+                        .setPreferenceForNumber(prompt.number, method)
+                } catch (_: Exception) {}
+            }
         }
 
         if (method == "whatsapp") {
-            placeWhatsAppCall(context, prompt.number)
+            placeWhatsAppCall(context, prompt.number, isBusiness = false)
+        } else if (method == "whatsapp_business") {
+            placeWhatsAppCall(context, prompt.number, isBusiness = true)
+        } else if (method == "google_voice") {
+            placeGoogleVoiceCall(context, prompt.number)
         } else {
             placeCall(context, prompt.number, prompt.reason)
         }
@@ -462,6 +475,30 @@ class MainViewModel(
     val favorites: StateFlow<List<FavoriteContact>> = repository.favorites
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val defaultContactNumbers: StateFlow<List<com.example.data.ContactDefaultNumber>> = repository.allDefaultNumbers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun getDefaultNumberForContact(contact: DeviceContact): com.example.data.ContactDefaultNumber? {
+        val list = defaultContactNumbers.value
+        if (contact.contactId != null && contact.contactId > 0) {
+            val byId = list.firstOrNull { it.contactId == contact.contactId }
+            if (byId != null) return byId
+        }
+        for (pn in contact.phoneNumbers) {
+            val norm = com.example.util.PhoneNumberNormalizer.toE164(pn.number)
+            if (norm.isNotBlank()) {
+                val byNum = list.firstOrNull { it.normalizedNumber == norm }
+                if (byNum != null) return byNum
+            }
+        }
+        val normPrimary = com.example.util.PhoneNumberNormalizer.toE164(contact.phoneNumber)
+        if (normPrimary.isNotBlank()) {
+            val byPrimary = list.firstOrNull { it.normalizedNumber == normPrimary }
+            if (byPrimary != null) return byPrimary
+        }
+        return null
+    }
+
     // Pre-computed, background-normalized search contacts for instant dialer response without UI frame drops
     val searchContacts: StateFlow<List<DeviceContact>> = combine(_deviceContacts, favorites) { effectiveContacts, favs ->
         fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
@@ -512,6 +549,7 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val isRefreshingRecents = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val refreshRecentsChannel = Channel<Unit>(Channel.CONFLATED)
     private val contactsMutex = kotlinx.coroutines.sync.Mutex()
     private var hasSeededInitialCalls = false
 
@@ -576,12 +614,29 @@ class MainViewModel(
         refreshLocalBackups()
         registerContactsObserver()
         registerCallLogObserver()
+        viewModelScope.launch(Dispatchers.IO) {
+            for (trigger in refreshRecentsChannel) {
+                executeRecentCallsRefresh()
+            }
+        }
         viewModelScope.launch {
             CallManager.activeCall.collect { call ->
                 if (call != null) {
                     if (call.state != android.telecom.Call.STATE_DISCONNECTED) {
                         dismissAllModals()
                     } else {
+                        refreshRecentCalls()
+                        launch {
+                            delay(600)
+                            refreshRecentCalls()
+                            delay(1500)
+                            refreshRecentCalls()
+                        }
+                    }
+                } else {
+                    refreshRecentCalls()
+                    launch {
+                        delay(600)
                         refreshRecentCalls()
                     }
                 }
@@ -590,23 +645,24 @@ class MainViewModel(
         viewModelScope.launch {
             CallManager.callLoggedEvent.collect {
                 refreshRecentCalls()
-                kotlinx.coroutines.delay(600)
-                refreshRecentCalls()
-                kotlinx.coroutines.delay(1200)
-                refreshRecentCalls()
+                launch {
+                    delay(600)
+                    refreshRecentCalls()
+                    delay(1500)
+                    refreshRecentCalls()
+                }
             }
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            removeSpam("+1 469-731-3343")
-            removeSpam("4697313343")
         }
     }
 
     fun refreshRecentCalls() {
+        refreshRecentsChannel.trySend(Unit)
+    }
+
+    private suspend fun executeRecentCallsRefresh() {
         if (!isRefreshingRecents.compareAndSet(false, true)) return
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
+        try {
+            fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
 
                 fun isCallDeleted(call: RecentCall): Boolean {
                     val digits = normDigits(call.phoneNumber)
@@ -630,11 +686,26 @@ class MainViewModel(
                 }
                 val systemCalls = ContactHelper.fetchDeviceCallHistory(appContext, limit = 100).filterNot { isCallDeleted(it) }
 
+                // Bucketing key for the two matching passes below. Both passes used to be O(n^2)
+                // with a full libphonenumber comparison per pair. Two numbers can only be judged
+                // equal by ContactHelper.isSamePhoneNumber if they agree on their trailing digits
+                // (exact, local-digit, or 10-digit suffix match), so the last 7 digits are a safe
+                // bucket key: collisions only add candidates, which are still verified in full.
+                fun matchKey(num: String): String {
+                    val digits = num.filter { it.isDigit() }
+                    return if (digits.length > 7) digits.takeLast(7) else digits
+                }
+
+                val roomIndex = HashMap<String, MutableList<RecentCall>>()
+                roomCalls.forEach { roomCall ->
+                    roomIndex.getOrPut(matchKey(roomCall.phoneNumber)) { mutableListOf() }.add(roomCall)
+                }
+
                 val merged = mutableListOf<RecentCall>()
                 val handledRoomIds = mutableSetOf<Long>()
 
                 systemCalls.forEach { sysCall ->
-                    val matchingRoomCall = roomCalls.firstOrNull { roomCall ->
+                    val matchingRoomCall = roomIndex[matchKey(sysCall.phoneNumber)]?.firstOrNull { roomCall ->
                         val numMatches = ContactHelper.isSamePhoneNumber(sysCall.phoneNumber, roomCall.phoneNumber)
                         if (!numMatches) return@firstOrNull false
 
@@ -671,14 +742,17 @@ class MainViewModel(
                 // Deduplication pass across merged calls (eliminates any remaining close duplicate records)
                 merged.sortByDescending { it.timestamp }
                 val deduplicated = mutableListOf<RecentCall>()
+                val dedupIndex = HashMap<String, MutableList<Int>>()
                 for (call in merged) {
-                    val existingIdx = deduplicated.indexOfFirst { prev ->
+                    val bucket = dedupIndex[matchKey(call.phoneNumber)]
+                    val existingIdx = bucket?.firstOrNull { idx ->
+                        val prev = deduplicated[idx]
                         val numMatch = ContactHelper.isSamePhoneNumber(call.phoneNumber, prev.phoneNumber)
                         val typeMatch = prev.callType == call.callType || (prev.callType in listOf(1, 3) && call.callType in listOf(1, 3))
                         val timeGap = Math.abs(prev.timestamp - call.timestamp)
                         val maxDur = Math.max(prev.durationSeconds, call.durationSeconds) * 1000L
                         numMatch && typeMatch && (timeGap <= (maxDur + 25000L))
-                    }
+                    } ?: -1
 
                     if (existingIdx != -1) {
                         // Merge richer information into existing entry
@@ -696,6 +770,7 @@ class MainViewModel(
                         )
                         deduplicated[existingIdx] = enriched
                     } else {
+                        dedupIndex.getOrPut(matchKey(call.phoneNumber)) { mutableListOf() }.add(deduplicated.size)
                         deduplicated.add(call)
                     }
                 }
@@ -718,7 +793,6 @@ class MainViewModel(
             } finally {
                 isRefreshingRecents.set(false)
             }
-        }
     }
 
     fun refreshContacts() {
@@ -741,6 +815,13 @@ class MainViewModel(
                         .filter { !it.nickname.isNullOrBlank() }
                         .associate { it.name.trim().lowercase() to it.nickname!!.trim() }
 
+                    val favDigitsToPhotoMap = currentFavs
+                        .filter { !it.photoUri.isNullOrBlank() }
+                        .associate { normDigits(it.phoneNumber) to it.photoUri!! }
+                    val favNameToPhotoMap = currentFavs
+                        .filter { !it.photoUri.isNullOrBlank() }
+                        .associate { it.name.trim().lowercase() to it.photoUri!! }
+
                     fun resolveNickname(name: String, mainNum: String, phoneNumbers: List<ContactPhoneNumber>, existingNick: String?): String? {
                         if (!existingNick.isNullOrBlank()) return existingNick
                         val normMain = normDigits(mainNum)
@@ -760,9 +841,32 @@ class MainViewModel(
                         return null
                     }
 
+                    fun resolvePhoto(name: String, mainNum: String, phoneNumbers: List<ContactPhoneNumber>, existingPhoto: String?): String? {
+                        if (!existingPhoto.isNullOrBlank()) return existingPhoto
+                        val normMain = normDigits(mainNum)
+                        if (normMain.isNotBlank() && favDigitsToPhotoMap.containsKey(normMain)) {
+                            return favDigitsToPhotoMap[normMain]
+                        }
+                        for (pn in phoneNumbers) {
+                            val normPn = normDigits(pn.number)
+                            if (normPn.isNotBlank() && favDigitsToPhotoMap.containsKey(normPn)) {
+                                return favDigitsToPhotoMap[normPn]
+                            }
+                        }
+                        val normName = name.trim().lowercase()
+                        if (normName.isNotBlank() && favNameToPhotoMap.containsKey(normName)) {
+                            return favNameToPhotoMap[normName]
+                        }
+                        return null
+                    }
+
                     val enrichedDeviceList = deviceList.map { c ->
                         val nick = resolveNickname(c.name, c.phoneNumber, c.phoneNumbers, c.nickname)
-                        if (nick != c.nickname) c.copy(nickname = nick) else c
+                        val photo = resolvePhoto(c.name, c.phoneNumber, c.phoneNumbers, c.photoUri)
+                        var updated = c
+                        if (nick != c.nickname) updated = updated.copy(nickname = nick)
+                        if (photo != updated.photoUri) updated = updated.copy(photoUri = photo)
+                        updated
                     }
 
                     // Group local contacts by name so multi-number contacts are consolidated into a single DeviceContact
@@ -773,11 +877,12 @@ class MainViewModel(
                             val allNumbers = contacts.map { ContactPhoneNumber(it.phoneNumber, it.label) }
                             val isFav = contacts.any { favDigits.contains(normDigits(it.phoneNumber)) }
                             val nick = resolveNickname(name, first.phoneNumber, allNumbers, first.nickname)
+                            val photo = resolvePhoto(name, first.phoneNumber, allNumbers, first.photoUri)
                             DeviceContact(
                                 name = name,
                                 phoneNumber = first.phoneNumber,
                                 label = first.label,
-                                photoUri = first.photoUri,
+                                photoUri = photo,
                                 nickname = nick,
                                 isStarred = isFav,
                                 isAppOnly = true,
@@ -792,6 +897,32 @@ class MainViewModel(
                     _deviceContacts.value = combined
                     inMemoryCachedDeviceContacts = combined
                     syncWithDeviceContacts()
+
+                    // Sync live photo URIs back to stored favorites in Room DB
+                    try {
+                        val livePhotoByNorm = enrichedDeviceList
+                            .filter { !it.photoUri.isNullOrBlank() }
+                            .flatMap { dc ->
+                                (listOf(dc.phoneNumber) + dc.phoneNumbers.map { it.number })
+                                    .map { normDigits(it) }
+                                    .filter { it.isNotBlank() }
+                                    .map { it to dc.photoUri!! }
+                            }.toMap()
+                        val livePhotoByName = enrichedDeviceList
+                            .filter { !it.photoUri.isNullOrBlank() }
+                            .associate { it.name.trim().lowercase() to it.photoUri!! }
+
+                        for (fav in currentFavs) {
+                            if (fav.photoUri.isNullOrBlank()) {
+                                val norm = normDigits(fav.phoneNumber)
+                                val livePhoto = (if (norm.isNotBlank()) livePhotoByNorm[norm] else null)
+                                    ?: livePhotoByName[fav.name.trim().lowercase()]
+                                if (!livePhoto.isNullOrBlank()) {
+                                    repository.updateFavorite(fav.copy(photoUri = livePhoto))
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -817,9 +948,10 @@ class MainViewModel(
         }
     }
 
-    private fun registerCallLogObserver() {
+    fun registerCallLogObserver() {
+        if (callLogObserver != null) return
         try {
-            callLogObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
                 override fun onChange(selfChange: Boolean, uri: Uri?) {
                     super.onChange(selfChange, uri)
                     refreshRecentCalls()
@@ -828,10 +960,11 @@ class MainViewModel(
             appContext.contentResolver.registerContentObserver(
                 CallLog.Calls.CONTENT_URI,
                 true,
-                callLogObserver!!
+                observer
             )
+            callLogObserver = observer
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("MainViewModel", "Could not register callLogObserver: ${e.message}")
         }
     }
 
@@ -1239,16 +1372,25 @@ class MainViewModel(
         }
     }
 
-    fun placeWhatsAppCall(context: Context, number: String) {
+    fun placeWhatsAppCall(context: Context, number: String, isBusiness: Boolean? = null) {
         val cleanNumber = number.ifBlank { _dialerNumber.value }
         if (cleanNumber.isBlank()) return
 
-        // If in ask_learn mode and user explicitly triggered WhatsApp call, learn the choice directly
-        if (_whatsAppCallMode.value == "ask_learn") {
-            saveLearnedCallMode(cleanNumber, "whatsapp")
+        val targetIsBusiness = isBusiness ?: run {
+            try {
+                com.example.data.ChannelPreferenceRepository.getInstance(context).getCachedPreference(cleanNumber) == "whatsapp_business" ||
+                getPreferredCallingMode(cleanNumber) == "whatsapp_business"
+            } catch (_: Exception) {
+                getPreferredCallingMode(cleanNumber) == "whatsapp_business"
+            }
         }
 
-        ContactHelper.launchWhatsAppCall(context, cleanNumber)
+        // If in ask_learn mode and user explicitly triggered WhatsApp call, learn the choice directly
+        if (_whatsAppCallMode.value == "ask_learn") {
+            saveLearnedCallMode(cleanNumber, if (targetIsBusiness) "whatsapp_business" else "whatsapp")
+        }
+
+        ContactHelper.launchWhatsAppCall(context, cleanNumber, isBusiness = targetIsBusiness)
 
         // Log outgoing WhatsApp call so frequency learning & preferred calling mode work
         viewModelScope.launch(Dispatchers.IO) {
@@ -1263,7 +1405,46 @@ class MainViewModel(
                     callType = android.provider.CallLog.Calls.OUTGOING_TYPE,
                     timestamp = System.currentTimeMillis(),
                     durationSeconds = 0,
-                    callReason = "WhatsApp Call"
+                    callReason = if (targetIsBusiness) "WhatsApp Business Call" else "WhatsApp Call"
+                )
+            )
+            refreshRecentCalls()
+        }
+    }
+
+    fun placeGoogleVoiceCall(context: Context, number: String) {
+        val cleanNumber = number.ifBlank { _dialerNumber.value }
+        if (cleanNumber.isBlank()) return
+
+        // If in ask_learn mode and user explicitly triggered Google Voice call, learn the choice directly
+        if (_whatsAppCallMode.value == "ask_learn") {
+            saveLearnedCallMode(cleanNumber, "google_voice")
+        }
+
+        val gvChannel = com.example.telecom.ChannelDiscoveryManager.getInstance(context)
+            .getChannelById("google_voice") as? CallingChannel.GoogleVoice
+
+        ContactHelper.launchGoogleVoiceCall(
+            context = context,
+            rawNumber = cleanNumber,
+            accountHandle = gvChannel?.phoneAccountHandle,
+            onCellularFallback = { placeCall(context, cleanNumber) }
+        )
+
+        // Log outgoing Google Voice call so frequency learning & preferred calling mode work
+        viewModelScope.launch(Dispatchers.IO) {
+            val contactName = _deviceContacts.value.firstOrNull { dc ->
+                dc.phoneNumber.contains(cleanNumber) || dc.phoneNumbers.any { it.number.contains(cleanNumber) }
+            }?.name ?: favorites.value.firstOrNull { it.phoneNumber.contains(cleanNumber) }?.name
+
+            repository.insertRecentCall(
+                RecentCall(
+                    phoneNumber = cleanNumber,
+                    callerName = contactName ?: cleanNumber,
+                    callType = android.provider.CallLog.Calls.OUTGOING_TYPE,
+                    timestamp = System.currentTimeMillis(),
+                    durationSeconds = 0,
+                    callReason = "Google Voice Call"
                 )
             )
             refreshRecentCalls()
@@ -1271,7 +1452,7 @@ class MainViewModel(
     }
 
     /**
-     * Determines whether cellular or WhatsApp calling is preferred for this contact/number,
+     * Determines whether cellular, WhatsApp, or Google Voice calling is preferred for this contact/number,
      * checking explicitly learned choices, international rules, or recent call history.
      */
     fun getPreferredCallingMode(phoneNumber: String): String {
@@ -1288,6 +1469,14 @@ class MainViewModel(
         val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
         val digits = clean.filter { it.isDigit() }.takeLast(10)
 
+        // 0. Check unified Room ChannelPreferenceRepository
+        try {
+            val channelPref = com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
+            if (channelPref != null && channelPref.isNotBlank() && channelPref != "ask") {
+                return channelPref
+            }
+        } catch (_: Exception) {}
+
         // 1. Check explicitly learned choice
         val learned = _learnedCallModes.value[clean]
             ?: (if (digits.isNotBlank()) _learnedCallModes.value[digits] else null)
@@ -1299,14 +1488,23 @@ class MainViewModel(
             return "whatsapp"
         }
 
-        // 3. Count past WhatsApp calls vs regular cellular calls in recent calls
+        // 3. Count past WhatsApp/Google Voice calls vs regular cellular calls in recent calls
         val calls = recentCalls.value.filter { call ->
             ContactHelper.isSamePhoneNumber(call.phoneNumber, clean)
         }
-        val waCount = calls.count { it.callReason?.contains("WhatsApp", ignoreCase = true) == true }
-        val gsmCount = calls.count { it.callReason?.contains("WhatsApp", ignoreCase = true) != true }
+        val waBizCount = calls.count { it.callReason?.contains("WhatsApp Business", ignoreCase = true) == true }
+        val waCount = calls.count { it.callReason?.contains("WhatsApp", ignoreCase = true) == true && it.callReason?.contains("Business", ignoreCase = true) != true }
+        val gvCount = calls.count { it.callReason?.contains("Google Voice", ignoreCase = true) == true }
+        val gsmCount = calls.count {
+            it.callReason?.contains("WhatsApp", ignoreCase = true) != true &&
+            it.callReason?.contains("Google Voice", ignoreCase = true) != true
+        }
 
-        return if (waCount > gsmCount && waCount > 0) {
+        return if (gvCount > waBizCount && gvCount > waCount && gvCount > gsmCount) {
+            "google_voice"
+        } else if (waBizCount > waCount && waBizCount > gsmCount && waBizCount > gvCount) {
+            "whatsapp_business"
+        } else if (waCount > gsmCount && waCount > gvCount && waCount > 0) {
             "whatsapp"
         } else if (_whatsAppCallMode.value == "ask_learn") {
             "ask"
@@ -1345,12 +1543,49 @@ class MainViewModel(
     }
 
     /**
-     * Places a call honoring the configured WhatsApp calling mode (All International,
+     * Places a call honoring the configured calling mode (All International,
      * Ask Always prompt, Ask & Learn memory, or cellular).
      */
     fun initiateCall(context: Context, number: String, reason: String? = null) {
         val cleanNumber = number.ifBlank { _dialerNumber.value }
         if (cleanNumber.isBlank()) return
+
+        val clean = cleanNumber.replace(Regex("[^0-9+]"), "")
+
+        // 0. Check unified Room ChannelPreferenceRepository
+        val perNumberPref = try {
+            com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(cleanNumber)
+                ?: com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
+        } catch (_: Exception) { null }
+
+        if (perNumberPref != null && perNumberPref.isNotBlank() && perNumberPref != "ask" && perNumberPref != "ask_always") {
+            when (perNumberPref.lowercase()) {
+                "google_voice" -> {
+                    placeGoogleVoiceCall(context, cleanNumber)
+                    return
+                }
+                "whatsapp" -> {
+                    placeWhatsAppCall(context, cleanNumber, isBusiness = false)
+                    return
+                }
+                "whatsapp_business" -> {
+                    placeWhatsAppCall(context, cleanNumber, isBusiness = true)
+                    return
+                }
+                "sim_1", "sim1" -> {
+                    placeCall(context, cleanNumber, reason, overrideSimSlot = 0)
+                    return
+                }
+                "sim_2", "sim2" -> {
+                    placeCall(context, cleanNumber, reason, overrideSimSlot = 1)
+                    return
+                }
+                "cellular", "system" -> {
+                    placeCall(context, cleanNumber, reason)
+                    return
+                }
+            }
+        }
 
         val isInternational = ContactHelper.isInternationalNumber(context, cleanNumber)
         val mode = _whatsAppCallMode.value
@@ -1380,8 +1615,10 @@ class MainViewModel(
             val learnedChoice = _learnedCallModes.value[clean]
                 ?: if (digits.isNotBlank()) _learnedCallModes.value[digits] else null
             if (learnedChoice != null) {
-                if (learnedChoice == "whatsapp") {
-                    placeWhatsAppCall(context, cleanNumber)
+                if (learnedChoice == "whatsapp" || learnedChoice == "whatsapp_business") {
+                    placeWhatsAppCall(context, cleanNumber, isBusiness = (learnedChoice == "whatsapp_business"))
+                } else if (learnedChoice == "google_voice") {
+                    placeGoogleVoiceCall(context, cleanNumber)
                 } else {
                     placeCall(context, cleanNumber, reason)
                 }
@@ -1780,15 +2017,25 @@ class MainViewModel(
     fun addFavorite(name: String, phoneNumber: String, label: String = "Mobile", photoUri: String? = null, nickname: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
-            val cleanDigits = normDigits(phoneNumber)
-            val currentList = repository.getAllFavoritesList()
             val matchedContact = lookupContactByNumber(phoneNumber)
                 ?: deviceContacts.value.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
             val nicknameToUse = nickname?.trim()?.ifBlank { null } ?: matchedContact?.nickname?.ifBlank { null }
 
+            // If a default number was chosen for this contact, the favorite dials that chosen default
+            val chosenDefault = matchedContact?.let { getDefaultNumberForContact(it) }
+            val effectiveNumber = chosenDefault?.defaultNumber ?: phoneNumber.trim()
+            val effectiveLabel = chosenDefault?.defaultLabel ?: label
+
+            val cleanDigits = normDigits(effectiveNumber)
+            val currentList = repository.getAllFavoritesList()
+
             val existing = currentList.firstOrNull {
                 (cleanDigits.length >= 7 && normDigits(it.phoneNumber) == cleanDigits) ||
-                it.name.equals(name.trim(), ignoreCase = true)
+                it.name.equals(name.trim(), ignoreCase = true) ||
+                (matchedContact != null && matchedContact.phoneNumbers.any { pn ->
+                    val pnDigits = normDigits(pn.number)
+                    pnDigits.length >= 7 && pnDigits == normDigits(it.phoneNumber)
+                })
             }
             if (existing != null) {
                 // Update existing rather than creating duplicate
@@ -1796,8 +2043,8 @@ class MainViewModel(
                     existing.copy(
                         name = matchedContact?.name ?: name.trim(),
                         nickname = nicknameToUse ?: existing.nickname,
-                        phoneNumber = phoneNumber.trim(),
-                        label = label,
+                        phoneNumber = effectiveNumber,
+                        label = effectiveLabel,
                         photoUri = photoUri ?: matchedContact?.photoUri ?: existing.photoUri
                     )
                 )
@@ -1809,8 +2056,8 @@ class MainViewModel(
                     FavoriteContact(
                         name = matchedContact?.name ?: name.trim(),
                         nickname = nicknameToUse,
-                        phoneNumber = phoneNumber.trim(),
-                        label = label,
+                        phoneNumber = effectiveNumber,
+                        label = effectiveLabel,
                         avatarColor = color,
                         photoUri = photoUri ?: matchedContact?.photoUri,
                         sortOrder = maxOrder + 1
@@ -1914,10 +2161,16 @@ class MainViewModel(
     fun toggleFavorite(name: String, phoneNumber: String, label: String = "Mobile", photoUri: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val cleanDigits = phoneNumber.filter { it.isDigit() }.takeLast(10)
+            val matchedContact = lookupContactByNumber(phoneNumber)
+                ?: deviceContacts.value.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
             val existing = favorites.value.firstOrNull { fav ->
                 val favDigits = fav.phoneNumber.filter { it.isDigit() }.takeLast(10)
                 (cleanDigits.length >= 7 && favDigits == cleanDigits) ||
-                fav.name.equals(name.trim(), ignoreCase = true)
+                fav.name.equals(name.trim(), ignoreCase = true) ||
+                (matchedContact != null && matchedContact.phoneNumbers.any { pn ->
+                    val pnDigits = pn.number.filter { it.isDigit() }.takeLast(10)
+                    pnDigits.length >= 7 && pnDigits == favDigits
+                })
             }
             if (existing != null) {
                 deleteFavorite(existing)
@@ -2219,13 +2472,20 @@ class MainViewModel(
 
     fun setDefaultContactNumber(contact: DeviceContact, newNumber: String, newLabel: String = "Mobile") {
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. Update Android Telecom / Contacts Provider IS_PRIMARY and IS_SUPER_PRIMARY flags
+            // 1. Persist chosen default number per contact in app DB
+            val allNumbers = contact.phoneNumbers.map { it.number }.toMutableList()
+            if (!allNumbers.contains(contact.phoneNumber)) allNumbers.add(contact.phoneNumber)
+            if (!allNumbers.contains(newNumber)) allNumbers.add(newNumber)
+            repository.setDefaultNumberForContact(contact.contactId, allNumbers, newNumber, newLabel)
+
+            // 2. Update Android Telecom / Contacts Provider IS_PRIMARY and IS_SUPER_PRIMARY flags
             ContactHelper.setDefaultPhoneNumber(appContext, contact.contactId, newNumber)
 
-            // 2. If this contact is also in Room local_contacts, update it
+            // 3. If this contact is also in Room local_contacts, update it
             val localList = repository.getAllLocalContactsList()
             val existingLocal = localList.firstOrNull {
                 ContactHelper.isSamePhoneNumber(it.phoneNumber, contact.phoneNumber) ||
+                contact.phoneNumbers.any { pn -> ContactHelper.isSamePhoneNumber(it.phoneNumber, pn.number) } ||
                 it.name.equals(contact.name.trim(), ignoreCase = true)
             }
             if (existingLocal != null) {
@@ -2237,7 +2497,7 @@ class MainViewModel(
                 )
             }
 
-            // 3. If contact is a Favorite, update favorite number so Favorite Card and Speed Dial use this new default
+            // 4. If contact is a Favorite, update favorite number so Favorite Card and Speed Dial use this new default
             val fav = favorites.value.firstOrNull {
                 ContactHelper.isSamePhoneNumber(it.phoneNumber, contact.phoneNumber) ||
                 contact.phoneNumbers.any { pn -> ContactHelper.isSamePhoneNumber(it.phoneNumber, pn.number) } ||
@@ -2252,7 +2512,7 @@ class MainViewModel(
                 )
             }
 
-            // 4. Trigger contacts refresh so list UI updates immediately
+            // 5. Trigger contacts refresh so list UI updates immediately
             refreshContacts()
         }
     }
@@ -2264,10 +2524,15 @@ class MainViewModel(
         }
     }
 
-    fun importBackup(uri: android.net.Uri, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+    fun importBackup(
+        uri: android.net.Uri,
+        onProgress: ((String, Float) -> Unit)? = null,
+        onComplete: (com.example.util.BackupRestoreResult) -> Unit
+    ) {
         viewModelScope.launch {
-            val result = com.example.util.BackupManager.restoreBackupFromUri(appContext, uri)
+            val result = com.example.util.BackupManager.restoreBackupFromUri(appContext, uri, onProgress)
             if (result.success) {
+                onProgress?.invoke("Updating app settings & channels…", 0.98f)
                 // Refresh local UI states from restored preferences
                 _themeMode.value = prefs.getString("theme_mode", "system") ?: "system"
                 _whatsAppCallMode.value = prefs.getString("whatsapp_call_mode", "ask_learn") ?: "ask_learn"
@@ -2286,10 +2551,15 @@ class MainViewModel(
                 _learnedCallModes.value = loadLearnedCallModes()
                 refreshContacts()
                 refreshRecentCalls()
+                com.example.telecom.ChannelDiscoveryManager.getInstance(appContext).refreshChannels()
             }
             refreshLocalBackups()
             onComplete(result)
         }
+    }
+
+    fun importBackup(uri: android.net.Uri, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+        importBackup(uri, null, onComplete)
     }
 
     fun createLocalBackup(onComplete: (Boolean) -> Unit) {
@@ -2302,10 +2572,15 @@ class MainViewModel(
         }
     }
 
-    fun restoreLocalBackup(file: java.io.File, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+    fun restoreLocalBackup(
+        file: java.io.File,
+        onProgress: ((String, Float) -> Unit)? = null,
+        onComplete: (com.example.util.BackupRestoreResult) -> Unit
+    ) {
         viewModelScope.launch {
-            val result = com.example.util.BackupManager.restoreBackupFromFile(appContext, file)
+            val result = com.example.util.BackupManager.restoreBackupFromFile(appContext, file, onProgress)
             if (result.success) {
+                onProgress?.invoke("Updating app settings & channels…", 0.98f)
                 // Refresh local UI states from restored preferences
                 _themeMode.value = prefs.getString("theme_mode", "system") ?: "system"
                 _whatsAppCallMode.value = prefs.getString("whatsapp_call_mode", "ask_learn") ?: "ask_learn"
@@ -2324,10 +2599,15 @@ class MainViewModel(
                 _learnedCallModes.value = loadLearnedCallModes()
                 refreshContacts()
                 refreshRecentCalls()
+                com.example.telecom.ChannelDiscoveryManager.getInstance(appContext).refreshChannels()
                 refreshLocalBackups()
             }
             onComplete(result)
         }
+    }
+
+    fun restoreLocalBackup(file: java.io.File, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+        restoreLocalBackup(file, null, onComplete)
     }
 
     fun deleteLocalBackup(file: java.io.File) {

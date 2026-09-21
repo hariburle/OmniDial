@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.*
@@ -58,8 +59,6 @@ fun ContactRowItem(
     getPreferredCallingMode: (String) -> String = { "cellular" }
 ) {
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
-    var isExpanded by remember { mutableStateOf(false) }
 
     val matchedNumber = remember(searchQuery, contact) {
         if (searchQuery.isNotBlank() && searchQuery.any { it.isDigit() }) {
@@ -195,8 +194,9 @@ fun ContactRowItem(
                     val primaryDisplayLabel = remember(contact) {
                         if (contact.phoneNumber.isNotBlank() && contact.label.isNotBlank()) contact.label else contact.phoneNumbers.firstOrNull()?.label ?: "Mobile"
                     }
+                    val extraCount = if (contact.phoneNumbers.size > 1) " • +${contact.phoneNumbers.size - 1} more" else ""
                     val subtitleText = matchedNumber ?: if (primaryDisplayNumber.isNotBlank()) {
-                        "$primaryDisplayNumber ($primaryDisplayLabel)"
+                        "$primaryDisplayNumber ($primaryDisplayLabel)$extraCount"
                     } else ""
                     Text(
                         text = subtitleText,
@@ -207,252 +207,17 @@ fun ContactRowItem(
                     )
                 }
 
-                // Quick Action Buttons (WhatsApp & Phone swapped to align with expanded sequence)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                // Direct Details Sheet Opener Indicator
+                IconButton(
+                    onClick = { onItemClick() },
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    val primaryNumber = contact.phoneNumber.ifBlank { contact.phoneNumbers.firstOrNull()?.number ?: "" }
-                    if (primaryNumber.isNotBlank()) {
-                        IconButton(
-                            onClick = { onPlaceWhatsAppCall(primaryNumber) },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            WhatsAppIcon(modifier = Modifier.size(20.dp))
-                        }
-                    }
-
-                    IconButton(
-                        onClick = { onRequestCall() },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Call,
-                            contentDescription = "Phone Call",
-                            tint = Color(0xFF16A34A),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { isExpanded = !isExpanded },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = "Expand numbers",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-
-            // Expanded Phone Numbers List (with inline actions per number)
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    val numbersToDisplay = remember(contact) {
-                        val all = if (contact.phoneNumbers.isNotEmpty()) contact.phoneNumbers else listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
-                        if (contact.phoneNumber.isNotBlank()) {
-                            val defaultPn = all.firstOrNull { pn ->
-                                pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
-                            }
-                            if (defaultPn != null) {
-                                listOf(defaultPn) + all.filter { it != defaultPn }
-                            } else {
-                                all
-                            }
-                        } else {
-                            all
-                        }
-                    }
-
-                    numbersToDisplay.forEachIndexed { index, pn ->
-                        val isMobile = pn.label.equals("Mobile", ignoreCase = true)
-                        val isDefaultNumber = if (contact.phoneNumber.isNotBlank()) {
-                            pn.number == contact.phoneNumber || ContactHelper.isSamePhoneNumber(pn.number, contact.phoneNumber)
-                        } else {
-                            index == 0
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = pn.number,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = pn.label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (isDefaultNumber) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = MaterialTheme.colorScheme.primaryContainer
-                                        ) {
-                                            Text(
-                                                text = "DEFAULT",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                val prefMode = getPreferredCallingMode(pn.number)
-                                val isWaPref = prefMode == "whatsapp"
-                                val isPhonePref = prefMode == "cellular"
-
-                                val containerBg = MaterialTheme.colorScheme.surfaceVariant
-                                val containerBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                                // 1. Copy Number (Far Left)
-                                IconButton(
-                                    onClick = {
-                                        clipboardManager.setText(AnnotatedString(pn.number))
-                                        Toast.makeText(context, "Copied ${pn.number}", Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = containerBg,
-                                        border = containerBorder,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.ContentCopy,
-                                                contentDescription = "Copy Number",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                if (isMobile) {
-                                    // 2. WhatsApp Chat (2nd from Left)
-                                    IconButton(
-                                        onClick = {
-                                            ContactHelper.launchWhatsAppMessage(context, pn.number)
-                                        },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = containerBg,
-                                            border = containerBorder,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.Chat,
-                                                    contentDescription = "WhatsApp Chat",
-                                                    tint = Color(0xFF25D366),
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    // 3. WhatsApp Call (Middle)
-                                    IconButton(
-                                        onClick = {
-                                            onPlaceWhatsAppCall(pn.number)
-                                        },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (isWaPref) Color(0xFF25D366) else containerBg,
-                                            border = if (isWaPref) BorderStroke(2.dp, Color.White) else containerBorder,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                WhatsAppIcon(modifier = Modifier.size(22.dp))
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // 4. SMS Message (2nd from Right)
-                                IconButton(
-                                    onClick = { onSmsClick(pn.number) },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = containerBg,
-                                        border = containerBorder,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.Message,
-                                                contentDescription = "SMS Text",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // 5. Phone Call (Far Right)
-                                IconButton(
-                                    onClick = { onCallDirect(pn.number) },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isPhonePref) Color(0xFF16A34A) else containerBg,
-                                        border = if (isPhonePref) BorderStroke(2.dp, Color.White) else containerBorder,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Call,
-                                                contentDescription = "Phone Call",
-                                                tint = if (isPhonePref) Color.White else Color(0xFF16A34A),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "View Contact Details",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }

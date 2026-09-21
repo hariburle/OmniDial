@@ -12,11 +12,16 @@
 #   public *;
 #}
 
+# Room and libphonenumber both ship their own consumer ProGuard rules. The broad
+# `-keep ... { *; }` rules that used to live here barred R8 from optimizing exactly the two
+# libraries on the app's hot paths (database access and phone-number parsing).
+# The one genuinely load-bearing rule -- keeping RoomDatabase subclasses, which Room loads
+# reflectively as `<Name>_Impl` -- is also shipped by room-runtime, but is kept here explicitly
+# so a future dependency bump cannot silently break database instantiation.
+
 # Room database rules
--keep class androidx.room.** { *; }
--dontwarn androidx.room.**
 -keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class *
+-dontwarn androidx.room.**
 -dontwarn androidx.sqlite.db.**
 
 # Kotlin Coroutines
@@ -24,8 +29,6 @@
 -dontwarn kotlinx.coroutines.**
 
 # Google libphonenumber metadata and classes
--keep class com.google.i18n.phonenumbers.** { *; }
--keep class com.google.i18n.phonenumbers.data.** { *; }
 -dontwarn com.google.i18n.phonenumbers.**
 -dontwarn com.google.i18n.phonenumbers.data.**
 

@@ -16,12 +16,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +29,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,7 +58,7 @@ fun MultiNumberCallDialog(
     defaultNumber: String? = null,
     titlePrefix: String? = null,
     onSelectNumberToCall: (String) -> Unit,
-    onSetAsFavoriteNumber: ((number: String, label: String) -> Unit)? = null,
+    onSetDefaultNumber: ((number: String, label: String) -> Unit)? = null,
     onSearchOtherContacts: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
@@ -121,7 +121,7 @@ fun MultiNumberCallDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = "Tap to call • Long-press to set favorite number:",
+                    text = "Tap to call • Select radio button to set default number:",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
@@ -148,12 +148,12 @@ fun MultiNumberCallDialog(
                                     onDismiss()
                                 },
                                 onLongClick = {
-                                    if (onSetAsFavoriteNumber != null) {
+                                    if (onSetDefaultNumber != null) {
                                         currentDefaultNumber = pn.number
-                                        onSetAsFavoriteNumber(pn.number, pn.label)
+                                        onSetDefaultNumber(pn.number, pn.label)
                                         Toast.makeText(
                                             context,
-                                            "★ Default favorite number updated to ${pn.number}",
+                                            "Default calling number set to ${pn.number}",
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
@@ -186,16 +186,10 @@ fun MultiNumberCallDialog(
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Star,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(10.dp)
-                                                )
                                                 Text(
-                                                    text = "DEFAULT FAVORITE",
+                                                    text = "DEFAULT",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 9.sp
@@ -215,27 +209,25 @@ fun MultiNumberCallDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                // Star button to toggle favorite number
-                                if (onSetAsFavoriteNumber != null) {
-                                    IconButton(
+                                // Radio button to choose default dial number for this contact
+                                if (onSetDefaultNumber != null) {
+                                    RadioButton(
+                                        selected = isDefault,
                                         onClick = {
                                             currentDefaultNumber = pn.number
-                                            onSetAsFavoriteNumber(pn.number, pn.label)
+                                            onSetDefaultNumber(pn.number, pn.label)
                                             Toast.makeText(
                                                 context,
-                                                "★ Set as default favorite: ${pn.number}",
+                                                "Default calling number set to ${pn.number}",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         },
-                                        modifier = Modifier.size(34.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isDefault) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                                            contentDescription = "Set as default favorite",
-                                            tint = if (isDefault) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = MaterialTheme.colorScheme.primary,
+                                            unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        modifier = Modifier.size(36.dp)
+                                    )
                                 }
 
                                 // WhatsApp Audio Call button
@@ -251,7 +243,7 @@ fun MultiNumberCallDialog(
                                     )
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Chat,
+                                        imageVector = Icons.AutoMirrored.Filled.Chat,
                                         contentDescription = "WhatsApp",
                                         tint = Color.White,
                                         modifier = Modifier.size(18.dp)

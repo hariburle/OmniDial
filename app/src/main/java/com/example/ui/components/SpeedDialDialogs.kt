@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,11 +26,17 @@ fun SpeedDialActionDialog(
     onSelectContactNumber: (String) -> Unit,
     onPlaceCall: (String, String?) -> Unit,
     onPlaceWhatsAppCall: (String) -> Unit,
+    onPlaceGoogleVoiceCall: ((String) -> Unit)? = null,
     onReassign: () -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val isFavWaPreferred = preferredCallingMode == "whatsapp"
+    val isFavGvPreferred = preferredCallingMode == "google_voice"
+    val isFavWaBizPreferred = preferredCallingMode == "whatsapp_business"
+    val isFavWaPreferred = preferredCallingMode == "whatsapp" || isFavWaBizPreferred
+    val waBrandColor = if (isFavWaBizPreferred) Color(0xFF128C7E) else Color(0xFF25D366)
+    val waBrandLabel = if (isFavWaBizPreferred) "WhatsApp Business" else "WhatsApp"
+    val gvBrandColor = Color(0xFF0F9D58)
     val displayName = fav.nickname?.ifBlank { null } ?: fav.name.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: fav.name
     val fullDisplayName = fav.nickname?.ifBlank { null } ?: fav.name
 
@@ -95,19 +102,36 @@ fun SpeedDialActionDialog(
                 }
 
                 // Prominent Call Button (Channel-Adaptive)
+                val callContainerColor = when {
+                    isFavGvPreferred -> gvBrandColor
+                    isFavWaPreferred -> waBrandColor
+                    else -> Color(0xFF059669)
+                }
+                val callButtonText = when {
+                    isFavGvPreferred -> "Call via Google Voice ($displayName)"
+                    isFavWaPreferred -> "Call via $waBrandLabel ($displayName)"
+                    else -> "Call $displayName"
+                }
+
                 Button(
                     onClick = {
                         val targetNum = fav.phoneNumber
                         onDismiss()
                         onSelectContactNumber(targetNum)
-                        if (isFavWaPreferred) {
+                        if (isFavGvPreferred) {
+                            if (onPlaceGoogleVoiceCall != null) {
+                                onPlaceGoogleVoiceCall(targetNum)
+                            } else {
+                                onPlaceCall(targetNum, null)
+                            }
+                        } else if (isFavWaPreferred) {
                             onPlaceWhatsAppCall(targetNum)
                         } else {
                             onPlaceCall(targetNum, null)
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFavWaPreferred) Color(0xFF25D366) else Color(0xFF059669),
+                        containerColor = callContainerColor,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(12.dp),
@@ -116,7 +140,13 @@ fun SpeedDialActionDialog(
                         .height(48.dp)
                         .testTag("speed_dial_call_button")
                 ) {
-                    if (isFavWaPreferred) {
+                    if (isFavGvPreferred) {
+                        Icon(
+                            imageVector = Icons.Default.Phone,
+                            contentDescription = "Call via Google Voice",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else if (isFavWaPreferred) {
                         WhatsAppIcon(
                             modifier = Modifier.size(20.dp),
                             tint = Color.White
@@ -130,7 +160,7 @@ fun SpeedDialActionDialog(
                     }
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = if (isFavWaPreferred) "Call via WhatsApp ($displayName)" else "Call $displayName",
+                        text = callButtonText,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -142,7 +172,7 @@ fun SpeedDialActionDialog(
                         val targetNum = fav.phoneNumber
                         onDismiss()
                         onSelectContactNumber(targetNum)
-                        if (isFavWaPreferred) {
+                        if (isFavGvPreferred || isFavWaPreferred) {
                             onPlaceCall(targetNum, null)
                         } else {
                             onPlaceWhatsAppCall(targetNum)
@@ -153,7 +183,7 @@ fun SpeedDialActionDialog(
                         .fillMaxWidth()
                         .height(40.dp)
                 ) {
-                    if (isFavWaPreferred) {
+                    if (isFavGvPreferred || isFavWaPreferred) {
                         Icon(
                             Icons.Filled.Call,
                             contentDescription = null,

@@ -9,6 +9,7 @@ import android.provider.CallLog
 import android.provider.ContactsContract
 import androidx.compose.runtime.Immutable
 import com.example.data.RecentCall
+import com.example.telecom.RoleHelper
 
 @Immutable
 data class ContactPhoneNumber(
@@ -479,18 +480,32 @@ object ContactHelper {
     }
 
     /**
-     * Initiates a direct WhatsApp voice call without opening the chat screen.
+     * Initiates a direct WhatsApp or WhatsApp Business voice call without opening the chat screen.
      * Uses Android Contacts Provider VoIP Data item if available, or direct WhatsApp call intent.
      */
-    fun launchWhatsAppCall(context: Context, rawNumber: String) {
+    fun launchWhatsAppCall(context: Context, rawNumber: String, isBusiness: Boolean? = null) {
         val digitsOnly = resolveFullInternationalNumber(context, rawNumber)
+        val resolvedIsBusiness = isBusiness ?: run {
+            try {
+                com.example.data.ChannelPreferenceRepository.getInstance(context).getCachedPreference(rawNumber) == "whatsapp_business"
+            } catch (_: Exception) {
+                false
+            }
+        }
+        val targetPackage = if (resolvedIsBusiness) "com.whatsapp.w4b" else "com.whatsapp"
+        val targetAppName = if (resolvedIsBusiness) "WhatsApp Business" else "WhatsApp"
+        val targetMime = if (resolvedIsBusiness) {
+            "vnd.android.cursor.item/vnd.com.whatsapp.w4b.voip.call"
+        } else {
+            "vnd.android.cursor.item/vnd.com.whatsapp.voip.call"
+        }
 
         if (digitsOnly.isEmpty()) {
-            android.widget.Toast.makeText(context, "Invalid phone number for WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, "Invalid phone number for $targetAppName", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 1. Query Android Contacts Provider for WhatsApp VoIP Call MIME type for this number
+        // 1. Query Android Contacts Provider for VoIP Call MIME type for this number & target app
         try {
             val resolver = context.contentResolver
             val uri = ContactsContract.Data.CONTENT_URI
@@ -500,20 +515,15 @@ object ContactHelper {
                 ContactsContract.Data.DATA3,
                 ContactsContract.Data.MIMETYPE
             )
-            val selection = "${ContactsContract.Data.MIMETYPE} IN (?, ?)"
-            val selectionArgs = arrayOf(
-                "vnd.android.cursor.item/vnd.com.whatsapp.voip.call",
-                "vnd.android.cursor.item/vnd.com.whatsapp.w4b.voip.call"
-            )
+            val selection = "${ContactsContract.Data.MIMETYPE} = ?"
+            val selectionArgs = arrayOf(targetMime)
 
             var targetDataId: Long? = null
-            var targetMimeType: String? = null
 
             resolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
                 val idCol = cursor.getColumnIndex(ContactsContract.Data._ID)
                 val data1Col = cursor.getColumnIndex(ContactsContract.Data.DATA1)
                 val data3Col = cursor.getColumnIndex(ContactsContract.Data.DATA3)
-                val mimeCol = cursor.getColumnIndex(ContactsContract.Data.MIMETYPE)
 
                 while (cursor.moveToNext()) {
                     val data1 = if (data1Col >= 0) cursor.getString(data1Col) ?: "" else ""
@@ -525,19 +535,18 @@ object ContactHelper {
                         rowDigits3.endsWith(digitsOnly) || digitsOnly.endsWith(rowDigits3) ||
                         (rowDigits1.length >= 7 && digitsOnly.contains(rowDigits1))) {
                         targetDataId = if (idCol >= 0) cursor.getLong(idCol) else null
-                        targetMimeType = if (mimeCol >= 0) cursor.getString(mimeCol) else null
                         break
                     }
                 }
             }
 
-            if (targetDataId != null && targetMimeType != null) {
+            if (targetDataId != null) {
                 val directCallIntent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(
                         Uri.parse("content://com.android.contacts/data/$targetDataId"),
-                        targetMimeType
+                        targetMime
                     )
-                    setPackage(if (targetMimeType!!.contains("w4b")) "com.whatsapp.w4b" else "com.whatsapp")
+                    setPackage(targetPackage)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 context.startActivity(directCallIntent)
@@ -547,10 +556,10 @@ object ContactHelper {
             // Proceed to direct scheme fallback
         }
 
-        // 2. Direct VoIP Call Intent via WhatsApp URL scheme
+        // 2. Direct VoIP Call Intent via WhatsApp URL scheme targeted to specific package
         try {
             val callIntent = Intent(Intent.ACTION_VIEW, Uri.parse("whatsapp://call?phone=$digitsOnly")).apply {
-                setPackage("com.whatsapp")
+                setPackage(targetPackage)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(callIntent)
@@ -559,35 +568,45 @@ object ContactHelper {
             // Fallback to chat link
         }
 
-        // 3. Fallback: Open WhatsApp directly
+        // 3. Fallback: Open WhatsApp / WhatsApp Business directly
         try {
             val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=$digitsOnly")).apply {
-                setPackage("com.whatsapp")
+                setPackage(targetPackage)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(fallbackIntent)
         } catch (_: Exception) {
             try {
-                // Try open browser wa.me if whatsapp app not installed
+                // Try open browser wa.me if target app not installed
                 val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digitsOnly")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 context.startActivity(webIntent)
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "WhatsApp is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "$targetAppName is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    fun launchWhatsAppMessage(context: Context, rawNumber: String) {
+    fun launchWhatsAppMessage(context: Context, rawNumber: String, isBusiness: Boolean? = null) {
         val digitsOnly = resolveFullInternationalNumber(context, rawNumber)
+        val resolvedIsBusiness = isBusiness ?: run {
+            try {
+                com.example.data.ChannelPreferenceRepository.getInstance(context).getCachedPreference(rawNumber) == "whatsapp_business"
+            } catch (_: Exception) {
+                false
+            }
+        }
+        val targetPackage = if (resolvedIsBusiness) "com.whatsapp.w4b" else "com.whatsapp"
+        val targetAppName = if (resolvedIsBusiness) "WhatsApp Business" else "WhatsApp"
+
         if (digitsOnly.isEmpty()) {
-            android.widget.Toast.makeText(context, "Invalid phone number for WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, "Invalid phone number for $targetAppName", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=$digitsOnly")).apply {
-                setPackage("com.whatsapp")
+                setPackage(targetPackage)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
@@ -598,7 +617,101 @@ object ContactHelper {
                 }
                 context.startActivity(webIntent)
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "WhatsApp is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "$targetAppName is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Initiates a Google Voice call directly via Telecom account handle or targeted intent.
+     */
+    fun launchGoogleVoiceCall(
+        context: Context,
+        rawNumber: String,
+        accountHandle: android.telecom.PhoneAccountHandle? = null,
+        onCellularFallback: (() -> Unit)? = null
+    ) {
+        val cleanNumber = rawNumber.trim()
+        if (cleanNumber.isBlank()) {
+            android.widget.Toast.makeText(context, "Invalid phone number for Google Voice", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 1. Route via Telecom PhoneAccountHandle if registered with system
+        if (accountHandle != null) {
+            try {
+                val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
+                if (telecomManager != null && RoleHelper.isDefaultDialer(context)) {
+                    val uri = Uri.fromParts("tel", cleanNumber, null)
+                    val extras = android.os.Bundle().apply {
+                        putParcelable(android.telecom.TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, accountHandle)
+                    }
+                    telecomManager.placeCall(uri, extras)
+                    return
+                }
+            } catch (_: Exception) {
+                // Fallback to direct intent
+            }
+        }
+
+        // 2. Direct package intent to Google Voice (ACTION_CALL)
+        try {
+            val callIntent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$cleanNumber")).apply {
+                setPackage("com.google.android.apps.googlevoice")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(callIntent)
+            return
+        } catch (_: Exception) {
+            // Fallback to ACTION_DIAL
+        }
+
+        // 3. Fallback to ACTION_DIAL with Google Voice package
+        try {
+            val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber")).apply {
+                setPackage("com.google.android.apps.googlevoice")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(dialIntent)
+            return
+        } catch (_: Exception) {
+            // Fallback to cellular or toast
+        }
+
+        if (onCellularFallback != null) {
+            onCellularFallback()
+        } else {
+            android.widget.Toast.makeText(context, "Google Voice is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Opens Google Voice direct messaging composer for the target phone number.
+     */
+    fun launchGoogleVoiceMessage(context: Context, rawNumber: String, messageText: String? = null) {
+        val cleanNumber = rawNumber.trim()
+        if (cleanNumber.isBlank()) {
+            android.widget.Toast.makeText(context, "Invalid phone number for Google Voice", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$cleanNumber")).apply {
+                setPackage("com.google.android.apps.googlevoice")
+                if (!messageText.isNullOrBlank()) {
+                    putExtra("sms_body", messageText)
+                }
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(smsIntent)
+        } catch (_: Exception) {
+            try {
+                val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse("sms:$cleanNumber")).apply {
+                    setPackage("com.google.android.apps.googlevoice")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(viewIntent)
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "Google Voice is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -634,6 +747,12 @@ object ContactHelper {
         "vn" to "84", "tr" to "90", "gr" to "30", "pt" to "351", "pl" to "48",
         "hk" to "852", "tw" to "886", "ar" to "54", "co" to "57", "cl" to "56"
     )
+
+    // Hoisted out of the hot search path: these were recompiled/re-sorted on every invocation.
+    private val nonDigitOrPlus = Regex("[^0-9+]")
+    private val nonDigitPlusStarHash = Regex("[^0-9+*#]")
+    private val callingCodesInDeclarationOrder = countryCallingCodes.values.toList()
+    private val callingCodesByLengthDesc = countryCallingCodes.values.distinct().sortedByDescending { it.length }
 
     /**
      * Determines current country ISO of device based on cellular network, SIM card, or locale.
@@ -748,7 +867,7 @@ object ContactHelper {
         val clean = phoneNumber.filter { it.isDigit() }
         if (clean.isBlank()) return ""
 
-        for ((_, code) in countryCallingCodes) {
+        for (code in callingCodesInDeclarationOrder) {
             if (clean.startsWith(code) && clean.length > code.length + 5) {
                 return clean.substring(code.length)
             }
@@ -763,7 +882,7 @@ object ContactHelper {
      * Extracts international calling code (e.g. "91" for India, "1" for USA) from a phone number if present.
      */
     fun extractCountryCallingCode(phoneNumber: String): String? {
-        val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
+        val clean = phoneNumber.replace(nonDigitOrPlus, "")
         if (clean.isBlank()) return null
         val digits = when {
             clean.startsWith("+") -> clean.removePrefix("+")
@@ -771,8 +890,7 @@ object ContactHelper {
             clean.startsWith("011") -> clean.removePrefix("011")
             else -> return null
         }
-        val sortedCodes = countryCallingCodes.values.distinct().sortedByDescending { it.length }
-        for (code in sortedCodes) {
+        for (code in callingCodesByLengthDesc) {
             if (digits.startsWith(code) && digits.length > code.length) {
                 return code
             }
@@ -797,20 +915,21 @@ object ContactHelper {
         // Short codes, star codes (e.g. *86, 911, 611), or short numbers (< 7 digits)
         // must match exactly and can never fuzzy match standard telephone numbers.
         if (d1.length < 7 || d2.length < 7) {
-            val clean1 = s1.replace(Regex("[^0-9+*#]"), "")
-            val clean2 = s2.replace(Regex("[^0-9+*#]"), "")
+            val clean1 = s1.replace(nonDigitPlusStarHash, "")
+            val clean2 = s2.replace(nonDigitPlusStarHash, "")
             return clean1.equals(clean2, ignoreCase = true)
         }
+
+        // Cheap exact-digit equality first: both this and the libphonenumber check below only ever
+        // return true, so running the inexpensive one first cannot change the result.
+        val clean1 = s1.replace(nonDigitOrPlus, "")
+        val clean2 = s2.replace(nonDigitOrPlus, "")
+        if (clean1 == clean2) return true
 
         // Libphonenumber Match Check
         if (PhoneNumberNormalizer.isSamePhoneNumber(s1, s2, context)) {
             return true
         }
-
-        val clean1 = s1.replace(Regex("[^0-9+]"), "")
-        val clean2 = s2.replace(Regex("[^0-9+]"), "")
-        if (clean1.isEmpty() || clean2.isEmpty()) return false
-        if (clean1 == clean2) return true
 
         val country1 = extractCountryCallingCode(clean1)
         val country2 = extractCountryCallingCode(clean2)
@@ -855,14 +974,13 @@ object ContactHelper {
             return contactNumber.contains(queryTrimmed, ignoreCase = true)
         }
 
-        // Prevent cross-country matches (e.g. +1 US contact matching +91 India query or vice versa)
+        // Prevent cross-country matches (e.g. +1 US contact matching +91 India query or vice versa).
+        // This is the only rejection path, so it must stay ahead of every positive check below.
         val countryContact = extractCountryCallingCode(contactNumber)
         val countryQuery = extractCountryCallingCode(searchQuery)
         if (countryContact != null && countryQuery != null && countryContact != countryQuery) {
             return false
         }
-
-        if (isSamePhoneNumber(contactNumber, searchQuery)) return true
 
         // Direct digit substring match (e.g. "98765" in "919876543210")
         if (contactDigits.contains(queryDigits)) return true
@@ -879,6 +997,10 @@ object ContactHelper {
         if (contactDigits.length >= 10 && queryDigits.length >= 10) {
             if (contactDigits.takeLast(10) == queryDigits.takeLast(10)) return true
         }
+
+        // libphonenumber is consulted last: every check above only ever returns true, so deferring
+        // the expensive one cannot change the outcome.
+        if (isSamePhoneNumber(contactNumber, searchQuery)) return true
 
         return contactNumber.contains(queryTrimmed, ignoreCase = true)
     }
@@ -961,6 +1083,7 @@ object ContactHelper {
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_ID,
                 ContactsContract.CommonDataKinds.Phone.TYPE
             )
             cursor = context.contentResolver.query(uri, projection, null, null, null)
@@ -970,6 +1093,7 @@ object ContactHelper {
                 val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
                 val photoIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
                 val thumbIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI)
+                val photoIdIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_ID)
                 val typeIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
 
                 val contactId = if (cidIndex != -1) cursor.getLong(cidIndex) else null
@@ -978,6 +1102,11 @@ object ContactHelper {
                 val nickname = if (contactId != null) nicknameMap[contactId] else null
                 val photo = if (photoIndex != -1) cursor.getString(photoIndex) else null
                 val thumb = if (thumbIndex != -1) cursor.getString(thumbIndex) else null
+                val photoId = if (photoIdIndex != -1) cursor.getLong(photoIdIndex) else 0L
+                val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                    ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                        ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                    } else null
                 val type = if (typeIndex != -1) cursor.getInt(typeIndex) else ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE
 
                 val label = when (type) {
@@ -990,7 +1119,7 @@ object ContactHelper {
                     name = fullName.ifBlank { "Unknown" },
                     phoneNumber = number,
                     label = label,
-                    photoUri = photo ?: thumb,
+                    photoUri = resolvedPhoto,
                     contactId = contactId,
                     nickname = nickname
                 )
@@ -1018,6 +1147,7 @@ object ContactHelper {
                 ContactsContract.PhoneLookup.NUMBER,
                 ContactsContract.PhoneLookup.PHOTO_URI,
                 ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI,
+                ContactsContract.PhoneLookup.PHOTO_ID,
                 ContactsContract.PhoneLookup.TYPE,
                 ContactsContract.PhoneLookup.LABEL
             )
@@ -1028,6 +1158,7 @@ object ContactHelper {
                 val numIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.NUMBER)
                 val photoIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_URI)
                 val thumbIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
+                val photoIdIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_ID)
                 val typeIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.TYPE)
                 val labelIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.LABEL)
 
@@ -1037,6 +1168,11 @@ object ContactHelper {
                 val num = if (numIdx != -1) cursor.getString(numIdx) ?: phoneNumber else phoneNumber
                 val photo = if (photoIdx != -1) cursor.getString(photoIdx) else null
                 val thumb = if (thumbIdx != -1) cursor.getString(thumbIdx) else null
+                val photoId = if (photoIdIdx != -1) cursor.getLong(photoIdIdx) else 0L
+                val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                    ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                        ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                    } else null
                 val type = if (typeIdx != -1) cursor.getInt(typeIdx) else ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE
                 val customLabel = if (labelIdx != -1) cursor.getString(labelIdx) else null
 
@@ -1106,7 +1242,7 @@ object ContactHelper {
                     name = fullName,
                     phoneNumber = matchedSpecificNumber,
                     label = matchedSpecificLabel,
-                    photoUri = photo ?: thumb,
+                    photoUri = resolvedPhoto,
                     contactId = contactId,
                     nickname = nickname,
                     phoneNumbers = phoneNumbers
@@ -1138,6 +1274,7 @@ object ContactHelper {
                 ContactsContract.CommonDataKinds.Phone.TYPE,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_ID,
                 ContactsContract.CommonDataKinds.Phone.STARRED,
                 ContactsContract.CommonDataKinds.Phone.IS_PRIMARY,
                 ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY
@@ -1157,6 +1294,7 @@ object ContactHelper {
                 val typeIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
                 val photoIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
                 val thumbIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI)
+                val photoIdIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_ID)
                 val priIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_PRIMARY)
                 val supIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY)
 
@@ -1175,6 +1313,11 @@ object ContactHelper {
                     }
                     val photo = if (photoIdx != -1) it.getString(photoIdx) else null
                     val thumb = if (thumbIdx != -1) it.getString(thumbIdx) else null
+                    val photoId = if (photoIdIdx != -1) it.getLong(photoIdIdx) else 0L
+                    val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                        ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                            ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                        } else null
                     val isPrimary = (priIdx != -1 && it.getInt(priIdx) > 0) || (supIdx != -1 && it.getInt(supIdx) > 0)
 
                     val key = contactId?.toString() ?: fullName.trim().lowercase()
@@ -1182,12 +1325,13 @@ object ContactHelper {
                         val nickname = if (contactId != null) nicknameMap[contactId] else null
                         DeviceContactAccumulator(
                             name = fullName,
-                            photoUri = photo ?: thumb,
+                            photoUri = resolvedPhoto,
                             contactId = contactId,
                             nickname = nickname,
                             isStarred = true
                         )
                     }
+                    accumulator.updatePhoto(resolvedPhoto)
                     accumulator.addNumber(number, label, isPrimary)
                 }
             }
@@ -1457,6 +1601,7 @@ object ContactHelper {
                 ContactsContract.CommonDataKinds.Phone.TYPE,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_ID,
                 ContactsContract.CommonDataKinds.Phone.IS_PRIMARY,
                 ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY
             )
@@ -1474,6 +1619,7 @@ object ContactHelper {
                 val typeIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)
                 val photoIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
                 val thumbIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI)
+                val photoIdIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_ID)
                 val priIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_PRIMARY)
                 val supIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY)
 
@@ -1492,6 +1638,11 @@ object ContactHelper {
                     }
                     val photo = if (photoIdx != -1) it.getString(photoIdx) else null
                     val thumb = if (thumbIdx != -1) it.getString(thumbIdx) else null
+                    val photoId = if (photoIdIdx != -1) it.getLong(photoIdIdx) else 0L
+                    val resolvedPhoto = (photo ?: thumb)?.ifBlank { null }
+                        ?: if (photoId > 0 && contactId != null && contactId > 0) {
+                            ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId).toString()
+                        } else null
                     val isPrimary = (priIdx != -1 && it.getInt(priIdx) > 0) || (supIdx != -1 && it.getInt(supIdx) > 0)
 
                     val key = contactId?.toString() ?: fullName.trim().lowercase()
@@ -1499,11 +1650,12 @@ object ContactHelper {
                         val nickname = if (contactId != null) effectiveNicknameMap[contactId] else null
                         DeviceContactAccumulator(
                             name = fullName,
-                            photoUri = photo ?: thumb,
+                            photoUri = resolvedPhoto,
                             contactId = contactId,
                             nickname = nickname
                         )
                     }
+                    accumulator.updatePhoto(resolvedPhoto)
                     accumulator.addNumber(number, label, isPrimary)
                 }
             }
@@ -1740,7 +1892,7 @@ object ContactHelper {
 
 private class DeviceContactAccumulator(
     val name: String,
-    val photoUri: String?,
+    var photoUri: String?,
     val contactId: Long?,
     val nickname: String?,
     val isStarred: Boolean = false
@@ -1748,6 +1900,12 @@ private class DeviceContactAccumulator(
     private val numbers = mutableListOf<ContactPhoneNumber>()
     private val seen = mutableSetOf<String>()
     private var defaultNumberItem: ContactPhoneNumber? = null
+
+    fun updatePhoto(newPhoto: String?) {
+        if (photoUri.isNullOrBlank() && !newPhoto.isNullOrBlank()) {
+            photoUri = newPhoto
+        }
+    }
 
     fun addNumber(number: String, label: String, isPrimary: Boolean = false) {
         val clean = number.replace(Regex("[^0-9+]"), "")

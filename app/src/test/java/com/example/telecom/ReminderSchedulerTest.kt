@@ -15,6 +15,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
+@Suppress("DEPRECATION")
 class ReminderSchedulerTest {
 
     private lateinit var context: Context

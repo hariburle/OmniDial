@@ -6,16 +6,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.RecentCall
 import com.example.util.CommunityCallerIdService
+import com.example.util.ContactPhoneNumber
 import com.example.util.DeviceContact
 import com.example.util.T9SearchResult
 
@@ -92,7 +103,7 @@ fun DialerSuggestionsList(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.Bottom,
-                reverseLayout = false
+                reverseLayout = true
             ) {
                 items(uniqueRecents, key = { it.id }) { call ->
                     val callDigits = call.phoneNumber.filter { it.isDigit() }.takeLast(10)
@@ -107,9 +118,17 @@ fun DialerSuggestionsList(
             }
         }
     } else {
-        val searchSuggestions = remember(t9Matches, matchedContact, number) {
+        val searchSuggestions = remember(t9Matches, matchedContact, number, contacts) {
             val list = mutableListOf<T9SearchResult>()
             if (matchedContact != null) {
+                val allNumbers = if (matchedContact.phoneNumbers.isNotEmpty()) {
+                    matchedContact.phoneNumbers
+                } else {
+                    val fromContacts = contacts.firstOrNull { it.name.equals(matchedContact.name, ignoreCase = true) }?.phoneNumbers
+                    if (!fromContacts.isNullOrEmpty()) fromContacts
+                    else if (matchedContact.phoneNumber.isNotBlank()) listOf(ContactPhoneNumber(matchedContact.phoneNumber, matchedContact.label))
+                    else emptyList()
+                }
                 list.add(
                     T9SearchResult(
                         name = matchedContact.name,
@@ -118,7 +137,8 @@ fun DialerSuggestionsList(
                         photoUri = matchedContact.photoUri,
                         nickname = matchedContact.nickname,
                         matchedByName = true,
-                        matchSnippet = "Matched Contact"
+                        matchSnippet = "Matched Contact",
+                        allPhoneNumbers = allNumbers
                     )
                 )
             }
@@ -183,13 +203,13 @@ fun DialerSuggestionsList(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.Bottom,
-                reverseLayout = false
+                reverseLayout = true
             ) {
                 items(searchSuggestions, key = { it.phoneNumber + "_" + it.name }) { match ->
                     DialerMatchSuggestionCard(
                         match = match,
                         query = number,
-                        onClick = { onSelectContactNumber(match.phoneNumber) }
+                        onSelectNumber = onSelectContactNumber
                     )
                 }
             }
@@ -298,10 +318,27 @@ private fun DialerRecentSuggestionCard(
 private fun DialerMatchSuggestionCard(
     match: T9SearchResult,
     query: String,
-    onClick: () -> Unit
+    onSelectNumber: (String) -> Unit
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val uniqueNumbers = remember(match.allPhoneNumbers, match.phoneNumber) {
+        val list = if (match.allPhoneNumbers.isNotEmpty()) {
+            match.allPhoneNumbers
+        } else {
+            listOf(ContactPhoneNumber(match.phoneNumber, match.label))
+        }
+        list.distinctBy { it.number.filter { c -> c.isDigit() }.takeLast(10) }
+    }
+    val hasMultipleNumbers = uniqueNumbers.size > 1
+
     Surface(
-        onClick = onClick,
+        onClick = {
+            if (hasMultipleNumbers) {
+                isExpanded = !isExpanded
+            } else {
+                onSelectNumber(match.phoneNumber)
+            }
+        },
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
         modifier = Modifier
@@ -309,90 +346,215 @@ private fun DialerMatchSuggestionCard(
             .padding(vertical = 2.5.dp)
             .testTag("dialer_match_suggestion_${match.phoneNumber}")
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(36.dp)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (!match.photoUri.isNullOrBlank()) {
-                    AsyncImage(
-                        model = match.photoUri,
-                        contentDescription = match.name,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Box(contentAlignment = Alignment.Center) {
-                        val primaryInitial = (match.nickname?.ifBlank { null } ?: match.name).filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" }
-                        Text(
-                            text = primaryInitial,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    if (!match.photoUri.isNullOrBlank()) {
+                        AsyncImage(
+                            model = match.photoUri,
+                            contentDescription = match.name,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
                         )
+                    } else {
+                        Box(contentAlignment = Alignment.Center) {
+                            val primaryInitial = (match.nickname?.ifBlank { null } ?: match.name).filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" }
+                            Text(
+                                text = primaryInitial,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(10.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                val hasNick = !match.nickname.isNullOrBlank() && !match.nickname.equals(match.name, ignoreCase = true)
-                val displayName = if (hasNick) "${match.nickname} (${match.name})" else match.name
-                Text(
-                    text = displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    val hasNick = !match.nickname.isNullOrBlank() && !match.nickname.equals(match.name, ignoreCase = true)
+                    val displayName = if (hasNick) match.nickname!! else match.name
                     Text(
-                        text = match.phoneNumber,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
+                        text = displayName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (match.label.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(
-                            text = "• ${match.label}",
+                            text = match.phoneNumber,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (match.label.isNotBlank()) {
+                            Text(
+                                text = "• ${match.label}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (match.matchSnippet.isNotBlank() && match.matchSnippet.startsWith("Nickname")) {
+                            Text(
+                                text = "• ${match.matchSnippet}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                    if (match.matchSnippet.isNotBlank() && match.matchSnippet.startsWith("Nickname")) {
-                        Text(
-                            text = "• ${match.matchSnippet}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                }
+
+                if (hasMultipleNumbers) {
+                    Surface(
+                        onClick = { isExpanded = !isExpanded },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isExpanded)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                        ),
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .testTag("expand_numbers_${match.phoneNumber}")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "${uniqueNumbers.size} numbers",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                color = if (isExpanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (isExpanded) "Collapse numbers" else "Expand numbers",
+                                modifier = Modifier.size(13.dp),
+                                tint = if (isExpanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
+                }
+
+                IconButton(
+                    onClick = { onSelectNumber(match.phoneNumber) },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Fill Number",
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
 
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Fill Number",
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                modifier = Modifier.size(16.dp)
-            )
+            AnimatedVisibility(
+                visible = isExpanded && hasMultipleNumbers,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 46.dp, end = 10.dp, bottom = 8.dp, top = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                    uniqueNumbers.forEach { pn ->
+                        val isSelected = pn.number.filter { it.isDigit() } == match.phoneNumber.filter { it.isDigit() }
+                        Surface(
+                            onClick = { onSelectNumber(pn.number) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected)
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            else
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("select_sub_number_${pn.number}")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                                    ) {
+                                        Text(
+                                            text = pn.label.ifBlank { "Mobile" }.uppercase(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = pn.number,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Fill ${pn.number}",
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

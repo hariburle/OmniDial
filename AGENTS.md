@@ -1,9 +1,9 @@
 # User Guidelines & Project Conventions
 
 ## Communication Rules
-- Be extremely concise in assistant responses.
-- If the user asks a question, answer it directly before taking or summarizing actions.
-- Do not show code diffs, raw logs, or long summaries in assistant chat responses.
+- Be extremely concise in responses.
+- If the user asks a question, answer it directly before taking actions or summarizing actions.
+- Do not show code diffs, raw logs, show your chain of thought.
 - List exact changes made in 2–3 brief bullet points.
 
 ## Release Notes & Documentation Standards

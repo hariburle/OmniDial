@@ -25,22 +25,35 @@ import com.example.util.BackupRestoreResult
 import kotlinx.coroutines.launch
 import java.io.File
 
+sealed interface RestoreDialogState {
+    data class Progress(
+        val title: String,
+        val step: String,
+        val progress: Float
+    ) : RestoreDialogState
+
+    data class Complete(
+        val result: BackupRestoreResult
+    ) : RestoreDialogState
+}
+
 @Composable
 fun BackupManagementCard(
     localBackups: List<File>,
     onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)?,
-    onRestoreLocalBackup: ((File, (BackupRestoreResult) -> Unit) -> Unit)?,
+    onRestoreLocalBackup: ((File, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)?,
     onDeleteLocalBackup: ((File) -> Unit)?,
     onExportBackup: ((Uri, (Boolean) -> Unit) -> Unit)?,
-    onImportBackup: ((Uri, (BackupRestoreResult) -> Unit) -> Unit)?,
-    onStatusMessage: (String) -> Unit,
-    onLoadingChanged: (Boolean) -> Unit,
+    onImportBackup: ((Uri, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)?,
+    onStatusMessage: (String) -> Unit = {},
+    onLoadingChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var backupToRestore by remember { mutableStateOf<File?>(null) }
     var backupToDelete by remember { mutableStateOf<File?>(null) }
+    var restoreDialogState by remember { mutableStateOf<RestoreDialogState?>(null) }
 
     // External file picker launcher for restoring backups transferred from another device or downloaded
     val importLauncher = rememberLauncherForActivityResult(
@@ -48,16 +61,28 @@ fun BackupManagementCard(
     ) { uri ->
         if (uri != null) {
             onLoadingChanged(true)
+            restoreDialogState = RestoreDialogState.Progress(
+                title = "Restoring Backup",
+                step = "Opening backup file…",
+                progress = 0.05f
+            )
             if (onImportBackup != null) {
-                onImportBackup(uri) { result ->
+                onImportBackup(
+                    uri,
+                    { step, progress ->
+                        restoreDialogState = RestoreDialogState.Progress("Restoring Backup", step, progress)
+                    }
+                ) { result ->
                     onLoadingChanged(false)
-                    onStatusMessage(result.message)
+                    restoreDialogState = RestoreDialogState.Complete(result)
                 }
             } else {
                 coroutineScope.launch {
-                    val result = BackupManager.restoreBackupFromUri(context, uri)
+                    val result = BackupManager.restoreBackupFromUri(context, uri) { step, progress ->
+                        restoreDialogState = RestoreDialogState.Progress("Restoring Backup", step, progress)
+                    }
                     onLoadingChanged(false)
-                    onStatusMessage(result.message)
+                    restoreDialogState = RestoreDialogState.Complete(result)
                 }
             }
         }
@@ -303,12 +328,31 @@ fun BackupManagementCard(
             confirmButton = {
                 Button(
                     onClick = {
+                        val file = targetFile
                         backupToRestore = null
                         onLoadingChanged(true)
+                        restoreDialogState = RestoreDialogState.Progress(
+                            title = "Restoring Backup",
+                            step = "Opening backup file…",
+                            progress = 0.05f
+                        )
                         if (onRestoreLocalBackup != null) {
-                            onRestoreLocalBackup(targetFile) { result ->
+                            onRestoreLocalBackup(
+                                file,
+                                { step, progress ->
+                                    restoreDialogState = RestoreDialogState.Progress("Restoring Backup", step, progress)
+                                }
+                            ) { result ->
                                 onLoadingChanged(false)
-                                onStatusMessage(result.message)
+                                restoreDialogState = RestoreDialogState.Complete(result)
+                            }
+                        } else {
+                            coroutineScope.launch {
+                                val result = BackupManager.restoreBackupFromFile(context, file) { step, progress ->
+                                    restoreDialogState = RestoreDialogState.Progress("Restoring Backup", step, progress)
+                                }
+                                onLoadingChanged(false)
+                                restoreDialogState = RestoreDialogState.Complete(result)
                             }
                         }
                     },
@@ -322,6 +366,148 @@ fun BackupManagementCard(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    // Active Restoration Progress & Completion Summary Dialog
+    if (restoreDialogState != null) {
+        val currentState = restoreDialogState!!
+        AlertDialog(
+            onDismissRequest = {
+                if (currentState is RestoreDialogState.Complete) {
+                    restoreDialogState = null
+                }
+            },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = currentState is RestoreDialogState.Complete,
+                dismissOnClickOutside = currentState is RestoreDialogState.Complete
+            ),
+            icon = {
+                when (currentState) {
+                    is RestoreDialogState.Progress -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(36.dp),
+                            strokeWidth = 3.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    is RestoreDialogState.Complete -> {
+                        if (currentState.result.success) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF16A34A),
+                                modifier = Modifier.size(36.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Error,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = when (currentState) {
+                        is RestoreDialogState.Progress -> currentState.title
+                        is RestoreDialogState.Complete -> if (currentState.result.success) "Restore Completed" else "Restore Failed"
+                    },
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                when (currentState) {
+                    is RestoreDialogState.Progress -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = currentState.step,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            LinearProgressIndicator(
+                                progress = { currentState.progress.coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp),
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Restoring data…",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = "${(currentState.progress.coerceIn(0f, 1f) * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    is RestoreDialogState.Complete -> {
+                        val result = currentState.result
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = result.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (result.success) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (result.rulesCount > 0) Text("• ${result.rulesCount} call routing rules", style = MaterialTheme.typography.bodySmall)
+                                        if (result.favoritesCount > 0) Text("• ${result.favoritesCount} favorite contacts", style = MaterialTheme.typography.bodySmall)
+                                        if (result.contactsCount > 0) Text("• ${result.contactsCount} local contacts", style = MaterialTheme.typography.bodySmall)
+                                        if (result.recentCallsCount > 0) Text("• ${result.recentCallsCount} call logs", style = MaterialTheme.typography.bodySmall)
+                                        if (result.spamCount > 0) Text("• ${result.spamCount} blocked spam numbers", style = MaterialTheme.typography.bodySmall)
+                                        if (result.channelPreferencesCount > 0) Text("• ${result.channelPreferencesCount} SIM / channel preferences", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (currentState is RestoreDialogState.Complete) {
+                    Button(
+                        onClick = { restoreDialogState = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = null
         )
     }
 
