@@ -1,6 +1,6 @@
 # OmniDial — Architecture & System Design Document
 
-> **Current Version**: v1.5.0 (Build 18) — September 2026
+> **Current Version**: v2.0.0 (Build 19) — September 2026
 
 This document serves as the primary technical specification and maintenance guide for **OmniDial**. It documents the system architecture, component contracts, data persistence models, telephony integrations, build pipelines, and maintenance runbooks.
 
@@ -59,10 +59,11 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 ┌────────────────────────────────────────────────────────────────────────┐
 │                           DATA LAYER                                   │
 │  AppRepository.kt                                                      │
-│  ├── Room DB v12 (AppDatabase)                                         │
+│  ├── Room DB v17 (AppDatabase)                                         │
 │  │   ├── FavoriteContact, RecentCall, CallerRule, SpamNumber           │
-│  │   ├── ContactNumberPreference, LocalContact, IgnoredContact         │
-│  │   └── AutomationLogItem                                             │
+│  │   ├── ContactSimPreference, NumberChannelPreference, ChannelConfig  │
+│  │   ├── ContactDefaultNumber, LocalContact, IgnoredContact            │
+│  │   └── AutomationLog                                                 │
 │  ├── Android System Providers (ContactsContract, CallLog.Calls)        │
 │  └── SharedPreferences "kishan_dialer_prefs"                           │
 └────────────────────────────────────────────────────────────────────────┘
@@ -75,9 +76,12 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 ```
 app/src/main/java/com/example/
 ├── MainActivity.kt                      # Entry point, permissions, navigation, FloatingCallPill
+├── TelecomApplication.kt                # App init, channel discovery setup
 ├── telecom/
 │   ├── TelecomCallService.kt            # InCallService binding for incoming & outgoing calls
-│   ├── CallManager.kt                   # Call state, automation pipeline, callLoggedEvent SharedFlow
+│   ├── CallManager.kt                   # Call state, automation pipeline, callLoggedEvent SharedFlow, callback teardown
+│   ├── ChannelDiscoveryManager.kt       # Dynamic multi-channel SIM & VoIP package discovery
+│   ├── ChannelDispatchCoordinator.kt    # Unified intent dispatch (Cellular, WhatsApp, VoIP)
 │   ├── SimHelper.kt                     # Multi-SIM subscription resolution, roaming detection
 │   ├── ReminderScheduler.kt             # AlarmManager-backed post-call reminder scheduling
 │   ├── ReminderReceiver.kt              # BroadcastReceiver for reminder alarm firing
@@ -87,52 +91,59 @@ app/src/main/java/com/example/
 │   ├── CallForegroundService.kt         # Foreground service keeping call state alive
 │   ├── CallNotificationReceiver.kt      # BroadcastReceiver for Answer/Decline notification actions
 │   ├── RoleHelper.kt                    # Default dialer role request wrapper
-│   ├── FlipToShhhManager.kt             # Accelerometer flip-to-mute sensor listener
+│   ├── FlipToShhhManager.kt             # Accelerometer dynamic lift & proximity ringer silencer
 │   └── SpamNotificationHelper.kt        # Notification alerts for blocked spam calls
 ├── domain/
+│   ├── model/
+│   │   └── CallingChannel.kt            # CallingChannel domain model & channel types
 │   └── usecase/
 │       ├── EvaluateSimRuleUseCase.kt    # DAG-weighted SIM rule conflict resolution + roaming avoidance
 │       ├── ResolveCallerIdentityUseCase.kt  # Trust badge tier resolution
 │       ├── SearchT9ContactsUseCase.kt   # Nickname + name + number T9 search
 │       └── ManageFavoritesUseCase.kt    # Star, unstar, reorder, ignore contacts
 ├── ui/
-│   ├── MainViewModel.kt                 # Central ViewModel, callLoggedEvent collector, dismissAllModals
+│   ├── MainViewModel.kt                 # Central ViewModel, channel state flows, dismissAllModals
 │   ├── models/
 │   │   ├── ContactSortModels.kt         # SmartContactSort enum (A-Z, Recent, NICKNAMES, etc.)
 │   │   └── FavoritesModels.kt           # Favorite card style and display config
 │   ├── screens/
-│   │   ├── DialerScreen.kt              # T9 keypad, 2x2 action grid, nickname-aware suggestions
+│   │   ├── DialerScreen.kt              # T9 keypad, KeypadChannelDock, 2x2 action grid, nickname suggestions
 │   │   ├── FavoritesScreen.kt           # Grid hub, drag-reorder, dual-dialer buttons
 │   │   ├── CallLogScreen.kt             # Recents, SIM badges, instant update via callLoggedEvent
-│   │   ├── ContactsScreen.kt            # Directory, Nicknames filter, SIM routing, default number
-│   │   ├── InCallScreen.kt              # Active call UI, roaming badge, DTMF, post-call notes
+│   │   ├── ContactsScreen.kt            # Directory, Nicknames filter, default number prioritization
+│   │   ├── InCallScreen.kt              # Active call UI, roaming badge, DTMF, touch/lift ring silencing
 │   │   ├── RulesScreen.kt               # Automation pipeline, recipes gallery, simulator, history
-│   │   └── SettingsScreen.kt            # SIM modes, backup/restore, spam, channel preferences
+│   │   └── SettingsScreen.kt            # Compact Appearance & Navigation, backup/restore, spam
 │   └── components/
 │       ├── CompactSearchBar.kt          # Unified 42dp pill search input
 │       ├── Keypad.kt                    # 12-key dial pad with haptics
+│       ├── KeypadChannelDock.kt         # Top keypad channel selector dock (SIM 1, SIM 2, WhatsApp)
+│       ├── CallChoiceDialogs.kt         # MultiChannelChoiceDialog and CallConfirmationDialog
+│       ├── ChannelSetupDialog.kt        # Custom channel configuration and ordering dialog
 │       ├── ContactRowItem.kt            # Contact row with Phone & WhatsApp quick icons
-│       ├── ContactDetailsBottomSheet.kt # Numbers, SIM routing, call stats, channel preference
+│       ├── ContactDetailsBottomSheet.kt # Numbers, SIM routing, channel preference, default number
 │       ├── RuleEditDialog.kt            # Full automation rule editor with IME insets
 │       ├── RuleCard.kt                  # Visual pipeline chips, dry-run trigger, duplicate
 │       ├── DialerSuggestionsList.kt     # T9 predictive suggestions (contactsByDigits + contactsByName)
 │       ├── SpeedDialDialogs.kt          # Speed dial assignment and confirmation dialogs
-│       ├── BackupManagementCard.kt      # Backup Now, list, restore, delete, browse import
+│       ├── BackupManagementCard.kt      # Transactional Backup Now, restore with progress, safe delete
 │       ├── CallRedirectionCard.kt       # WhatsApp call mode selector
 │       ├── MultiNumberCallDialog.kt     # SIM/channel picker for multi-number contacts
 │       ├── AudioOutputSelectorDialog.kt # Audio routing picker
 │       ├── SpamManagementDialog.kt      # Blocked numbers list, search, auto-block presets
 │       └── WhatsAppIcon.kt              # Vector asset with dark-mode white contour ring
 ├── data/
-│   ├── AppDatabase.kt                   # Room Database v12, MIGRATION_11_12, indices
+│   ├── AppDatabase.kt                   # Room Database v17, MIGRATION_11_12 through MIGRATION_16_17
 │   ├── Entities.kt                      # All DB entities (see §5 for full schema)
-│   ├── AppDao.kt                        # Room DAOs with Flow, indexed queries
-│   └── AppRepository.kt                 # Aggregates Room DB + System Content Providers
+│   ├── AppDao.kt                        # Room DAOs with Flow, indexed queries, transactional bulk inserts
+│   ├── AppRepository.kt                 # Aggregates Room DB + System Content Providers
+│   ├── ChannelConfigRepository.kt       # Room persistence for channel enable/order configs
+│   └── ChannelPreferenceRepository.kt   # Room persistence for per-number channel preferences
 └── util/
     ├── T9Helper.kt                      # T9 digit mapping + scored search results
-    ├── ContactHelper.kt                 # ContactsContract queries, WhatsApp dispatch, number matching
+    ├── ContactHelper.kt                 # Fast phone matching, ContactsContract queries, WhatsApp dispatch
     ├── PhoneNumberNormalizer.kt         # libphonenumber E.164 normalization & isInternational()
-    ├── BackupManager.kt                 # JSON backup, public MediaStore, SHA-256 integrity
+    ├── BackupManager.kt                 # Transactional JSON backup, MediaStore, SHA-256 integrity
     ├── HapticFeedbackHelper.kt          # Android 13+ VibrationEffect primitives
     ├── CommunityCallerIdService.kt      # Offline caller trust tier lookup table
     └── AppCoroutineScope.kt             # SupervisorJob + CoroutineExceptionHandler app-wide scope
@@ -177,7 +188,33 @@ Both checks are passive (no GPS, no geofence API) — zero additional battery dr
 
 ---
 
-## 5. Local Data Persistence Schema (Room v12)
+## 5. Local Data Persistence Schema (Room v17)
+
+### `NumberChannelPreference`
+| Field | Type | Notes |
+|---|---|---|
+| `normalizedNumber` | `String` | PK (E.164) |
+| `preferredChannelId` | `String` | `sim_1`, `sim_2`, `whatsapp`, `ask`, etc. |
+| `customLabel` | `String?` | Custom display label |
+| `updatedTimestamp` | `Long` | Epoch ms |
+
+### `ChannelConfig`
+| Field | Type | Notes |
+|---|---|---|
+| `channelId` | `String` | PK (`sim_1`, `sim_2`, `whatsapp`) |
+| `isEnabled` | `Boolean` | Active channel state |
+| `customName` | `String?` | User-defined label |
+| `orderIndex` | `Int` | Display sorting priority |
+| `updatedTimestamp` | `Long` | Epoch ms |
+
+### `ContactDefaultNumber`
+| Field | Type | Notes |
+|---|---|---|
+| `normalizedNumber` | `String` | PK (E.164) |
+| `contactId` | `Long?` | Device Contact ID |
+| `defaultNumber` | `String` | Primary phone digits |
+| `defaultLabel` | `String` | Label (Mobile, Work, etc.) |
+| `updatedTimestamp` | `Long` | Epoch ms |
 
 ### `FavoriteContact`
 | Field | Type | Notes |

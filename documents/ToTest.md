@@ -6,7 +6,63 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
-### 1. Task 12.1 (Phase 12): Partitioned Contact Search Outside Active Filter
+### 1. Task 13.1 (Release 2.0): Dynamic Keypad Channel Dock & Channel Switching
+- [ ] **To Test**
+- **Test Steps**:
+  1. Open the **Keypad** tab (Tab 3).
+  2. Observe the Channel Dock directly above the dial pad (`[SIM 1]`, `[SIM 2]`, `[WhatsApp]`).
+  3. Verify SIM pills display user/carrier labels and amber badge if on roaming.
+  4. Tap the WhatsApp pill to set WhatsApp as the active calling channel.
+  5. Enter a phone number and tap Call. Verify WhatsApp voice call intent launches.
+  6. Tap SIM 1 or SIM 2 and dial. Verify cellular call initiates on the selected subscription.
+- **Expected Result**:
+  - The Channel Dock provides frictionless, 1-tap channel switching directly from the keypad with dynamic status indicators.
+
+### 2. Task 13.2 (Release 2.0): Unified Multi-Channel Choice Dialog & "Remember Choice" Workflow
+- [ ] **To Test**
+- **Test Steps**:
+  1. In Contacts or Favorites, tap Call on a contact with no saved channel preference.
+  2. In the `MultiChannelChoiceDialog`, check "Remember choice for this contact".
+  3. Select "WhatsApp Voice" or "SIM 2".
+  4. Verify the call launches on the selected channel.
+  5. Return to the app and tap Call on the same contact again.
+- **Expected Result**:
+  - The call immediately places via the remembered channel without prompting.
+  - Tapping the contact sheet shows the updated preference pill, which can be cleared via ✕.
+
+### 3. Task 13.3 (Release 2.0): Transactional Backup & Live Restore Progress Bar
+- [ ] **To Test**
+- **Test Steps**:
+  1. Open **Settings** → **Backup & Restore**.
+  2. Tap "Backup Now" and verify backup completes with SHA-256 integrity hash.
+  3. Tap Restore on a saved backup.
+  4. Observe the restore progress dialog showing real-time section progress (Rules, Favorites, Channels, Settings).
+  5. Cancel or interrupt restore halfway (or simulate failure) to verify database is not left in an inconsistent state.
+- **Expected Result**:
+  - Room `@Transaction` executes batch operations atomically; progress bar updates smoothly without UI freezes.
+
+### 4. Task 13.4 (Release 2.0): Hot-Path Search (<16ms) and Contact Default Number Prioritization
+- [ ] **To Test**
+- **Test Steps**:
+  1. Open Keypad or Contacts on a device with >2,000 contacts.
+  2. Rapidly type digits or names.
+  3. Measure keystroke responsiveness and frame rendering.
+  4. Open a multi-number contact and set a default number.
+  5. Check Android system contacts and Room DB.
+- **Expected Result**:
+  - Keystroke latency remains strictly under 16ms with zero UI jank.
+  - Default number is prioritized at the top with `DEFAULT` chip and synchronized to system contacts.
+
+### 5. Task 13.5 (Release 2.0): Telecom Callback Cleanup & Zero-Leak Teardown
+- [ ] **To Test**
+- **Test Steps**:
+  1. Place and receive multiple consecutive calls (cellular and WhatsApp).
+  2. Hang up each call and inspect logcat for `CallManager.unregisterCallback`.
+  3. Verify notification is cancelled once and no duplicate `handleCallEnded` events fire.
+- **Expected Result**:
+  - No memory leaks of `InCallService` context, clean callback teardown, and single notification dismissal.
+
+### 6. Task 12.1 (Phase 12): Partitioned Contact Search Outside Active Filter
 - [ ] **To Test**
 - **Test Steps**:
   1. Open the **Contacts** tab (Tab 4).

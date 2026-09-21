@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.0.0` | `19` | Sep 2026 | Multi-channel calling engine, dynamic keypad channel dock, unified call choice dialogs, blazing fast search, and transactional backups. |
 | `1.5.0` | `18` | Sep 2026 | Partitioned search outside active contact filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture. |
 | `1.4.4` | `17` | Sep 2026 | Smart SIM & roaming call alerts, instant call log updates, and clean nickname presentation across screens. |
 | `1.4.3` | `16` | Sep 2026 | Dedicated top-level nicknames filter with quick icon, and nickname-aware keypad suggestions. |
@@ -29,7 +30,22 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 1.5.0 (Latest) — Partitioned Contact Search & Ambient Incoming Ring Silencing</h3></summary>
+<summary><h3>🚀 Release 2.0.0 (Latest) — Multi-Channel Calling Engine, Keypad Channel Dock & Blazing Fast Search</h3></summary>
+
+### What's New & Improvements:
+- **Dynamic Keypad Calling Dock**: Instantly switch between your cellular SIM cards and WhatsApp right from the dial pad before you place a call. The dock dynamically displays your carrier names, roaming status, and installed calling apps with crisp icons and badges.
+- **Unified Call Choice & Remembered Preferences**: When placing calls to contacts with multiple available channels, an elegant and clean selection dialog lets you choose between SIM 1, SIM 2, and WhatsApp—with a convenient "Remember choice" toggle so future calls dial automatically without asking.
+- **Instant, Zero-Lag Contact & Digit Search**: Keypad T9 and directory search are now faster and smoother than ever (<16ms response time), delivering instant name, nickname, and phone number suggestions without frame drops even on large address books.
+- **Streamlined Settings & Appearance**: Enjoy a modern, unified Settings screen with simplified appearance themes, intuitive navigation customization, and cleaned-up dual-SIM channel options.
+- **Transactional Backup & Live Restore Progress**: Backing up and restoring your data is now rock-solid and safe. The restore process displays live progress so you always know what is happening, with full protection against incomplete restores.
+- **Reliable In-Call Teardown**: Fixed background call state transitions so ongoing and ended calls cleanly dismiss notifications and release system resources without stutter.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 1.5.0 — Partitioned Contact Search & Ambient Incoming Ring Silencing</h3></summary>
 
 ### What's New & Improvements:
 - **Never Miss a Contact with Partitioned Search**: When viewing contacts under a filter (such as Nicknames, Favorites, Recent, or Frequent) and you search, qualifying matches show at the top while any other matching contacts are cleanly separated into a dedicated "Other Matches Outside Filter" section with one-tap action sheets. You can easily view, call, or manage them without having to leave or clear your filter.
@@ -252,8 +268,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v1.5.0.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.0.0.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

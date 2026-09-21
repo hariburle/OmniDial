@@ -1,10 +1,10 @@
 # OmniDial — System Architecture & Technical Documentation
 
-> **Current Version**: v1.5.0 (Build 18) — September 2026
+> **Current Version**: v2.0.0 (Build 19) — September 2026
 
 ## 1. Executive Summary
 
-**OmniDial** is a native Android Telecom dialer and call management application built with Jetpack Compose, Kotlin Coroutines/StateFlow, Room SQLite database (v12+), and Android Telecom framework (`InCallService`).
+**OmniDial** is a native Android Telecom dialer and call management application built with Jetpack Compose, Kotlin Coroutines/StateFlow, Room SQLite database (v17), and Android Telecom framework (`InCallService`).
 
 The app unifies phone contacts, app-created local contacts, T9 smart dialing, automated call screening/rules, ambient geofencing guards, dual-SIM management, E.164 number normalization, tiered caller trust badges, carrier STIR/SHAKEN spam detection, and persistent drag-and-drop VIP favorite shortcuts into a clean Material 3 design.
 
@@ -26,16 +26,18 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
                 |       ├── SearchT9ContactsUseCase  (T9 nickname/name/number search)
                 |       └── ManageFavoritesUseCase  (star, unstar, reorder, ignore)
                 |
-                +---> AppRepository & AppDatabase (Room DB v13)
+                +---> AppRepository & AppDatabase (Room DB v17)
                 |       ├── FavoriteContact
                 |       ├── RecentCall
                 |       ├── CallerRule  (+ ambient geofence + automation fields)
-                |       ├── ContactNumberPreference  (per-number preferred SIM slot)
-                |       ├── ContactChannelPreference  (per-normalized-number VoIP/channel binding)
+                |       ├── ContactSimPreference  (per-number preferred SIM slot)
+                |       ├── NumberChannelPreference  (per-normalized-number VoIP/channel binding)
+                |       ├── ChannelConfig  (dynamic channel labels, enabled state, ordering)
+                |       ├── ContactDefaultNumber  (primary number prioritization & sync)
                 |       ├── SpamNumber
                 |       ├── LocalContact
                 |       ├── IgnoredContact
-                |       └── AutomationLogItem
+                |       └── AutomationLog
                 |
                 +---> Multi-Channel Calling Engine (MCCE)
                 |       ├── ChannelDiscoveryManager (active SIM detection, installed VoIP packages, emergency cell tower checks)
@@ -69,10 +71,12 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 
 ## 3. Data Persistence & Migration
 
-- **Database Version**: v12 in `AppDatabase.kt`.
-- **Indices Added in v12**: `index_recent_calls_phoneNumber`, `index_recent_calls_timestamp`, `index_caller_rules_phoneNumberPattern` for O(1) lookup during incoming call broadcasts.
-- **Migration Strategy**: Structured `MIGRATION_11_12` applied; `fallbackToDestructiveMigration` retained for development builds.
-- **`ContactNumberPreference` entity**: Stores `preferredSimSlot` (`-1`=Ask, `0`=Auto, `1`=SIM 1, `2`=SIM 2) keyed by normalized phone number, consumed by `OmniCallRedirectionService` to bind the correct `PhoneAccountHandle`.
+- **Database Version**: v17 in `AppDatabase.kt`.
+- **Entities (v17)**: `CallerRule`, `AutomationLog`, `RecentCall`, `FavoriteContact`, `SpamNumber`, `IgnoredContact`, `LocalContact`, `ContactSimPreference`, `NumberChannelPreference`, `ChannelConfig`, `ContactDefaultNumber`.
+- **Indices**: Indexed on primary query paths (`phoneNumber`, `normalized_number`, `timestamp`, `channel_id`, `contact_id`) for O(1) / indexed sub-millisecond retrieval.
+- **Migration Strategy**: Sequential migrations `MIGRATION_11_12` through `MIGRATION_16_17` applied; fallback to destructive migration retained for non-production environments.
+- **`NumberChannelPreference` entity**: Persists `preferredChannelId` (`sim_1`, `sim_2`, `whatsapp`, `ask`, etc.) mapped to normalized phone number with custom labels.
+- **`ContactDefaultNumber` entity**: Persists default phone number mappings synchronized with device ContactsContract.
 - **`SpamNumber` entity**: Stores both raw and `normalizedNumber` (E.164) for sub-millisecond indexed lookup via `getSpamByNormalizedNumber()`.
 - **`CallerRule` entity**: Stores full automation pipeline including `autoAnswer`, `answerDelaySec`, `dtmfSequence`, `dtmfDelayMs`, `autoHangup`, `hangupDelaySec`, `autoSpeakerphone`, `autoMuteMic`, `requiredWifiSsid`, `requiredBluetoothDevice`.
 - **Favorites Sort Order**: `SharedPreferences` key `favorite_sort_orders` storing `phoneNumber:sortOrder:name` mappings.
@@ -165,18 +169,20 @@ SHA-256 checksum and schema version are embedded in the JSON header for tamper d
 
 ---
 
-## 9. Unit Test Coverage (Build 17)
+## 9. Unit Test Coverage (Build 19)
 
 All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk = [36])`):
 
 | Test File | Coverage |
 |---|---|
-| `ExampleUnitTest` | Country ISO lookup, descriptive number labels, voicemail/short-code isolation, `SmartContactSort.NICKNAMES` filtering |
-| `Phase9SpamDefenseTest` | E.164 normalization, spam DB indexed lookups, spam preset SharedPrefs |
-| `Phase10TelecomTest` | DAG rule conflict resolution, roaming-aware SIM selection, trust badge scoring, VoIP continuity lifecycle |
+| `Phase13MultiChannelCoreTest` | Dynamic channel discovery, SIM slot labeling, WhatsApp channel dispatch, `ChannelPreferenceRepository`, `ChannelDispatchCoordinator` |
+| `Task10Test` | Multi-channel dock interactions, modal dismissal, transactional backup & restore verification, deduplication |
+| `Phase12PartitionedSearchAndRingSilencingTest` | Partitioned contact filtering outside active filters, ringer silence state flow transitions |
 | `Phase11AutomationTest` | CallerRule automation field persistence, Gate Buzzer recipe template, ambient geofence backup/restore |
+| `Phase10TelecomTest` | DAG rule conflict resolution, roaming-aware SIM selection, trust badge scoring, VoIP continuity lifecycle |
+| `Phase9SpamDefenseTest` | E.164 normalization, spam DB indexed lookups, spam preset SharedPrefs |
+| `ExampleUnitTest` | Country ISO lookup, descriptive number labels, voicemail/short-code isolation, `SmartContactSort.NICKNAMES` filtering |
 | `MissedCallHighlightTest` | Explicit missed call notification deep link, system intent auto-targets latest missed call |
-| `Task10Test` | Local backup save/list/delete, deduplication, `dismissAllModals()` + call screen maximize |
 | `OmniCallRedirectionServiceTest` | WhatsApp preference matching, never-mode bypass, per-contact SIM resolution, voicemail URI bypass |
 | `SimHelperTest` | `SimInfo` data integrity, `resolveSimSlot` default, `getPhoneAccountForSimSlot` safe on empty Telecom |
 | `ReminderSchedulerTest` | Schedule creates alarm, past epoch not scheduled, cancel removes alarm |
@@ -184,18 +190,18 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 
 ---
 
-## 10. Recent Fixes & Quality Upgrades (v1.2.x–v1.4.x)
+## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.0.0)
 
-1. **Unified SharedPreferences**: Migrated all modules to `"kishan_dialer_prefs"` key to eliminate preference fragmentation bugs across backup/restore.
-2. **Race-Condition Free Contact Refresh**: `Mutex.withLock` replaced `AtomicBoolean` in `MainViewModel.refreshContacts()`.
-3. **Pre-Warmed Pager**: `beyondViewportPageCount = 4` keeps all 5 panels in memory, eliminating keypad switch lag.
-4. **Compose Stability Annotations**: `@Immutable` applied to `DeviceContact`, `ActiveCallInfo`, `SimInfo`, `BluetoothDeviceItem`, `ContactPhoneNumber`, `AutomationStep` to prevent spurious recompositions.
-5. **IME Auto-Scroll in RuleEditDialog**: `DialogProperties(decorFitsSystemWindows = false)` + `Modifier.imePadding()` + `FlowRow` presets prevent keyboard from obscuring inputs.
-6. **Instant Nickname Display Fix**: `ContactDetailsBottomSheet` now reads from pre-loaded `FavoriteContact` map before rendering, eliminating the false `+ Add Nickname` flash.
-7. **Cleaned Contact Filter Row**: Removed inline `⭐ Favorite` and `🏷️ Nickname` filter tags from contact list items, restoring full horizontal width to contact names.
-8. **Partitioned Contact Search Outside Active Filters**: When searching under any filter tab (Nicknames, Favorites, etc.), matching contacts outside the filter are cleanly displayed in an "Other Matches Outside Filter" section with direct bottom sheet actions.
-9. **Ambient Incoming Ring Silencing**: Integrated `TelecomManager.silenceRinger()` triggered on device pickup/motion, proximity uncover, screen tap, audio route selection, quick decline SMS, or physical volume buttons while keeping the call active in `STATE_RINGING`.
-10. **Multi-Channel Calling Architecture Specification**: Documented complete dynamic channel discovery and per-phone-number channel preferences blueprint in `documents/MULTI_CHANNEL_CALLING_BLUEPRINT.md`.
+1. **Multi-Channel Calling Engine (MCCE)**: Introduced `ChannelDiscoveryManager`, `CallingChannel`, `ChannelConfigRepository`, `ChannelPreferenceRepository`, and `ChannelDispatchCoordinator`.
+2. **Dynamic Keypad Channel Dock**: Added `KeypadChannelDock` above dial pad for 1-tap channel switching between SIM 1, SIM 2, and WhatsApp with live roaming and carrier labels.
+3. **Unified Call Choice Dialogs**: Standardized `MultiChannelChoiceDialog` and `CallConfirmationDialog` with "Remember choice" preference persistence.
+4. **Hot-Path Search Optimization**: Reordered `ContactHelper.matchesNumberQuery` to check raw digit substrings before libphonenumber parsing, hoisted regexes and country codes, reducing search latency to <16ms.
+5. **Telecom Callback Leak Prevention**: Explicitly unregister per-call `Call.Callback` in `CallManager.kt` upon call teardown, eliminating context leaks and duplicate call ended events.
+6. **Transactional Backup & Live Restore**: Wrapped Room restore operations in `@Transaction` with incremental progress reporting to prevent half-restored states.
+7. **Contact Default Number Sync**: Integrated `ContactDefaultNumber` Room DAO and device ContactsContract sync for default number prioritization.
+8. **Partitioned Contact Search Outside Active Filters**: Two-pass filtering displays qualifying filter matches at the top and cleanly partitions non-qualifying matches into "Other Matches Outside Filter" with one-tap action sheets.
+9. **Ambient Incoming Ring Silencing**: Integrated `TelecomManager.silenceRinger()` triggered on device pickup/motion, proximity uncover, screen touch, audio route switching, quick decline SMS, or physical volume buttons while keeping the call active in `STATE_RINGING`.
+10. **Release Signing Security**: Added upload keystore integrity validation in `app/build.gradle.kts` to warn on missing upload keys and prevent unintended debug key signing.
 
 ---
 

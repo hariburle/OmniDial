@@ -3,7 +3,7 @@
 [![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/Version-1.5.0%20(Build%2018)-brightgreen.svg)](documents/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-2.0.0%20(Build%2019)-brightgreen.svg)](documents/CHANGELOG.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](documents/CHANGELOG.md)
 [![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](documents/DESIGN.md)
 
@@ -15,10 +15,12 @@
 
 ### 1. 🎹 Smart T9 Dialer & Hybrid Keypad
 - **Non-Scrolling 2x2 Call Action Grid**: Stable 2x2 grid (`Text Message`, `Phone`, `WhatsApp - Msg`, `WhatsApp - Voice`) with zero layout jumps.
+- **Dynamic Keypad Channel Dock**: Clean horizontal channel bar (`[SIM 1]`, `[SIM 2]`, `[WhatsApp]`) dynamically reflecting active SIM names, roaming indicators, and installed VoIP channels for 1-tap switching.
+- **Unified Call Choice Dialogs**: Streamlined channel selection modal with "Remember choice for this contact" preference toggle.
 - **Adaptive Preference Highlighting**: Dynamically highlights preferred communication channels using high-contrast borders and subtle background tints based on learned caller intelligence.
 - **Enhanced Dark Mode WhatsApp Icon**: Rendered with a high-contrast white outer contour ring for perfect AMOLED visibility.
 - **Bluetooth & Car Head Unit Call Redirection**: `OmniCallRedirectionService` automatically routes outgoing calls from vehicle infotainment, smartwatches, or third-party dialers to WhatsApp VoIP when preferred.
-- **T9 Search**: Instant matching on digits that searches contact names, **nicknames**, and phone numbers as you type.
+- **Instant T9 Search**: Sub-millisecond indexed digit matching (<16ms) searching contact names, **nicknames**, and phone numbers as you type.
 - **Pause (`,`) & Wait (`;`) Support**: Long-press `*` for Pause, long-press `#` for Wait, or insert via the overflow menu (`⋮`).
 - **Quick Recents Bar**: Most recent caller avatars above the keypad for instant redialing.
 - **Nickname-Aware Keypad Suggestions**: Predictive suggestions prominently display contact nicknames alongside formal names.
@@ -100,7 +102,8 @@
 ---
 
 ### 9. 💾 Backup & Restore
-- **One-Tap Automatic Backups**: Single "Backup Now" tap saves all rules, speed dials, favorites, and settings — including multi-SIM preferences, ambient geofence guards, and spam filters.
+- **One-Tap Transactional Backups**: Single "Backup Now" tap saves all rules, speed dials, favorites, multi-channel configurations, and settings with atomicity and SHA-256 integrity verification.
+- **Live Restore Progress**: Real-time restore progress updates without freezing the UI or leaving partially restored tables.
 - **Public Storage Persistence**: Backups written to `Documents/OmniDial/` via MediaStore survive app uninstalls and reinstalls.
 - **One-Tap Restore & File Manager**: Auto-scanned backup list with instant restore and safe-delete. "Browse Files" imports backups from other devices or cloud.
 - **Cryptographic Integrity**: SHA-256 checksums and schema versioning protect against corrupted imports.
@@ -127,7 +130,8 @@
 
 The latest release and prior versions are available in the `apks/` directory and on the [OmniDial Website](index.html):
 
-- **[OmniDial-v1.5.0.apk](apks/OmniDial-v1.5.0.apk)** *(Latest — Build 18)*: Partitioned contact search outside active filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture.
+- **[OmniDial-v2.0.0.apk](apks/OmniDial-v2.0.0.apk)** *(Latest — Build 19)*: Multi-channel calling engine (Cellular SIM 1/2 + WhatsApp), dynamic keypad channel dock, unified call choice dialogs with remembered preferences, hot-path search indexing (<16ms), transactional backup/restore with live progress, and telecom callback lifecycle fixes.
+- **[OmniDial-v1.5.0.apk](apks/OmniDial-v1.5.0.apk)** *(Build 18)*: Partitioned contact search outside active filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture.
 - **[OmniDial-v1.4.4.apk](apks/OmniDial-v1.4.4.apk)** *(Build 17)*: Smart SIM & roaming call alerts, instant call log updates, and polished nickname presentation.
 - **[OmniDial-v1.4.3.apk](apks/OmniDial-v1.4.3.apk)** *(Build 16)*: Dedicated Nicknames filter tab and nickname-aware keypad suggestions.
 - **[OmniDial-v1.4.2.apk](apks/OmniDial-v1.4.2.apk)** *(Build 15)*: Automation recipes gallery, keyboard auto-scroll in rule editor, and unified settings backup.

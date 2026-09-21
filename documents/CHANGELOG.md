@@ -2,6 +2,27 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v2.0.0] — Build 19 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Dynamic Keypad Channel Dock**: Clean horizontal channel bar (`[SIM 1]`, `[SIM 2]`, `[WhatsApp]`) dynamically reflecting active SIM names, roaming indicators, and installed calling apps directly above the dial pad for 1-tap switching before placing a call.
+- **Unified Call Choice & Remembered Preferences**: Standardized `MultiChannelChoiceDialog` and `CallConfirmationDialog` with clean styling and a "Remember choice for this contact" preference toggle.
+- **Blazing Fast Contact & Digit Search**: Keypad T9 and directory search latency optimized to <16ms, eliminating frame drops on keystrokes across large contact directories.
+- **Transactional Backup & Live Restore Progress**: Backups and restores now run in safe atomic batches with real-time progress updates and SHA-256 integrity validation, preventing corrupted or half-restored states.
+- **Contact Default Number Prioritization**: Setting a default contact number synchronizes seamlessly across device contacts, Google Contacts, and Room cache.
+- **Streamlined Settings UI**: Consolidated Appearance and Navigation settings into a modern, compact card layout while removing obsolete dual-SIM menus.
+
+### 🔧 Technical / Architecture Notes
+- **Multi-Channel Calling Engine (MCCE)**: Core implementation of `ChannelDiscoveryManager`, `CallingChannel`, `ChannelConfigRepository`, `ChannelPreferenceRepository`, and `ChannelDispatchCoordinator`.
+- **Room Database v17 Schema**: Added `number_channel_preferences`, `channel_configurations`, and `contact_default_numbers` tables with indexed lookup columns.
+- **Hot-Path Performance Tuning**: Reordered `ContactHelper.matchesNumberQuery` checks to prioritize raw digit substrings before libphonenumber parsing; hoisted country calling codes and regexes; converted O(M²) recent call merges to indexed 10-digit hash map lookups.
+- **Telecom Lifecycle Cleanup**: Explicitly unregister per-call `Call.Callback` in `CallManager.kt` on call teardown, eliminating context leaks and duplicate `handleCallEnded` events.
+- **Release Build Signing**: Enforced strict upload keystore checks in `app/build.gradle.kts` with warning alerts to prevent silent debug signing.
+- **Test Suite Expansion**: Added `Phase13MultiChannelCoreTest` (409 lines) and expanded `Task10Test` for channel preference persistence and backup verification.
+- Incremented `versionCode` to 19 and `versionName` to `"2.0.0"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v1.5.0] — Build 18 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
