@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How to Set Up a Gate Buzzer Rule – OmniDial</title>
+  <meta name="description" content="Step-by-step: make OmniDial auto-answer your apartment intercom, send the door unlock code, and hang up." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="nav">
+        <a class="logo" href="../../index.html" style="text-decoration:none;color:var(--text)"><div class="logo-icon">📞</div><span>OmniDial</span></a>
+        <div class="nav-links">
+          <a href="../../index.html" class="nav-link">Home</a>
+          <a href="../getting-started.html" class="nav-link">Getting Started</a>
+          <a href="../guides.html" class="nav-link">How-To Guides</a>
+          <a href="../faq.html" class="nav-link">FAQ</a>
+          <a href="../releases.html" class="nav-link">Releases</a>
+        </div>
+        <span class="version-tag">v2.0.0</span>
+      </div>
+    </header>
+
+    <div class="crumb"><a href="../../index.html">Home</a> / <a href="../guides.html">How-To Guides</a> / Gate Buzzer</div>
+
+    <div class="doc-hero">
+      <h1>Set Up a <span>Gate Buzzer</span> Rule</h1>
+      <p>When your apartment intercom calls, OmniDial can answer it, key in the door code, and hang up — all automatically, even if your phone is in your pocket.</p>
+    </div>
+
+    <div class="toc">
+      <h3>Steps</h3>
+      <ol>
+        <li><a href="#recipes">Open the Recipes gallery</a></li>
+        <li><a href="#pick">Pick the Apartment Gate Buzzer template</a></li>
+        <li><a href="#number">Enter your intercom's number</a></li>
+        <li><a href="#code">Check the door code</a></li>
+        <li><a href="#test">Test it safely, then save</a></li>
+        <li><a href="#live">What happens on a real call</a></li>
+      </ol>
+    </div>
+
+    <section class="guide" id="recipes">
+      <div class="step-num">1</div>
+      <h2>Open the Recipes gallery</h2>
+      <div class="snippet-row">
+        <div class="snippet">
+          <div class="snippet-frame"><div class="snippet-screen">
+            <div class="mock-topbar"><span class="mock-title">Caller Rules</span><span class="mock-btn" style="padding:4px 10px;font-size:0.6rem;">Recipes<span class="callout">1</span></span></div>
+            <div class="mock-row">No rules yet<div class="mr-sub">Tap Recipes to start from a template</div></div>
+            <div class="mock-row"><span class="mr-sub">Your saved rules will appear here</span></div>
+          </div></div>
+          <div class="snippet-caption"><strong>Rules tab</strong> — tap <strong>Recipes</strong> at the top.</div>
+        </div>
+        <div class="snippet-text">
+          <p>Open the <strong>Rules</strong> tab (the 🤖 icon in the bottom bar) and tap the <strong>Recipes</strong> button at the top. Recipes are ready-made automation templates — you don't have to build the rule from scratch.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="guide" id="pick">
+      <div class="step-num">2</div>
+      <h2>Pick the Apartment Gate Buzzer template</h2>
+      <div class="snippet-row">
+        <div class="snippet">
+          <div class="snippet-frame"><div class="snippet-screen">
+            <div class="mock-topbar"><span class="mock-title">Recipes</span></div>
+            <div class="mock-row hl">🔒 Apartment Gate Buzzer<span class="callout">2</span><div class="mr-sub">Auto-answer intercom &amp; send 9# unlock tone</div></div>
+            <div class="mock-row">🏢 Office Extension IVR<div class="mr-sub">Auto-dial department or room extension 104#</div></div>
+            <div class="mock-row">💬 SMS Auto-Responder<div class="mr-sub">Auto-reply when busy and drop the call</div></div>
+          </div></div>
+          <div class="snippet-caption">Choose <strong>Apartment Gate Buzzer</strong>.</div>
+        </div>
+        <div class="snippet-text">
+          <p>Tap <strong>Apartment Gate Buzzer</strong>. This loads a rule that: answers after 1 second → sends the <span class="kbd">9#</span> unlock tone → hangs up after 2 seconds. All timings are adjustable.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="guide" id="number">
+      <div class="step-num">3</div>
+      <h2>Enter your intercom's number</h2>
+      <div class="snippet-row">
+        <div class="snippet">
+          <div class="snippet-frame"><div class="snippet-screen">
+            <div class="mock-topbar"><span class="mock-title">Gate Buzzer</span></div>
+            <div class="mock-row hl">Phone number<div class="mr-sub">+1 555 010 2030</div><span class="callout">3</span></div>
+            <div class="mock-row">Answer delay<div class="mr-sub">1 second</div></div>
+            <div class="mock-row">Hang up after<div class="mr-sub">2 seconds</div></div>
+          </div></div>
+          <div class="snippet-caption">Type the number your <strong>intercom calls from</strong>.</div>
+        </div>
+        <div class="snippet-text">
+          <p>The rule needs to know which incoming number is your intercom. Type the number the gate calls from — you can find it in <strong>Recents</strong> after a visitor buzzes you once.</p>
+          <div class="tip"><strong>Tip:</strong> if your building has two gates with different numbers, duplicate the rule (one-tap clone) and change the number on the copy.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="guide" id="code">
+      <div class="step-num">4</div>
+      <h2>Check the door code</h2>
+      <div class="snippet-row">
+        <div class="snippet">
+          <div class="snippet-frame"><div class="snippet-screen">
+            <div class="mock-topbar"><span class="mock-title">Gate Buzzer</span></div>
+            <div class="mock-row">Answer delay<div class="mr-sub">1 second</div></div>
+            <div class="mock-row hl">Door code (DTMF)<div class="mr-sub">9#</div><span class="callout">4</span></div>
+            <div class="mock-row">Hang up after<div class="mr-sub">2 seconds</div></div>
+          </div></div>
+          <div class="snippet-caption">Match the <strong>door code</strong> to your building's.</div>
+        </div>
+        <div class="snippet-text">
+          <p>The template sends <span class="kbd">9#</span>, which works for most buildings. If yours uses a different code (like <span class="kbd">*#</span>), change it here. During the tone the mic auto-mutes so the beeps come through cleanly.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="guide" id="test">
+      <div class="step-num">5</div>
+      <h2>Test it safely, then save</h2>
+      <p>Before going live, run the <strong>dry-run simulator</strong> in the rule editor — it walks through each step (answer → wait → send code → hang up) without placing any real call, so you can verify the timing feels right.</p>
+      <div class="tip"><strong>Going further:</strong> in the rule editor you can also restrict the rule to only run on your home Wi-Fi, or get a text confirmation after the door opens. Both are optional.</div>
+      <p>Tap <strong>Save</strong> and make sure the rule's toggle is <strong>on</strong>.</p>
+    </section>
+
+    <section class="guide" id="live">
+      <div class="step-num">6</div>
+      <h2>What happens on a real call</h2>
+      <p>Next time a visitor buzzes you: your phone answers after 1 second, keys in <span class="kbd">9#</span>, and hangs up after 2 seconds. You can watch it happen in the call screen, or ignore your phone entirely — the door just opens. Every trigger is logged under the <strong>History</strong> icon in the Rules tab, so you can always check what ran.</p>
+      <div class="warn"><strong>Note:</strong> for the rule to answer calls, OmniDial must be your default phone app and have phone permissions granted.</div>
+    </section>
+
+    <div class="doc-footer-nav">
+      <a href="keypad-dock.html" class="btn btn-secondary">← Prev: Keypad Channel Dock</a>
+      <a href="dual-sim.html" class="btn btn-secondary">Next: Dual-SIM Calling →</a>
+    </div>
+
+    <footer>
+      <p>OmniDial • Built with Kotlin &amp; Jetpack Compose • Send feedback to <a href="mailto:hariburle@gmail.com">hariburle@gmail.com</a></p>
+    </footer>
+  </div>
+</body>
+</html>

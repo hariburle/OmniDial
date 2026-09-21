@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQ – OmniDial</title>
+  <meta name="description" content="Frequently asked questions about OmniDial: privacy, permissions, dual SIM, WhatsApp calling, and uninstalling." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="nav">
+        <a class="logo" href="../index.html" style="text-decoration:none;color:var(--text)"><div class="logo-icon">📞</div><span>OmniDial</span></a>
+        <div class="nav-links">
+          <a href="../index.html" class="nav-link">Home</a>
+          <a href="getting-started.html" class="nav-link">Getting Started</a>
+          <a href="guides.html" class="nav-link">How-To Guides</a>
+          <a href="faq.html" class="nav-link">FAQ</a>
+          <a href="releases.html" class="nav-link">Releases</a>
+        </div>
+        <span class="version-tag">v2.0.0</span>
+      </div>
+    </header>
+
+    <div class="crumb"><a href="../index.html">Home</a> / FAQ</div>
+
+    <div class="doc-hero">
+      <h1>Frequently Asked <span>Questions</span></h1>
+      <p>The things people ask before — and after — installing OmniDial.</p>
+    </div>
+
+    <section class="guide">
+      <details class="faq" open>
+        <summary>Does OmniDial replace my phone's dialer?</summary>
+        <div class="faq-a">Yes — that's the point. When you set it as your <strong>default phone app</strong>, it handles incoming and outgoing calls, your call history, and contacts, just like the dialer that came with your phone. You can switch back to your old dialer in Android Settings at any time.</div>
+      </details>
+      <details class="faq">
+        <summary>Is my data private? Where does it go?</summary>
+        <div class="faq-a"><strong>Everything stays on your phone.</strong> Contacts, call logs, rules, favorites, and backups live in local storage — there is no account, no cloud sync, and no ads. Backups are files you control in your <strong>Documents/OmniDial/</strong> folder.</div>
+      </details>
+      <details class="faq">
+        <summary>Why does it ask for SMS permission?</summary>
+        <div class="faq-a">Only for <strong>automation rules you create yourself</strong> — for example, a gate-buzzer rule that texts you a confirmation after opening the door. OmniDial never sends messages on its own.</div>
+      </details>
+      <details class="faq">
+        <summary>Do I need WhatsApp installed for WhatsApp calling?</summary>
+        <div class="faq-a">Yes. OmniDial hands WhatsApp calls and chats to the WhatsApp app on your phone. If WhatsApp isn't installed, those options simply won't do anything.</div>
+      </details>
+      <details class="faq">
+        <summary>Does it work with two SIM cards?</summary>
+        <div class="faq-a">Yes — dual SIM is a first-class feature. Choose a global SIM mode in Settings (<strong>System</strong>, <strong>Ask &amp; Learn</strong>, or <strong>International</strong>), pin individual numbers to a SIM, and the roaming guard warns you before you call on a roaming line. See the <a href="guides/dual-sim.html">dual-SIM guide</a>.</div>
+      </details>
+      <details class="faq">
+        <summary>How do automation rules work? Will it answer calls without me?</summary>
+        <div class="faq-a">Only for numbers you explicitly configure. A rule matches an <strong>incoming number you specify</strong> (like your building's intercom) and runs the steps you defined — answer, send tones, hang up. Nothing runs for other callers. Every trigger is logged under the <strong>History</strong> icon in the Rules tab, and you can test any rule with the dry-run simulator first.</div>
+      </details>
+      <details class="faq">
+        <summary>Will my contacts and call history carry over?</summary>
+        <div class="faq-a">Yes. On first launch OmniDial imports your existing contacts and call history automatically — nothing to migrate by hand.</div>
+      </details>
+      <details class="faq">
+        <summary>What happens to my data if I uninstall?</summary>
+        <div class="faq-a">The app's internal data is removed, but your <strong>backups in Documents/OmniDial/ survive</strong> — reinstall later and restore in one tap. Your system contacts and system call log are untouched by uninstalling.</div>
+      </details>
+      <details class="faq">
+        <summary>Which Android versions are supported?</summary>
+        <div class="faq-a">Android 11 and newer.</div>
+      </details>
+      <details class="faq">
+        <summary>It's not working as my default dialer / calls aren't connecting. What do I check?</summary>
+        <div class="faq-a">First, confirm OmniDial is set as the <strong>default phone app</strong> (Android Settings → Apps → Default apps → Phone app). Then check it has <strong>Phone, Contacts, and Call log</strong> permissions. On some Samsung/Xiaomi devices, also exempt OmniDial from battery optimization so background call handling isn't killed.</div>
+      </details>
+    </section>
+
+    <div class="cta-group">
+      <a href="getting-started.html" class="btn btn-primary">📖 Read the Getting Started Guide</a>
+      <a href="../index.html" class="btn btn-secondary">← Back to Home</a>
+    </div>
+
+    <footer>
+      <p>OmniDial • Built with Kotlin &amp; Jetpack Compose • Send feedback to <a href="mailto:hariburle@gmail.com">hariburle@gmail.com</a></p>
+    </footer>
+  </div>
+</body>
+</html>
