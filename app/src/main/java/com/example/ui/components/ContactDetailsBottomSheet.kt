@@ -954,11 +954,11 @@ fun ContactDetailsBottomSheet(
                                                     onSetPreferredSimSlot?.invoke(pn.number, simChan.slotIndex + 1)
                                                     preferredModes[pn.number] = "cellular"
                                                     onSaveLearnedCallMode(pn.number, "cellular")
-                                                    Toast.makeText(context, "★ Preferred for ${pn.label.ifBlank { "number" }}: ${simChan.displayName}", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "★ Preferred for ${pn.label.ifBlank { "number" }}: ${simChan.shortLabel}", Toast.LENGTH_SHORT).show()
                                                 },
                                                 label = {
                                                     Text(
-                                                        text = simChan.displayName,
+                                                        text = simChan.shortLabel,
                                                         fontSize = 10.5.sp,
                                                         maxLines = 1
                                                     )
@@ -1005,7 +1005,7 @@ fun ContactDetailsBottomSheet(
                                                 }
                                                 preferredModes[pn.number] = "whatsapp"
                                                 onSaveLearnedCallMode(pn.number, "whatsapp")
-                                                Toast.makeText(context, "★ Preferred channel: ${waChannel.displayName}", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "★ Preferred channel: ${waChannel.shortLabel}", Toast.LENGTH_SHORT).show()
                                             },
                                             label = { Text(waChannel.shortLabel, fontSize = 10.5.sp) },
                                             leadingIcon = if (isWaSelected) {
@@ -1028,7 +1028,7 @@ fun ContactDetailsBottomSheet(
                                                 }
                                                 preferredModes[pn.number] = "whatsapp_business"
                                                 onSaveLearnedCallMode(pn.number, "whatsapp_business")
-                                                Toast.makeText(context, "★ Preferred channel: ${waBizChannel.displayName}", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "★ Preferred channel: ${waBizChannel.shortLabel}", Toast.LENGTH_SHORT).show()
                                             },
                                             label = { Text(waBizChannel.shortLabel, fontSize = 10.5.sp) },
                                             leadingIcon = if (isWaBizSelected) {
@@ -1051,7 +1051,7 @@ fun ContactDetailsBottomSheet(
                                                 }
                                                 preferredModes[pn.number] = "google_voice"
                                                 onSaveLearnedCallMode(pn.number, "google_voice")
-                                                Toast.makeText(context, "★ Preferred channel: ${gvChannel.displayName}", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "★ Preferred channel: ${gvChannel.shortLabel}", Toast.LENGTH_SHORT).show()
                                             },
                                             label = { Text(gvChannel.shortLabel, fontSize = 10.5.sp) },
                                             leadingIcon = if (isGvSelected) {
