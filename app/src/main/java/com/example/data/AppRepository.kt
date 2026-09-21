@@ -123,4 +123,61 @@ class AppRepository(private val appDao: AppDao) {
     suspend fun setChannelCustomName(channelId: String, customName: String?) = appDao.setChannelCustomName(channelId, customName)
     suspend fun deleteChannelConfig(channelId: String) = appDao.deleteChannelConfig(channelId)
     suspend fun clearAllChannelConfigs() = appDao.clearAllChannelConfigs()
+
+    val allDefaultNumbers: Flow<List<ContactDefaultNumber>> = appDao.getAllDefaultNumbers()
+    suspend fun getAllDefaultNumbersList(): List<ContactDefaultNumber> = appDao.getAllDefaultNumbersList()
+
+    suspend fun getDefaultNumberForContact(contactId: Long?, phoneNumbers: List<String>): ContactDefaultNumber? {
+        if (contactId != null && contactId > 0L) {
+            val byId = appDao.getDefaultNumberByContactId(contactId)
+            if (byId != null) return byId
+        }
+        for (num in phoneNumbers) {
+            val norm = com.example.util.PhoneNumberNormalizer.toE164(num)
+            if (norm.isNotBlank()) {
+                val byNum = appDao.getDefaultNumber(norm)
+                if (byNum != null) return byNum
+            }
+        }
+        return null
+    }
+
+    suspend fun setDefaultNumberForContact(
+        contactId: Long?,
+        phoneNumbers: List<String>,
+        chosenNumber: String,
+        chosenLabel: String = "Mobile"
+    ) {
+        val entries = mutableListOf<ContactDefaultNumber>()
+        val normChosen = com.example.util.PhoneNumberNormalizer.toE164(chosenNumber)
+        if (normChosen.isNotBlank()) {
+            entries.add(
+                ContactDefaultNumber(
+                    normalizedNumber = normChosen,
+                    contactId = contactId,
+                    defaultNumber = chosenNumber,
+                    defaultLabel = chosenLabel
+                )
+            )
+        }
+        for (num in phoneNumbers) {
+            val norm = com.example.util.PhoneNumberNormalizer.toE164(num)
+            if (norm.isNotBlank() && entries.none { it.normalizedNumber == norm }) {
+                entries.add(
+                    ContactDefaultNumber(
+                        normalizedNumber = norm,
+                        contactId = contactId,
+                        defaultNumber = chosenNumber,
+                        defaultLabel = chosenLabel
+                    )
+                )
+            }
+        }
+        if (entries.isNotEmpty()) {
+            appDao.insertDefaultNumbers(entries)
+        }
+    }
+
+    suspend fun clearAllDefaultNumbers() = appDao.clearAllDefaultNumbers()
 }
+

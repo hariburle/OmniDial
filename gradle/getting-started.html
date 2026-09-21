@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Getting Started – OmniDial</title>
+  <meta name="description" content="Set up OmniDial in minutes: install, make it your default dialer, learn the five tabs, and get the most out of favorites, WhatsApp calling, rules, and spam protection." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-light: #60a5fa;
+      --whatsapp: #25D366;
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --amber: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background-color: var(--bg); color: var(--text); line-height: 1.7; overflow-x: hidden; }
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+    header { padding: 24px 0; border-bottom: 1px solid var(--surface-border); }
+    .nav { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .logo { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 1.25rem; color: var(--text); text-decoration: none; }
+    .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 10px; display: grid; place-items: center; }
+    .nav-links { display: flex; gap: 20px; flex-wrap: wrap; }
+    .nav-link { color: var(--text-muted); text-decoration: none; font-weight: 600; font-size: 0.92rem; }
+    .nav-link:hover { color: var(--text); }
+    .version-tag { background: rgba(59, 130, 246, 0.15); color: var(--primary-light); border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 9999px; }
+
+    .hero { padding: 64px 0 40px; text-align: center; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(37, 211, 102, 0.12); color: var(--whatsapp); border: 1px solid rgba(37, 211, 102, 0.3); padding: 6px 14px; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; }
+    .hero h1 { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 16px; }
+    .hero h1 span { background: linear-gradient(135deg, #60a5fa, #38bdf8, #25D366); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero p { font-size: 1.1rem; color: var(--text-muted); max-width: 640px; margin: 0 auto; }
+
+    .toc { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 16px; padding: 24px 28px; margin: 12px 0 48px; }
+    .toc h3 { font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+    .toc ol { columns: 2; column-gap: 32px; padding-left: 20px; }
+    .toc li { margin-bottom: 8px; }
+    .toc a { color: var(--primary-light); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+    .toc a:hover { text-decoration: underline; }
+    @media (max-width: 640px) { .toc ol { columns: 1; } }
+
+    section.guide { margin-bottom: 56px; scroll-margin-top: 24px; }
+    .step-num { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); font-weight: 800; font-size: 1rem; margin-bottom: 12px; }
+    section.guide h2 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 14px; }
+    section.guide h3 { font-size: 1.1rem; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+    section.guide p { color: var(--text-muted); margin-bottom: 12px; }
+    section.guide p strong, section.guide li strong { color: var(--text); }
+    section.guide ul, section.guide ol { padding-left: 22px; margin-bottom: 14px; color: var(--text-muted); }
+    section.guide li { margin-bottom: 8px; }
+    section.guide li::marker { color: var(--primary-light); }
+
+    .card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 14px; padding: 18px 20px; margin: 14px 0; }
+    .card .card-title { font-weight: 700; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .card p { margin-bottom: 0; font-size: 0.95rem; }
+
+    .tip { border-left: 3px solid var(--whatsapp); background: rgba(37, 211, 102, 0.07); border-radius: 0 12px 12px 0; padding: 14px 18px; margin: 16px 0; font-size: 0.95rem; color: var(--text-muted); }
+    .tip strong { color: var(--whatsapp); }
+
+    .tab-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 18px 0; }
+    .tab-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 14px; padding: 18px 16px; text-align: center; }
+    .tab-card .tab-icon { font-size: 1.6rem; margin-bottom: 8px; }
+    .tab-card .tab-name { font-weight: 700; color: var(--text); font-size: 0.95rem; margin-bottom: 4px; }
+    .tab-card .tab-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+
+    .kbd { display: inline-block; background: #0b1220; border: 1px solid var(--surface-border); border-bottom-width: 2px; border-radius: 6px; padding: 1px 8px; font-size: 0.85rem; font-weight: 700; color: var(--text); }
+
+    .cta-group { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin: 40px 0 60px; }
+    .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 1rem; text-decoration: none; transition: all 0.2s ease; cursor: pointer; }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4); }
+    .btn-primary:hover { transform: translateY(-2px); }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--surface-border); }
+    .btn-secondary:hover { background: #273549; }
+
+    footer { border-top: 1px solid var(--surface-border); padding: 32px 0 48px; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
+    footer a { color: var(--primary-light); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="nav">
+        <a class="logo" href="index.html"><div class="logo-icon">📞</div><span>OmniDial</span></a>
+        <div class="nav-links">
+          <a href="index.html" class="nav-link">← Home</a>
+          <a href="#setup" class="nav-link">Setup</a>
+          <a href="#tour" class="nav-link">Tour</a>
+          <a href="#power" class="nav-link">Power Features</a>
+          <a href="#tips" class="nav-link">Pro Tips</a>
+        </div>
+        <span class="version-tag">v1.5.0</span>
+      </div>
+    </header>
+
+    <div class="hero">
+      <div class="hero-badge">📖 New here? Start here</div>
+      <h1>Getting Started<br><span>with OmniDial</span></h1>
+      <p>OmniDial replaces your phone's default dialer with one that handles regular calls <em>and</em> WhatsApp calls, learns how you like to reach each person, and automates the boring stuff. This guide takes you from install to power user.</p>
+    </div>
+
+    <div class="toc">
+      <h3>On this page</h3>
+      <ol>
+        <li><a href="#setup">Install &amp; set as default dialer</a></li>
+        <li><a href="#permissions">Allow the permissions it asks for</a></li>
+        <li><a href="#tour">Meet your five tabs</a></li>
+        <li><a href="#firstcall">Make your first calls</a></li>
+        <li><a href="#favorites">Star your VIPs</a></li>
+        <li><a href="#channels">Phone or WhatsApp? Teach it once</a></li>
+        <li><a href="#everyday">Everyday speed tricks</a></li>
+        <li><a href="#power">Power features: rules, spam &amp; dual SIM</a></li>
+        <li><a href="#backup">Back up your setup</a></li>
+        <li><a href="#tips">Pro tips</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section class="guide" id="setup">
+      <div class="step-num">1</div>
+      <h2>Install &amp; set OmniDial as your default dialer</h2>
+      <ol>
+        <li>Download the latest APK from the <a href="index.html#releases" style="color:var(--primary-light)">Releases</a> section and install it (your phone may ask you to allow installs from your browser — that's normal for apps installed outside the Play Store).</li>
+        <li>Open OmniDial. It will offer to become your <strong>default phone app</strong> — accept. This is what lets it handle incoming calls, outgoing calls, and your call history like the dialer that came with your phone.</li>
+        <li>That's it for the basics — you can already make and receive calls. The next steps unlock everything else.</li>
+      </ol>
+    </section>
+
+    <!-- 2 -->
+    <section class="guide" id="permissions">
+      <div class="step-num">2</div>
+      <h2>Allow the permissions it asks for</h2>
+      <p>OmniDial asks for each permission with a reason. Here's the plain-English version:</p>
+      <ul>
+        <li><strong>Contacts</strong> — to show your address book, nicknames, and starred contacts.</li>
+        <li><strong>Phone</strong> — to place and manage calls as your dialer.</li>
+        <li><strong>Call log</strong> — to show your recent calls with SIM badges and durations.</li>
+        <li><strong>SMS</strong> — only used if you set up automation rules that send a text (like a gate-buzzer confirmation).</li>
+      </ul>
+      <div class="tip"><strong>Privacy note:</strong> everything — contacts, call logs, rules, favorites — stays on your phone. OmniDial has no account, no cloud sync, and no ads.</div>
+    </section>
+
+    <!-- 3 -->
+    <section class="guide" id="tour">
+      <div class="step-num">3</div>
+      <h2>Meet your five tabs</h2>
+      <p>The bottom bar has five tabs. Here's what lives where:</p>
+      <div class="tab-grid">
+        <div class="tab-card"><div class="tab-icon">⭐</div><div class="tab-name">Favorites</div><div class="tab-desc">Your VIP grid. One-tap calling for the people you reach most.</div></div>
+        <div class="tab-card"><div class="tab-icon">🕘</div><div class="tab-name">Recents</div><div class="tab-desc">Call history with SIM badges, search, notes, and callback reminders.</div></div>
+        <div class="tab-card"><div class="tab-icon">🔢</div><div class="tab-name">Keypad</div><div class="tab-desc">Smart T9 dialer — type a name on the number keys to find anyone.</div></div>
+        <div class="tab-card"><div class="tab-icon">📇</div><div class="tab-name">Contacts</div><div class="tab-desc">Your full directory with filters, nicknames, and per-number settings.</div></div>
+        <div class="tab-card"><div class="tab-icon">🤖</div><div class="tab-name">Rules</div><div class="tab-desc">Automation recipes — gate buzzers, spam screening, call handling.</div></div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="guide" id="firstcall">
+      <div class="step-num">4</div>
+      <h2>Make your first calls</h2>
+      <h3>Dial with T9 search</h3>
+      <p>On the <strong>Keypad</strong> tab, just start typing a name on the number keys — <span class="kbd">6</span><span class="kbd">6</span><span class="kbd">8</span> finds "Mot…" (M=6, O=6, T=8). Matching contacts, including ones you saved under a <strong>nickname</strong>, appear instantly above the keypad. Tap to call.</p>
+      <h3>Redial in one tap</h3>
+      <p>The row of avatars above the keypad is your <strong>quick recents bar</strong> — tap any face to call them back immediately.</p>
+      <h3>Silence a ringing phone gracefully</h3>
+      <p>When a call comes in, just pick the phone up, tap the screen, or press a volume button — the ringer quiets down while the call keeps ringing, so you get a moment to decide.</p>
+    </section>
+
+    <!-- 5 -->
+    <section class="guide" id="favorites">
+      <div class="step-num">5</div>
+      <h2>Star your VIPs</h2>
+      <p>Your <strong>Favorites</strong> tab is a speed-dial grid for the people you call most. To add someone:</p>
+      <ol>
+        <li>Find them in <strong>Contacts</strong> or <strong>Recents</strong>, open their details, and tap the <strong>⭐ star</strong> at the top.</li>
+        <li>They appear on your Favorites grid with one-tap call buttons.</li>
+      </ol>
+      <div class="card">
+        <div class="card-title">🫳 Arrange it your way</div>
+        <p>Tap the checkmark in the top-right of the Favorites tab, then drag cards anywhere — even across rows. Your layout is saved and survives reinstalls. You can also pick between Bento, Grid, and Material card styles in Settings.</p>
+      </div>
+      <p>If a contact has several numbers, pick which one is the <strong>default</strong> when you star them — that's the number the favorite will dial.</p>
+    </section>
+
+    <!-- 6 -->
+    <section class="guide" id="channels">
+      <div class="step-num">6</div>
+      <h2>Phone or WhatsApp? Teach it once</h2>
+      <p>OmniDial's signature trick: for each contact, it remembers whether you prefer a <strong>regular call</strong> or a <strong>WhatsApp call</strong> — and then just does the right thing.</p>
+      <ul>
+        <li><strong>Let it learn:</strong> the first time you call someone, it asks "Phone or WhatsApp?" and remembers your answer.</li>
+        <li><strong>Set it directly:</strong> open the contact's details and use the <strong>Preferred Channel</strong> row — no call needed.</li>
+        <li><strong>Change your mind:</strong> tap the ✕ next to the preference to go back to being asked each time.</li>
+      </ul>
+      <div class="tip"><strong>Try this:</strong> set your family to WhatsApp and your office contacts to Phone. After a week, your Favorites cards collapse to a single button each — the right one, every time.</div>
+    </section>
+
+    <!-- 7 -->
+    <section class="guide" id="everyday">
+      <div class="step-num">7</div>
+      <h2>Everyday speed tricks</h2>
+      <ul>
+        <li><strong>Speed dial:</strong> assign numbers <span class="kbd">2</span>–<span class="kbd">9</span> in Settings, then long-press a key on the keypad to call instantly.</li>
+        <li><strong>Nicknames:</strong> give contacts nicknames ("Mom", "Plumber") — T9 search finds them, and the <strong>Nicknames</strong> filter tab surfaces them all in one place.</li>
+        <li><strong>Multi-number contacts:</strong> tap a contact with several numbers to choose which to call; set a default so the favorite always dials the right one.</li>
+        <li><strong>Post-call notes:</strong> after hanging up, add a timestamped note to the call record ("call back Thursday") or set a callback reminder right from the quick-action card.</li>
+        <li><strong>Missed calls:</strong> tap a missed-call notification to jump straight to that entry in Recents, highlighted for you.</li>
+      </ul>
+    </section>
+
+    <!-- 8 -->
+    <section class="guide" id="power">
+      <div class="step-num">8</div>
+      <h2>Power features: rules, spam &amp; dual SIM</h2>
+      <h3>🤖 Automation rules (Rules tab)</h3>
+      <p>Rules react to incoming calls automatically. Start with the <strong>Recipes</strong> gallery — ready-made templates like:</p>
+      <ul>
+        <li><strong>Gate buzzer:</strong> auto-answers your building's intercom, sends the open code, and hangs up.</li>
+        <li><strong>Delivery gate, office extension, VIP ring</strong> — and you can build your own sequences (ring → delay → answer → speaker → hang up) with a dry-run simulator to test safely.</li>
+      </ul>
+      <h3>🛡️ Spam protection</h3>
+      <p>Open the spam center to block numbers manually or switch on auto-block presets (top spammers, private numbers, foreign prefixes). Incoming spam shows a red <strong>Spam Risk</strong> badge; verified businesses and deliveries get green and amber badges.</p>
+      <h3>📡 Dual SIM</h3>
+      <p>With two SIMs, choose a global mode in Settings — <strong>Ask &amp; Learn</strong> (per-contact SIM preferences), <strong>System</strong> (just follow your phone's default), or <strong>International</strong> (ask for foreign numbers). You can also pin a preferred SIM to any individual number, and OmniDial warns you before routing a call through a roaming SIM.</p>
+    </section>
+
+    <!-- 9 -->
+    <section class="guide" id="backup">
+      <div class="step-num">9</div>
+      <h2>Back up your setup</h2>
+      <p>Once you've arranged favorites, trained channel preferences, and built rules, protect that work: open <strong>Settings → Backup</strong> and tap <strong>Backup Now</strong>. It saves everything — favorites, rules, speed dials, SIM preferences, spam filters — to your <span class="kbd">Documents/OmniDial/</span> folder, where it survives even an uninstall. Restoring on a new phone is one tap.</p>
+    </section>
+
+    <!-- 10 -->
+    <section class="guide" id="tips">
+      <div class="step-num">10</div>
+      <h2>Pro tips for the best experience</h2>
+      <ul>
+        <li><strong>Spend 10 minutes on favorites.</strong> Star your top 8–12 contacts and arrange them — that's 90% of the app's daily value.</li>
+        <li><strong>Train channels deliberately.</strong> The first week, answer the "Phone or WhatsApp?" prompt thoughtfully instead of dismissing it. The payoff is one-tap correct calling forever after.</li>
+        <li><strong>Use nicknames for hard-to-spell names.</strong> T9 shines when contacts have short nicknames.</li>
+        <li><strong>Try one recipe.</strong> Even if you never build a custom rule, the gate-buzzer recipe alone is worth opening the Rules tab once.</li>
+        <li><strong>Back up before big changes.</strong> Reorganizing favorites or experimenting with rules? One-tap backup first — restore is just as fast.</li>
+        <li><strong>Keep it updated.</strong> Grab the newest APK from the Releases page; each version's notes say exactly what changed.</li>
+      </ul>
+      <div class="tip"><strong>Coming from another dialer?</strong> Your contacts, call history, and system favorites import automatically on first launch — nothing to migrate by hand.</div>
+    </section>
+
+    <div class="cta-group">
+      <a href="index.html#releases" class="btn btn-primary">Download the Latest APK</a>
+      <a href="index.html" class="btn btn-secondary">← Back to Home</a>
+    </div>
+
+    <footer>
+      <p>OmniDial • Built with Kotlin &amp; Jetpack Compose • Send feedback to <a href="mailto:hariburle@gmail.com">hariburle@gmail.com</a></p>
+    </footer>
+  </div>
+</body>
+</html>

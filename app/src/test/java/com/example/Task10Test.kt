@@ -303,5 +303,69 @@ class Task10Test {
         val cached = prefRepo.getCachedPreference("+15559876543")
         assertEquals("google_voice", cached)
     }
+
+    @Test
+    fun testRecentCallsSelectiveBackupExcludesPlainCalls() = runBlocking {
+        val dao = AppDatabase.getInstance(context).appDao()
+        // Clear recent calls
+        dao.clearAllRecentCalls()
+
+        // 1. Call with note
+        dao.insertRecentCall(
+            com.example.data.RecentCall(
+                phoneNumber = "+15551111111",
+                callerName = "Alice",
+                callType = 1,
+                note = "Follow up regarding invoice"
+            )
+        )
+
+        // 2. Call with callback reminder
+        dao.insertRecentCall(
+            com.example.data.RecentCall(
+                phoneNumber = "+15552222222",
+                callerName = "Bob",
+                callType = 3,
+                reminderTime = System.currentTimeMillis() + 3600000L
+            )
+        )
+
+        // 3. Call marked as spam
+        dao.insertRecentCall(
+            com.example.data.RecentCall(
+                phoneNumber = "+15553333333",
+                callerName = "Spam Caller",
+                callType = 1,
+                isSpam = true
+            )
+        )
+
+        // 4. Plain call without notes, reminders, or spam (should be SKIPPED)
+        dao.insertRecentCall(
+            com.example.data.RecentCall(
+                phoneNumber = "+15554444444",
+                callerName = "Charlie",
+                callType = 2,
+                durationSeconds = 120L
+            )
+        )
+
+        // Generate backup
+        val jsonString = BackupManager.createBackupJson(context)
+        val root = org.json.JSONObject(jsonString)
+        val recentArray = root.getJSONArray("recentCalls")
+
+        // Only 3 annotated calls should be backed up, plain call skipped
+        assertEquals(3, recentArray.length())
+
+        val backedUpNumbers = (0 until recentArray.length()).map {
+            recentArray.getJSONObject(it).getString("phoneNumber")
+        }.toSet()
+
+        assertTrue(backedUpNumbers.contains("+15551111111"))
+        assertTrue(backedUpNumbers.contains("+15552222222"))
+        assertTrue(backedUpNumbers.contains("+15553333333"))
+        assertFalse(backedUpNumbers.contains("+15554444444"))
+    }
 }
 

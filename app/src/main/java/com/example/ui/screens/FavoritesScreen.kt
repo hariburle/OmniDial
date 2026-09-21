@@ -1324,7 +1324,10 @@ fun FavoritesScreen(
             onSelectNumberToCall = { chosenNumber ->
                 onCallNumber(chosenNumber)
             },
-            onSetAsFavoriteNumber = { newNum, newLabel ->
+            onSetDefaultNumber = { newNum, newLabel ->
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(contact, newNum, newLabel)
+                }
                 favoriteContactToCall?.let { fav ->
                     onUpdateFavoriteNumber(fav, newNum, newLabel)
                 }

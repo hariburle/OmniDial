@@ -175,10 +175,19 @@ object BackupManager {
         }
         root.put("ignoredContacts", ignoredArray)
 
-        // 7. Recent Calls
+        // 7. Recent Calls (only back up meaningful records: post-call note, callback reminder, spam flag, or custom tag/reason)
         val recentCalls = dao.getAllRecentCallsList()
         val recentArray = JSONArray()
         for (rc in recentCalls) {
+            val hasCustomData = !rc.note.isNullOrBlank() ||
+                (rc.reminderTime != null && rc.reminderTime > 0L) ||
+                rc.isSpam ||
+                !rc.callReason.isNullOrBlank() ||
+                !rc.communityTag.isNullOrBlank() ||
+                !rc.ruleMatched.isNullOrBlank()
+
+            if (!hasCustomData) continue
+
             val obj = JSONObject()
             obj.put("callerName", rc.callerName ?: "")
             obj.put("phoneNumber", rc.phoneNumber)
@@ -295,8 +304,13 @@ object BackupManager {
         return uri.path?.substringAfterLast('/')
     }
 
-    suspend fun restoreBackupFromUri(context: Context, uri: Uri): BackupRestoreResult = withContext(Dispatchers.IO) {
+    suspend fun restoreBackupFromUri(
+        context: Context,
+        uri: Uri,
+        onProgress: ((step: String, progress: Float) -> Unit)? = null
+    ): BackupRestoreResult = withContext(Dispatchers.IO) {
         try {
+            onProgress?.invoke("Opening backup file…", 0.05f)
             val fileName = getUriFileName(context, uri)
 
             val jsonContent = StringBuilder()
@@ -318,8 +332,9 @@ object BackupManager {
                 )
             }
 
+            onProgress?.invoke("Parsing backup structure…", 0.08f)
             val root = JSONObject(raw)
-            val restoreResult = restoreBackupFromJsonRoot(context, root)
+            val restoreResult = restoreBackupFromJsonRoot(context, root, onProgress)
             if (restoreResult.success) {
                 try {
                     val key = root.optLong("timestamp", 0L).let {
@@ -350,8 +365,13 @@ object BackupManager {
         }
     }
 
-    suspend fun restoreBackupFromJsonRoot(context: Context, root: JSONObject): BackupRestoreResult = withContext(Dispatchers.IO) {
+    suspend fun restoreBackupFromJsonRoot(
+        context: Context,
+        root: JSONObject,
+        onProgress: ((step: String, progress: Float) -> Unit)? = null
+    ): BackupRestoreResult = withContext(Dispatchers.IO) {
         try {
+            onProgress?.invoke("Validating backup data…", 0.10f)
             // Validate application identity - forgiving of app rebrands or missing headers if recognized sections exist
             val appName = root.optString("appName", "")
             val validAppNames = setOf("", "OmniDial", "OmniDialer", "Kishan Dialer", "Kishan-Dialer", "Dialer")
@@ -397,6 +417,7 @@ object BackupManager {
             var restoredChannelConfigs = 0
 
             // 1. Restore Preferences
+            onProgress?.invoke("Restoring settings & preferences…", 0.20f)
             if (root.has("preferences")) {
                 try {
                     val prefsObj = root.optJSONObject("preferences")
@@ -443,6 +464,7 @@ object BackupManager {
             }
 
             // 2. Restore Favorites
+            onProgress?.invoke("Restoring favorite contacts…", 0.35f)
             if (root.has("favorites")) {
                 try {
                     val favArray = root.optJSONArray("favorites")
@@ -475,6 +497,7 @@ object BackupManager {
             }
 
             // 3. Restore Local Contacts
+            onProgress?.invoke("Restoring contacts…", 0.50f)
             if (root.has("localContacts")) {
                 try {
                     val contactArray = root.optJSONArray("localContacts")
@@ -503,6 +526,7 @@ object BackupManager {
             }
 
             // 4. Restore Spam Numbers
+            onProgress?.invoke("Restoring spam & blocked list…", 0.65f)
             if (root.has("spamNumbers")) {
                 try {
                     val spamArray = root.optJSONArray("spamNumbers")
@@ -530,6 +554,7 @@ object BackupManager {
             }
 
             // 5. Restore Caller Rules if present
+            onProgress?.invoke("Restoring call routing rules…", 0.75f)
             if (root.has("rules")) {
                 try {
                     val rulesArray = root.optJSONArray("rules")
@@ -568,6 +593,7 @@ object BackupManager {
             }
 
             // 6. Restore Ignored Contacts
+            onProgress?.invoke("Restoring ignored contacts…", 0.82f)
             if (root.has("ignoredContacts")) {
                 try {
                     val ignoredArray = root.optJSONArray("ignoredContacts")
@@ -596,6 +622,7 @@ object BackupManager {
             }
 
             // 7. Restore Recent Calls if present
+            onProgress?.invoke("Restoring call history…", 0.88f)
             if (root.has("recentCalls")) {
                 try {
                     val callArray = root.optJSONArray("recentCalls")
@@ -630,6 +657,7 @@ object BackupManager {
             }
 
             // 8. Restore Number Channel Preferences if present
+            onProgress?.invoke("Restoring channel preferences…", 0.94f)
             if (root.has("numberChannelPreferences")) {
                 try {
                     val cpArray = root.optJSONArray("numberChannelPreferences")
@@ -729,6 +757,7 @@ object BackupManager {
             }
 
             // 9. Restore Channel Configurations if present
+            onProgress?.invoke("Restoring channel configurations…", 0.97f)
             if (root.has("channelConfigurations")) {
                 try {
                     val ccArray = root.optJSONArray("channelConfigurations")
@@ -755,6 +784,8 @@ object BackupManager {
                     android.util.Log.w("BackupManager", "Error restoring channel configurations: ${e.message}")
                 }
             }
+
+            onProgress?.invoke("Finalizing restoration…", 1.0f)
 
             BackupRestoreResult(
                 success = true,
@@ -1011,17 +1042,23 @@ object BackupManager {
         return fileName.substringBeforeLast(".")
     }
 
-    suspend fun restoreBackupFromFile(context: Context, file: File): BackupRestoreResult = withContext(Dispatchers.IO) {
+    suspend fun restoreBackupFromFile(
+        context: Context,
+        file: File,
+        onProgress: ((step: String, progress: Float) -> Unit)? = null
+    ): BackupRestoreResult = withContext(Dispatchers.IO) {
         try {
             if (!file.exists()) {
                 return@withContext BackupRestoreResult(success = false, message = "File does not exist")
             }
+            onProgress?.invoke("Reading backup from storage…", 0.05f)
             val jsonContent = file.readText().trim().removePrefix("\uFEFF")
             if (jsonContent.isBlank()) {
                 return@withContext BackupRestoreResult(success = false, message = "Backup file is empty")
             }
+            onProgress?.invoke("Parsing backup structure…", 0.08f)
             val root = JSONObject(jsonContent)
-            restoreBackupFromJsonRoot(context, root)
+            restoreBackupFromJsonRoot(context, root, onProgress)
         } catch (e: Exception) {
             e.printStackTrace()
             BackupRestoreResult(

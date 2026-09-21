@@ -48,12 +48,12 @@ import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContactPhone
 import androidx.compose.material.icons.filled.MoreVert
@@ -178,6 +178,7 @@ fun DialerScreen(
     getPreferredCallingMode: (String) -> String = { "cellular" },
     whatsAppCallMode: String = "ask_learn",
     onPlaceCallDirect: ((String, Int?) -> Unit)? = null,
+    onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
     channelPreferenceRepository: ChannelPreferenceRepository = remember(context) { ChannelPreferenceRepository.getInstance(context) },
     channelDiscoveryManager: ChannelDiscoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) },
     modifier: Modifier = Modifier
@@ -601,7 +602,7 @@ fun DialerScreen(
                             horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Chat,
+                                imageVector = Icons.AutoMirrored.Filled.Chat,
                                 contentDescription = null,
                                 modifier = Modifier.size(13.dp),
                                 tint = if (hasReason) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
@@ -1093,7 +1094,7 @@ fun DialerScreen(
                                     )
                                 } else {
                                     Icon(
-                                        imageVector = Icons.Default.Chat,
+                                        imageVector = Icons.AutoMirrored.Filled.Chat,
                                         contentDescription = "Message",
                                         tint = if (hasNumber) msgColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
                                         modifier = Modifier.size(24.dp)
@@ -1294,6 +1295,9 @@ fun DialerScreen(
             onSelectNumberToCall = { chosenNumber ->
                 onSelectContactNumber(chosenNumber)
                 onPlaceCall(chosenNumber, null)
+            },
+            onSetDefaultNumber = { newNum, newLabel ->
+                onSetDefaultContactNumber?.invoke(contact, newNum, newLabel)
             },
             onSearchOtherContacts = {
                 showContactPicker = true

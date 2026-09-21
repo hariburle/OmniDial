@@ -32,12 +32,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.History
@@ -500,7 +500,7 @@ fun CallLogScreen(
                 FilterOptionData("MISSED", "Missed Calls", Icons.AutoMirrored.Filled.CallMissed, MaterialTheme.colorScheme.error),
                 FilterOptionData("INCOMING", "Incoming Calls", Icons.AutoMirrored.Filled.CallReceived, Color(0xFF2E7D32)),
                 FilterOptionData("OUTGOING", "Outgoing Calls", Icons.AutoMirrored.Filled.CallMade, MaterialTheme.colorScheme.primary),
-                FilterOptionData("WHATSAPP", "WhatsApp Calls", Icons.Default.Chat, Color(0xFF25D366)),
+                FilterOptionData("WHATSAPP", "WhatsApp Calls", Icons.AutoMirrored.Filled.Chat, Color(0xFF25D366)),
                 FilterOptionData("SPAM", "Spam Calls", Icons.Default.Shield, MaterialTheme.colorScheme.error),
                 FilterOptionData("RULES", "Rules & Automation", Icons.Default.Bolt, Color(0xFFE65100)),
                 FilterOptionData("NOTES", "Notes & Reminders", Icons.Default.EditNote, Color(0xFF673AB7))

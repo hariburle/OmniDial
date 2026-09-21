@@ -193,5 +193,28 @@ data class ChannelConfig(
     val updatedTimestamp: Long = System.currentTimeMillis()
 )
 
-
-
+/**
+ * Stores chosen default phone number for a contact (non-favorites and favorites).
+ * Keyed by normalized phone number to resolve quickly from any number belonging to the contact.
+ */
+@Immutable
+@Entity(
+    tableName = "contact_default_numbers",
+    indices = [
+        Index(value = ["normalized_number"]),
+        Index(value = ["contact_id"])
+    ]
+)
+data class ContactDefaultNumber(
+    @PrimaryKey
+    @ColumnInfo(name = "normalized_number")
+    val normalizedNumber: String,
+    @ColumnInfo(name = "contact_id")
+    val contactId: Long? = null,
+    @ColumnInfo(name = "default_number")
+    val defaultNumber: String,
+    @ColumnInfo(name = "default_label")
+    val defaultLabel: String = "Mobile",
+    @ColumnInfo(name = "updated_timestamp")
+    val updatedTimestamp: Long = System.currentTimeMillis()
+)

@@ -11,8 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class, ContactSimPreference::class, NumberChannelPreference::class, ChannelConfig::class],
-    version = 16,
+    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class, ContactSimPreference::class, NumberChannelPreference::class, ChannelConfig::class, ContactDefaultNumber::class],
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +21,26 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS contact_default_numbers (
+                            normalized_number TEXT NOT NULL PRIMARY KEY,
+                            contact_id INTEGER,
+                            default_number TEXT NOT NULL,
+                            default_label TEXT NOT NULL,
+                            updated_timestamp INTEGER NOT NULL
+                        )
+                    """.trimIndent())
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_default_numbers_normalized_number ON contact_default_numbers(normalized_number)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_contact_default_numbers_contact_id ON contact_default_numbers(contact_id)")
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Error migrating DB 16 to 17", e)
+                }
+            }
+        }
 
         private val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -151,7 +171,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "telecom_dialer_db"
                 )
-                .addMigrations(MIGRATION_15_16, MIGRATION_14_15, MIGRATION_13_14, MIGRATION_12_13, MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
+                .addMigrations(MIGRATION_16_17, MIGRATION_15_16, MIGRATION_14_15, MIGRATION_13_14, MIGRATION_12_13, MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
                 .fallbackToDestructiveMigration(dropAllTables = false)
                 .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = false)
                 .addCallback(object : Callback() {

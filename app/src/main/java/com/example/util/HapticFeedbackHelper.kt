@@ -28,6 +28,7 @@ object HapticFeedbackHelper {
     /**
      * Plays audible key tone and vibrates when typing on dial pad.
      */
+    @Suppress("DEPRECATION")
     fun performKeypadTap(context: Context, digit: Char? = null, view: View? = null) {
         // 1. Play DTMF audio tone
         digit?.let { playToneForDigit(it) }
@@ -67,6 +68,7 @@ object HapticFeedbackHelper {
         )
     }
 
+    @Suppress("DEPRECATION")
     fun performLongPress(context: Context, view: View? = null) {
         try {
             val vibrator = getVibrator(context)

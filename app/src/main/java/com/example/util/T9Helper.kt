@@ -7,7 +7,8 @@ data class T9SearchResult(
     val photoUri: String? = null,
     val nickname: String? = null,
     val matchedByName: Boolean = true,
-    val matchSnippet: String = ""
+    val matchSnippet: String = "",
+    val allPhoneNumbers: List<ContactPhoneNumber> = emptyList()
 )
 
 object T9Helper {
@@ -84,6 +85,14 @@ object T9Helper {
             val effectiveNumber = matchingPn?.number ?: contact.phoneNumber
             val effectiveLabel = matchingPn?.label ?: contact.label
 
+            val allNumbers = if (contact.phoneNumbers.isNotEmpty()) {
+                contact.phoneNumbers
+            } else if (contact.phoneNumber.isNotBlank()) {
+                listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
+            } else {
+                emptyList()
+            }
+
             if (matchedNickname) {
                 results.add(
                     T9SearchResult(
@@ -93,7 +102,8 @@ object T9Helper {
                         photoUri = contact.photoUri,
                         nickname = contact.nickname,
                         matchedByName = true,
-                        matchSnippet = matchSnippet
+                        matchSnippet = matchSnippet,
+                        allPhoneNumbers = allNumbers
                     )
                 )
             } else if (matchedName) {
@@ -105,7 +115,8 @@ object T9Helper {
                         photoUri = contact.photoUri,
                         nickname = contact.nickname,
                         matchedByName = true,
-                        matchSnippet = matchSnippet
+                        matchSnippet = matchSnippet,
+                        allPhoneNumbers = allNumbers
                     )
                 )
             } else if (matchedPhone) {
@@ -117,7 +128,8 @@ object T9Helper {
                         photoUri = contact.photoUri,
                         nickname = contact.nickname,
                         matchedByName = false,
-                        matchSnippet = "Number match"
+                        matchSnippet = "Number match",
+                        allPhoneNumbers = allNumbers
                     )
                 )
             }

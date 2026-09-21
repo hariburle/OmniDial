@@ -38,8 +38,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -49,7 +50,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Person
@@ -189,17 +189,24 @@ fun ContactDetailsBottomSheet(
     var editLabel by remember(contact) { mutableStateOf(contact.label) }
     var editNickname by remember(contact, favoriteContact) { mutableStateOf(effectiveNickname) }
 
-    // Current default/primary number for this contact - reactive to user changes
-    var currentDefaultNumber by remember(favoriteContact?.phoneNumber, contact.phoneNumber) {
+    val stableContactKey = remember(contact.contactId, contact.name) {
+        contact.contactId?.toString() ?: contact.name
+    }
+
+    val initialDefaultNumber = remember(stableContactKey) {
         val favNum = favoriteContact?.phoneNumber
-        val initNum = if (contact.phoneNumber.isNotBlank()) {
+        if (contact.phoneNumber.isNotBlank()) {
             contact.phoneNumber
         } else if (favNum != null && ContactHelper.isSamePhoneNumber(favNum, contact.phoneNumber)) {
             favNum
         } else {
             favNum ?: contact.phoneNumbers.firstOrNull()?.number ?: ""
         }
-        mutableStateOf(initNum)
+    }
+
+    // Current default/primary number for this contact - reactive to user changes
+    var currentDefaultNumber by remember(stableContactKey) {
+        mutableStateOf(initialDefaultNumber)
     }
     var numberForActionMenu by remember { mutableStateOf<ContactPhoneNumber?>(null) }
     val preferredModes = remember { mutableStateMapOf<String, String>() }
@@ -286,7 +293,14 @@ fun ContactDetailsBottomSheet(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         IconButton(
-                            onClick = onToggleFavorite,
+                            onClick = {
+                                onToggleFavorite()
+                                Toast.makeText(
+                                    context,
+                                    if (isFavorite) "Removed from Favorites" else "★ Added to Favorites",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
                             modifier = Modifier
                                 .size(36.dp)
                                 .testTag("contact_details_star_toggle")
@@ -438,14 +452,6 @@ fun ContactDetailsBottomSheet(
                         )
                     }
 
-                    if (contact.label.isNotBlank() && contact.label != "Mobile") {
-                        Text(
-                            text = contact.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
                     if (isUnknownNumber) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Button(
@@ -580,9 +586,9 @@ fun ContactDetailsBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val orderedNumbers = remember(contact, currentDefaultNumber) {
+                    val displayedNumbers = remember(stableContactKey) {
                         val all = if (contact.phoneNumbers.isNotEmpty()) contact.phoneNumbers else listOf(ContactPhoneNumber(contact.phoneNumber, contact.label))
-                        val defNum = currentDefaultNumber.ifBlank { contact.phoneNumber }
+                        val defNum = initialDefaultNumber.ifBlank { contact.phoneNumber }
                         if (defNum.isNotBlank()) {
                             val defaultPn = all.firstOrNull { pn ->
                                 pn.number == defNum || ContactHelper.isSamePhoneNumber(pn.number, defNum)
@@ -597,16 +603,15 @@ fun ContactDetailsBottomSheet(
                         }
                     }
 
-                    orderedNumbers.forEachIndexed { index, pn ->
+                    displayedNumbers.forEachIndexed { index, pn ->
                         val normPn = pn.number.filter { it.isDigit() }.takeLast(10)
                         val favDigits = favoriteContact?.phoneNumber?.filter { it.isDigit() }?.takeLast(10) ?: ""
                         val isThisNumberFavorite = isFavorite && (
                             (favDigits.length >= 7 && normPn == favDigits) ||
-                            (orderedNumbers.size == 1)
+                            (displayedNumbers.size == 1)
                         )
-                        val defNum = currentDefaultNumber.ifBlank { contact.phoneNumber }
-                        val isDefaultNumber = if (defNum.isNotBlank()) {
-                            pn.number == defNum || ContactHelper.isSamePhoneNumber(pn.number, defNum)
+                        val isDefaultNumber = if (currentDefaultNumber.isNotBlank()) {
+                            pn.number == currentDefaultNumber || ContactHelper.isSamePhoneNumber(pn.number, currentDefaultNumber)
                         } else {
                             index == 0
                         }
@@ -616,9 +621,9 @@ fun ContactDetailsBottomSheet(
                                 .fillMaxWidth()
                                 .clip(
                                     when {
-                                        orderedNumbers.size == 1 -> RoundedCornerShape(16.dp)
+                                        displayedNumbers.size == 1 -> RoundedCornerShape(16.dp)
                                         index == 0 -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                                        index == orderedNumbers.lastIndex -> RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+                                        index == displayedNumbers.lastIndex -> RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
                                         else -> RoundedCornerShape(0.dp)
                                     }
                                 )
@@ -632,7 +637,8 @@ fun ContactDetailsBottomSheet(
                                     }
                                 )
                                 .background(
-                                    if (isThisNumberFavorite) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                    if (isDefaultNumber) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                    else if (isThisNumberFavorite) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                                     else Color.Transparent
                                 )
                                 .padding(horizontal = 14.dp, vertical = 10.dp)
@@ -736,16 +742,17 @@ fun ContactDetailsBottomSheet(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // 1. Star / Favorite toggle button
+                                    // 1. Star / Default Number toggle button
                                     IconButton(
                                         onClick = {
-                                            if (isThisNumberFavorite) {
-                                                onToggleFavorite()
-                                                Toast.makeText(context, "Removed from Favorites", Toast.LENGTH_SHORT).show()
+                                            if (isDefaultNumber) {
+                                                currentDefaultNumber = ""
+                                                onClearDefaultNumber()
+                                                Toast.makeText(context, "Default number cleared", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 currentDefaultNumber = pn.number
                                                 onSetAsDefaultNumber(pn.number, pn.label)
-                                                Toast.makeText(context, "★ Added to Favorites", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "★ Set as default: ${pn.number}", Toast.LENGTH_SHORT).show()
                                             }
                                         },
                                         modifier = Modifier
@@ -754,15 +761,15 @@ fun ContactDetailsBottomSheet(
                                     ) {
                                         Surface(
                                             shape = CircleShape,
-                                            color = containerBg,
-                                            border = containerBorder,
+                                            color = if (isDefaultNumber) Color(0xFFF59E0B).copy(alpha = 0.15f) else containerBg,
+                                            border = if (isDefaultNumber) BorderStroke(1.5.dp, Color(0xFFF59E0B)) else containerBorder,
                                             modifier = Modifier.fillMaxSize()
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(
-                                                    imageVector = if (isThisNumberFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                                    contentDescription = if (isThisNumberFavorite) "Remove Favorite" else "Add Favorite",
-                                                    tint = if (isThisNumberFavorite) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    imageVector = if (isDefaultNumber) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                                    contentDescription = if (isDefaultNumber) "Default number (Tap to clear)" else "Set as default number",
+                                                    tint = if (isDefaultNumber) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                             }
@@ -807,14 +814,14 @@ fun ContactDetailsBottomSheet(
                                             Box(contentAlignment = Alignment.Center) {
                                                 if (isWhatsAppChannel) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Chat,
+                                                        imageVector = Icons.AutoMirrored.Filled.Chat,
                                                         contentDescription = if (isWaBiz) "WhatsApp Business Message" else "WhatsApp Message",
                                                         tint = waBrandColor,
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                 } else if (isGoogleVoiceChannel) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Chat,
+                                                        imageVector = Icons.AutoMirrored.Filled.Chat,
                                                         contentDescription = "Google Voice Message",
                                                         tint = gvBrandColor,
                                                         modifier = Modifier.size(18.dp)
@@ -835,7 +842,7 @@ fun ContactDetailsBottomSheet(
                                     IconButton(
                                         onClick = {
                                             when {
-                                                isWhatsAppChannel && resolvedPreferredChannel is CallingChannel.WhatsApp -> {
+                                                resolvedPreferredChannel is CallingChannel.WhatsApp -> {
                                                     onDismiss()
                                                     ContactHelper.launchWhatsAppCall(context, pn.number, isBusiness = resolvedPreferredChannel.isBusiness)
                                                 }
@@ -1002,7 +1009,7 @@ fun ContactDetailsBottomSheet(
                                             },
                                             label = { Text(waChannel.shortLabel, fontSize = 10.5.sp) },
                                             leadingIcon = if (isWaSelected) {
-                                                { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                                { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(12.dp)) }
                                             } else null,
                                             modifier = Modifier.height(26.dp)
                                         )
@@ -1025,7 +1032,7 @@ fun ContactDetailsBottomSheet(
                                             },
                                             label = { Text(waBizChannel.shortLabel, fontSize = 10.5.sp) },
                                             leadingIcon = if (isWaBizSelected) {
-                                                { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                                { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(12.dp)) }
                                             } else null,
                                             modifier = Modifier.height(26.dp)
                                         )
@@ -1074,7 +1081,7 @@ fun ContactDetailsBottomSheet(
                             }
                         }
 
-                        if (index < contact.phoneNumbers.lastIndex) {
+                        if (index < displayedNumbers.lastIndex) {
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                 modifier = Modifier.padding(horizontal = 12.dp)
@@ -1369,7 +1376,7 @@ fun ContactDetailsBottomSheet(
                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Notes,
+                                                    imageVector = Icons.AutoMirrored.Filled.Notes,
                                                     contentDescription = "Note",
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(12.dp)

@@ -123,6 +123,7 @@ fun ContactsScreen(
     onAddNewContactMulti: ((name: String, numbers: List<ContactPhoneNumber>, destination: ContactSaveDestination, addToFavorites: Boolean) -> Unit)? = null,
     onUpdateContact: (oldNumber: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
     onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
+    defaultContactNumbers: List<com.example.data.ContactDefaultNumber> = emptyList(),
     onSyncContactToPhone: (DeviceContact) -> Unit = {},
     onSyncAllAppContactsToDevice: () -> Unit = {},
     onDeleteContact: (DeviceContact) -> Unit = {},
@@ -143,6 +144,26 @@ fun ContactsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    fun getChosenDefaultNumber(c: DeviceContact): String? {
+        if (c.contactId != null && c.contactId > 0) {
+            val byId = defaultContactNumbers.firstOrNull { it.contactId == c.contactId }
+            if (byId != null) return byId.defaultNumber
+        }
+        for (pn in c.phoneNumbers) {
+            val norm = pn.number.replace(Regex("[^0-9+]"), "")
+            if (norm.isNotBlank()) {
+                val byNorm = defaultContactNumbers.firstOrNull { it.normalizedNumber.replace(Regex("[^0-9+]"), "") == norm }
+                if (byNorm != null) return byNorm.defaultNumber
+            }
+        }
+        val normPrimary = c.phoneNumber.replace(Regex("[^0-9+]"), "")
+        if (normPrimary.isNotBlank()) {
+            val byPrimary = defaultContactNumbers.firstOrNull { it.normalizedNumber.replace(Regex("[^0-9+]"), "") == normPrimary }
+            if (byPrimary != null) return byPrimary.defaultNumber
+        }
+        return null
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     var sortBy by remember { mutableStateOf(ContactSortBy.FIRST_NAME) }
@@ -918,8 +939,13 @@ fun ContactsScreen(
                                     isFavorite = isFav,
                                     onItemClick = { contactForDetailsSheet = contact },
                                     onRequestCall = {
-                                        val normContactNum = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
-                                        val matchedFav = favorites.firstOrNull { f -> f.phoneNumber.replace(Regex("[^0-9+]"), "") == normContactNum }
+                                        val matchedFav = favorites.firstOrNull { f ->
+                                            val normFav = f.phoneNumber.replace(Regex("[^0-9+]"), "")
+                                            contact.phoneNumbers.any { pn ->
+                                                val normPn = pn.number.replace(Regex("[^0-9+]"), "")
+                                                normPn.isNotBlank() && normPn == normFav
+                                            } || (f.name.isNotBlank() && f.name.equals(contact.name.trim(), ignoreCase = true))
+                                        }
                                         if (contact.phoneNumbers.size > 1) {
                                             contactForMultiCall = contact
                                             favoriteContactForMultiCall = matchedFav
@@ -935,7 +961,9 @@ fun ContactsScreen(
                                     },
                                     onCreateRule = { num -> onCreateRule(num) },
                                     onToggleFavorite = {
-                                        onToggleFavorite(contact.name, contact.phoneNumber, contact.label, contact.photoUri)
+                                        val defNum = getChosenDefaultNumber(contact) ?: contact.phoneNumber
+                                        val defLabel = contact.phoneNumbers.firstOrNull { it.number == defNum }?.label ?: contact.label
+                                        onToggleFavorite(contact.name, defNum, defLabel, contact.photoUri)
                                     },
                                     onPlaceWhatsAppCall = onPlaceWhatsAppCall,
                                     onSyncToPhone = {
@@ -983,8 +1011,13 @@ fun ContactsScreen(
                                 discoveryBadge = badge,
                                 onItemClick = { contactForDetailsSheet = contact },
                                 onRequestCall = {
-                                    val normContactNum = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
-                                    val matchedFav = favorites.firstOrNull { f -> f.phoneNumber.replace(Regex("[^0-9+]"), "") == normContactNum }
+                                    val matchedFav = favorites.firstOrNull { f ->
+                                        val normFav = f.phoneNumber.replace(Regex("[^0-9+]"), "")
+                                        contact.phoneNumbers.any { pn ->
+                                            val normPn = pn.number.replace(Regex("[^0-9+]"), "")
+                                            normPn.isNotBlank() && normPn == normFav
+                                        } || (f.name.isNotBlank() && f.name.equals(contact.name.trim(), ignoreCase = true))
+                                    }
                                     if (contact.phoneNumbers.size > 1) {
                                         contactForMultiCall = contact
                                         favoriteContactForMultiCall = matchedFav
@@ -1000,7 +1033,9 @@ fun ContactsScreen(
                                 },
                                 onCreateRule = { num -> onCreateRule(num) },
                                 onToggleFavorite = {
-                                    onToggleFavorite(contact.name, contact.phoneNumber, contact.label, contact.photoUri)
+                                    val defNum = getChosenDefaultNumber(contact) ?: contact.phoneNumber
+                                    val defLabel = contact.phoneNumbers.firstOrNull { it.number == defNum }?.label ?: contact.label
+                                    onToggleFavorite(contact.name, defNum, defLabel, contact.photoUri)
                                 },
                                 onPlaceWhatsAppCall = onPlaceWhatsAppCall,
                                 onSyncToPhone = {
@@ -1065,8 +1100,13 @@ fun ContactsScreen(
                                 discoveryBadge = null,
                                 onItemClick = { contactForDetailsSheet = contact },
                                 onRequestCall = {
-                                    val normContactNum = contact.phoneNumber.replace(Regex("[^0-9+]"), "")
-                                    val matchedFav = favorites.firstOrNull { f -> f.phoneNumber.replace(Regex("[^0-9+]"), "") == normContactNum }
+                                    val matchedFav = favorites.firstOrNull { f ->
+                                        val normFav = f.phoneNumber.replace(Regex("[^0-9+]"), "")
+                                        contact.phoneNumbers.any { pn ->
+                                            val normPn = pn.number.replace(Regex("[^0-9+]"), "")
+                                            normPn.isNotBlank() && normPn == normFav
+                                        } || (f.name.isNotBlank() && f.name.equals(contact.name.trim(), ignoreCase = true))
+                                    }
                                     if (contact.phoneNumbers.size > 1) {
                                         contactForMultiCall = contact
                                         favoriteContactForMultiCall = matchedFav
@@ -1082,7 +1122,9 @@ fun ContactsScreen(
                                 },
                                 onCreateRule = { num -> onCreateRule(num) },
                                 onToggleFavorite = {
-                                    onToggleFavorite(contact.name, contact.phoneNumber, contact.label, contact.photoUri)
+                                    val defNum = getChosenDefaultNumber(contact) ?: contact.phoneNumber
+                                    val defLabel = contact.phoneNumbers.firstOrNull { it.number == defNum }?.label ?: contact.label
+                                    onToggleFavorite(contact.name, defNum, defLabel, contact.photoUri)
                                 },
                                 onPlaceWhatsAppCall = onPlaceWhatsAppCall,
                                 onSyncToPhone = {
@@ -1147,33 +1189,24 @@ fun ContactsScreen(
         }
     }
 
-    // Multi-Number Quick Call & Favorite Selection Dialog
+    // Multi-Number Quick Call & Default Selection Dialog
     if (contactForMultiCall != null) {
         val currentContact = contactForMultiCall!!
+        val chosenDef = getChosenDefaultNumber(currentContact) ?: favoriteContactForMultiCall?.phoneNumber ?: currentContact.phoneNumber
         MultiNumberCallDialog(
             contactName = currentContact.name,
             phoneNumbers = currentContact.phoneNumbers,
-            defaultNumber = favoriteContactForMultiCall?.phoneNumber ?: currentContact.phoneNumber,
+            defaultNumber = chosenDef,
             titlePrefix = if (favoriteContactForMultiCall != null) "Favorite Contact Numbers" else "Select Number to Call",
             onSelectNumberToCall = { chosenNumber ->
                 onCallNumber(chosenNumber)
                 contactForMultiCall = null
                 favoriteContactForMultiCall = null
             },
-            onSetAsFavoriteNumber = { newNum, newLabel ->
-                val fav = favoriteContactForMultiCall ?: favorites.firstOrNull { f ->
-                    val normF = f.phoneNumber.replace(Regex("[^0-9+]"), "")
-                    currentContact.phoneNumbers.any { it.number.replace(Regex("[^0-9+]"), "") == normF } ||
-                    f.name.equals(currentContact.name, ignoreCase = true) ||
-                    (!currentContact.nickname.isNullOrBlank() && f.name.equals(currentContact.nickname, ignoreCase = true))
+            onSetDefaultNumber = { newNum, newLabel ->
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(currentContact, newNum, newLabel)
                 }
-                if (fav != null) {
-                    onUpdateFavoriteNumber(fav, newNum, newLabel)
-                } else {
-                    onAddFavorite(currentContact.name, newNum, newLabel, currentContact.photoUri)
-                }
-                contactForMultiCall = null
-                favoriteContactForMultiCall = null
             },
             onDismiss = {
                 contactForMultiCall = null

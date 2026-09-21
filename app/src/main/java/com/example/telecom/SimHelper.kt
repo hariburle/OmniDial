@@ -83,13 +83,25 @@ object SimHelper {
                         false
                     }
 
+                    val simNumber: String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        try {
+                            subscriptionManager.getPhoneNumber(info.subscriptionId).takeIf { it.isNotBlank() }
+                        } catch (_: SecurityException) {
+                            @Suppress("DEPRECATION")
+                            info.number?.takeIf { it.isNotBlank() }
+                        }
+                    } else {
+                        @Suppress("DEPRECATION")
+                        info.number?.takeIf { it.isNotBlank() }
+                    }
+
                     simList.add(
                         SimInfo(
                             slotIndex = slot,
                             subscriptionId = info.subscriptionId,
                             displayName = name,
                             carrierName = carrier ?: name,
-                            number = info.number?.takeIf { it.isNotBlank() },
+                            number = simNumber,
                             isDefault = (info.subscriptionId == defaultSubId),
                             isRoaming = isRoaming,
                             deviceSimName = deviceSimName

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -69,10 +70,10 @@ fun SettingsScreen(
     callAnswerStyle: String,
     onSetCallAnswerStyle: (String) -> Unit,
     onExportBackup: ((android.net.Uri, (Boolean) -> Unit) -> Unit)? = null,
-    onImportBackup: ((android.net.Uri, (BackupRestoreResult) -> Unit) -> Unit)? = null,
+    onImportBackup: ((android.net.Uri, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     localBackups: List<java.io.File> = emptyList(),
     onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)? = null,
-    onRestoreLocalBackup: ((java.io.File, (BackupRestoreResult) -> Unit) -> Unit)? = null,
+    onRestoreLocalBackup: ((java.io.File, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
     onSetGlobalSimPreferenceMode: (String) -> Unit = {},
@@ -208,7 +209,7 @@ fun SettingsScreen(
                 val options = listOf(
                     listOf(
                         Triple("ask_learn", "Ask & Learn", "Prompts once & memorizes choice") to Icons.Default.Psychology,
-                        Triple("ask_always", "Ask Always", "Prompt channel on every call") to Icons.Default.HelpOutline
+                        Triple("ask_always", "Ask Always", "Prompt channel on every call") to Icons.AutoMirrored.Filled.HelpOutline
                     ),
                     listOf(
                         Triple("all_international", "Avoid Roaming", "Direct foreign numbers to VoIP / WhatsApp") to Icons.Default.Public,

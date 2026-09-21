@@ -475,6 +475,30 @@ class MainViewModel(
     val favorites: StateFlow<List<FavoriteContact>> = repository.favorites
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val defaultContactNumbers: StateFlow<List<com.example.data.ContactDefaultNumber>> = repository.allDefaultNumbers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun getDefaultNumberForContact(contact: DeviceContact): com.example.data.ContactDefaultNumber? {
+        val list = defaultContactNumbers.value
+        if (contact.contactId != null && contact.contactId > 0) {
+            val byId = list.firstOrNull { it.contactId == contact.contactId }
+            if (byId != null) return byId
+        }
+        for (pn in contact.phoneNumbers) {
+            val norm = com.example.util.PhoneNumberNormalizer.toE164(pn.number)
+            if (norm.isNotBlank()) {
+                val byNum = list.firstOrNull { it.normalizedNumber == norm }
+                if (byNum != null) return byNum
+            }
+        }
+        val normPrimary = com.example.util.PhoneNumberNormalizer.toE164(contact.phoneNumber)
+        if (normPrimary.isNotBlank()) {
+            val byPrimary = list.firstOrNull { it.normalizedNumber == normPrimary }
+            if (byPrimary != null) return byPrimary
+        }
+        return null
+    }
+
     // Pre-computed, background-normalized search contacts for instant dialer response without UI frame drops
     val searchContacts: StateFlow<List<DeviceContact>> = combine(_deviceContacts, favorites) { effectiveContacts, favs ->
         fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
@@ -1993,15 +2017,25 @@ class MainViewModel(
     fun addFavorite(name: String, phoneNumber: String, label: String = "Mobile", photoUri: String? = null, nickname: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             fun normDigits(num: String): String = num.filter { it.isDigit() }.takeLast(10)
-            val cleanDigits = normDigits(phoneNumber)
-            val currentList = repository.getAllFavoritesList()
             val matchedContact = lookupContactByNumber(phoneNumber)
                 ?: deviceContacts.value.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
             val nicknameToUse = nickname?.trim()?.ifBlank { null } ?: matchedContact?.nickname?.ifBlank { null }
 
+            // If a default number was chosen for this contact, the favorite dials that chosen default
+            val chosenDefault = matchedContact?.let { getDefaultNumberForContact(it) }
+            val effectiveNumber = chosenDefault?.defaultNumber ?: phoneNumber.trim()
+            val effectiveLabel = chosenDefault?.defaultLabel ?: label
+
+            val cleanDigits = normDigits(effectiveNumber)
+            val currentList = repository.getAllFavoritesList()
+
             val existing = currentList.firstOrNull {
                 (cleanDigits.length >= 7 && normDigits(it.phoneNumber) == cleanDigits) ||
-                it.name.equals(name.trim(), ignoreCase = true)
+                it.name.equals(name.trim(), ignoreCase = true) ||
+                (matchedContact != null && matchedContact.phoneNumbers.any { pn ->
+                    val pnDigits = normDigits(pn.number)
+                    pnDigits.length >= 7 && pnDigits == normDigits(it.phoneNumber)
+                })
             }
             if (existing != null) {
                 // Update existing rather than creating duplicate
@@ -2009,8 +2043,8 @@ class MainViewModel(
                     existing.copy(
                         name = matchedContact?.name ?: name.trim(),
                         nickname = nicknameToUse ?: existing.nickname,
-                        phoneNumber = phoneNumber.trim(),
-                        label = label,
+                        phoneNumber = effectiveNumber,
+                        label = effectiveLabel,
                         photoUri = photoUri ?: matchedContact?.photoUri ?: existing.photoUri
                     )
                 )
@@ -2022,8 +2056,8 @@ class MainViewModel(
                     FavoriteContact(
                         name = matchedContact?.name ?: name.trim(),
                         nickname = nicknameToUse,
-                        phoneNumber = phoneNumber.trim(),
-                        label = label,
+                        phoneNumber = effectiveNumber,
+                        label = effectiveLabel,
                         avatarColor = color,
                         photoUri = photoUri ?: matchedContact?.photoUri,
                         sortOrder = maxOrder + 1
@@ -2127,10 +2161,16 @@ class MainViewModel(
     fun toggleFavorite(name: String, phoneNumber: String, label: String = "Mobile", photoUri: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val cleanDigits = phoneNumber.filter { it.isDigit() }.takeLast(10)
+            val matchedContact = lookupContactByNumber(phoneNumber)
+                ?: deviceContacts.value.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
             val existing = favorites.value.firstOrNull { fav ->
                 val favDigits = fav.phoneNumber.filter { it.isDigit() }.takeLast(10)
                 (cleanDigits.length >= 7 && favDigits == cleanDigits) ||
-                fav.name.equals(name.trim(), ignoreCase = true)
+                fav.name.equals(name.trim(), ignoreCase = true) ||
+                (matchedContact != null && matchedContact.phoneNumbers.any { pn ->
+                    val pnDigits = pn.number.filter { it.isDigit() }.takeLast(10)
+                    pnDigits.length >= 7 && pnDigits == favDigits
+                })
             }
             if (existing != null) {
                 deleteFavorite(existing)
@@ -2432,13 +2472,20 @@ class MainViewModel(
 
     fun setDefaultContactNumber(contact: DeviceContact, newNumber: String, newLabel: String = "Mobile") {
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. Update Android Telecom / Contacts Provider IS_PRIMARY and IS_SUPER_PRIMARY flags
+            // 1. Persist chosen default number per contact in app DB
+            val allNumbers = contact.phoneNumbers.map { it.number }.toMutableList()
+            if (!allNumbers.contains(contact.phoneNumber)) allNumbers.add(contact.phoneNumber)
+            if (!allNumbers.contains(newNumber)) allNumbers.add(newNumber)
+            repository.setDefaultNumberForContact(contact.contactId, allNumbers, newNumber, newLabel)
+
+            // 2. Update Android Telecom / Contacts Provider IS_PRIMARY and IS_SUPER_PRIMARY flags
             ContactHelper.setDefaultPhoneNumber(appContext, contact.contactId, newNumber)
 
-            // 2. If this contact is also in Room local_contacts, update it
+            // 3. If this contact is also in Room local_contacts, update it
             val localList = repository.getAllLocalContactsList()
             val existingLocal = localList.firstOrNull {
                 ContactHelper.isSamePhoneNumber(it.phoneNumber, contact.phoneNumber) ||
+                contact.phoneNumbers.any { pn -> ContactHelper.isSamePhoneNumber(it.phoneNumber, pn.number) } ||
                 it.name.equals(contact.name.trim(), ignoreCase = true)
             }
             if (existingLocal != null) {
@@ -2450,7 +2497,7 @@ class MainViewModel(
                 )
             }
 
-            // 3. If contact is a Favorite, update favorite number so Favorite Card and Speed Dial use this new default
+            // 4. If contact is a Favorite, update favorite number so Favorite Card and Speed Dial use this new default
             val fav = favorites.value.firstOrNull {
                 ContactHelper.isSamePhoneNumber(it.phoneNumber, contact.phoneNumber) ||
                 contact.phoneNumbers.any { pn -> ContactHelper.isSamePhoneNumber(it.phoneNumber, pn.number) } ||
@@ -2465,7 +2512,7 @@ class MainViewModel(
                 )
             }
 
-            // 4. Trigger contacts refresh so list UI updates immediately
+            // 5. Trigger contacts refresh so list UI updates immediately
             refreshContacts()
         }
     }
@@ -2477,10 +2524,15 @@ class MainViewModel(
         }
     }
 
-    fun importBackup(uri: android.net.Uri, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+    fun importBackup(
+        uri: android.net.Uri,
+        onProgress: ((String, Float) -> Unit)? = null,
+        onComplete: (com.example.util.BackupRestoreResult) -> Unit
+    ) {
         viewModelScope.launch {
-            val result = com.example.util.BackupManager.restoreBackupFromUri(appContext, uri)
+            val result = com.example.util.BackupManager.restoreBackupFromUri(appContext, uri, onProgress)
             if (result.success) {
+                onProgress?.invoke("Updating app settings & channels…", 0.98f)
                 // Refresh local UI states from restored preferences
                 _themeMode.value = prefs.getString("theme_mode", "system") ?: "system"
                 _whatsAppCallMode.value = prefs.getString("whatsapp_call_mode", "ask_learn") ?: "ask_learn"
@@ -2506,6 +2558,10 @@ class MainViewModel(
         }
     }
 
+    fun importBackup(uri: android.net.Uri, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+        importBackup(uri, null, onComplete)
+    }
+
     fun createLocalBackup(onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val success = com.example.util.BackupManager.saveLocalBackup(appContext)
@@ -2516,10 +2572,15 @@ class MainViewModel(
         }
     }
 
-    fun restoreLocalBackup(file: java.io.File, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+    fun restoreLocalBackup(
+        file: java.io.File,
+        onProgress: ((String, Float) -> Unit)? = null,
+        onComplete: (com.example.util.BackupRestoreResult) -> Unit
+    ) {
         viewModelScope.launch {
-            val result = com.example.util.BackupManager.restoreBackupFromFile(appContext, file)
+            val result = com.example.util.BackupManager.restoreBackupFromFile(appContext, file, onProgress)
             if (result.success) {
+                onProgress?.invoke("Updating app settings & channels…", 0.98f)
                 // Refresh local UI states from restored preferences
                 _themeMode.value = prefs.getString("theme_mode", "system") ?: "system"
                 _whatsAppCallMode.value = prefs.getString("whatsapp_call_mode", "ask_learn") ?: "ask_learn"
@@ -2543,6 +2604,10 @@ class MainViewModel(
             }
             onComplete(result)
         }
+    }
+
+    fun restoreLocalBackup(file: java.io.File, onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+        restoreLocalBackup(file, null, onComplete)
     }
 
     fun deleteLocalBackup(file: java.io.File) {

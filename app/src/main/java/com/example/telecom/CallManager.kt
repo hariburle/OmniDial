@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.telecom
 
 import android.bluetooth.BluetoothAdapter
@@ -1156,6 +1158,7 @@ object CallManager {
                lower.contains("pixel buds") || lower.contains("galaxy buds")
     }
 
+    @Suppress("DEPRECATION")
     fun setAudioRoute(route: Int) {
         _currentAudioRoute.value = route
         _isSpeakerOn.value = (route == CallAudioState.ROUTE_SPEAKER)

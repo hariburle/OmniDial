@@ -62,11 +62,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Dialpad
@@ -456,6 +456,7 @@ fun MainAppContent(
     val rules by viewModel.rules.collectAsStateWithLifecycle()
     val recentCalls by viewModel.recentCalls.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val defaultContactNumbers by viewModel.defaultContactNumbers.collectAsStateWithLifecycle()
     val ignoredContacts by viewModel.ignoredContacts.collectAsStateWithLifecycle()
     val spamNumbers by viewModel.spamNumbers.collectAsStateWithLifecycle()
     val automationLogs by viewModel.automationLogs.collectAsStateWithLifecycle()
@@ -1104,10 +1105,12 @@ fun MainAppContent(
                         speedDialKeypadDisplay = speedDialKeypadDisplay,
                         showDialerQuickActions = showDialerQuickActions,
                         deviceContacts = deviceContacts,
-                        precomputedSearchContacts = searchContacts
+                        precomputedSearchContacts = searchContacts,
+                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) }
                     )
                     3 -> ContactsScreen(
                         favorites = favorites,
+                        defaultContactNumbers = defaultContactNumbers,
                         recentCalls = recentCalls,
                         deviceContacts = deviceContacts,
                         activeSims = activeSims,
@@ -1221,10 +1224,10 @@ fun MainAppContent(
                         navBarStyle = navBarStyle,
                         onSetNavBarStyle = { viewModel.setNavBarStyle(it) },
                         onExportBackup = { uri, onDone -> viewModel.exportBackup(uri, onDone) },
-                        onImportBackup = { uri, onDone -> viewModel.importBackup(uri, onDone) },
+                        onImportBackup = { uri, onProgress, onDone -> viewModel.importBackup(uri, onProgress, onDone) },
                         localBackups = localBackups,
                         onCreateLocalBackup = { onDone -> viewModel.createLocalBackup(onDone) },
-                        onRestoreLocalBackup = { file, onDone -> viewModel.restoreLocalBackup(file, onDone) },
+                        onRestoreLocalBackup = { file, onProgress, onDone -> viewModel.restoreLocalBackup(file, onProgress, onDone) },
                         onDeleteLocalBackup = { file -> viewModel.deleteLocalBackup(file) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
                         onSetGlobalSimPreferenceMode = { viewModel.setGlobalSimPreferenceMode(it) },
@@ -1584,7 +1587,7 @@ private fun FloatingCallPill(
                         .testTag("floating_pill_speaker_btn")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.VolumeUp,
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = if (isSpeakerOn) "Speaker Off" else "Speaker On",
                         tint = if (isSpeakerOn) Color(0xFF15803D) else Color.White,
                         modifier = Modifier.size(19.dp)
@@ -1741,7 +1744,7 @@ fun PipCallContent(viewModel: MainViewModel) {
                         .testTag("pip_speaker_btn")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.VolumeUp,
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = if (isSpeakerOn) "Speaker Off" else "Speaker On",
                         tint = if (isSpeakerOn) Color(0xFF15803D) else Color.White,
                         modifier = Modifier.size(16.dp)

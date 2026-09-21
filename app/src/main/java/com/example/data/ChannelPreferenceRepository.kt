@@ -30,9 +30,10 @@ class ChannelPreferenceRepository(
     init {
         scope.launch {
             allPreferences.collect { list ->
-                cachedPreferences.clear()
-                list.forEach { pref ->
-                    cachedPreferences[pref.normalizedNumber] = pref.preferredChannelId
+                val newMap = list.associate { it.normalizedNumber to it.preferredChannelId }
+                cachedPreferences.putAll(newMap)
+                if (cacheReady) {
+                    cachedPreferences.keys.retainAll(newMap.keys)
                 }
                 cacheReady = true
             }

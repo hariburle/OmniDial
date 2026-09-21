@@ -178,6 +178,7 @@ class ChannelDiscoveryManager(
         return if (custom != null) fallback?.withCustomName(custom) else fallback
     }
 
+    @Suppress("DEPRECATION")
     fun isEmergencyNumber(number: String): Boolean {
         val clean = number.trim().filter { it.isDigit() || it == '+' }
         if (clean.isBlank()) return false

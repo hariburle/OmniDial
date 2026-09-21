@@ -70,6 +70,9 @@ interface AppDao {
     @Query("DELETE FROM recent_calls WHERE (phoneNumber = :phoneNumber OR normalized_number = :normalizedNumber) AND ABS(timestamp - :timestamp) < 60000")
     suspend fun deleteRecentCallByNumberAndTimestamp(phoneNumber: String, normalizedNumber: String, timestamp: Long)
 
+    @Query("DELETE FROM recent_calls")
+    suspend fun clearAllRecentCalls()
+
     @Query("SELECT * FROM recent_calls ORDER BY timestamp DESC")
     suspend fun getAllRecentCallsList(): List<RecentCall>
 
@@ -228,4 +231,32 @@ interface AppDao {
 
     @Query("DELETE FROM channel_configurations")
     suspend fun clearAllChannelConfigs()
+
+    @Query("SELECT * FROM contact_default_numbers")
+    fun getAllDefaultNumbers(): Flow<List<ContactDefaultNumber>>
+
+    @Query("SELECT * FROM contact_default_numbers")
+    suspend fun getAllDefaultNumbersList(): List<ContactDefaultNumber>
+
+    @Query("SELECT * FROM contact_default_numbers WHERE normalized_number = :normalizedNumber LIMIT 1")
+    suspend fun getDefaultNumber(normalizedNumber: String): ContactDefaultNumber?
+
+    @Query("SELECT * FROM contact_default_numbers WHERE contact_id = :contactId LIMIT 1")
+    suspend fun getDefaultNumberByContactId(contactId: Long): ContactDefaultNumber?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDefaultNumber(defaultNumber: ContactDefaultNumber)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDefaultNumbers(defaultNumbers: List<ContactDefaultNumber>)
+
+    @Query("DELETE FROM contact_default_numbers WHERE normalized_number = :normalizedNumber")
+    suspend fun deleteDefaultNumber(normalizedNumber: String)
+
+    @Query("DELETE FROM contact_default_numbers WHERE contact_id = :contactId")
+    suspend fun deleteDefaultNumberByContactId(contactId: Long)
+
+    @Query("DELETE FROM contact_default_numbers")
+    suspend fun clearAllDefaultNumbers()
 }
+
