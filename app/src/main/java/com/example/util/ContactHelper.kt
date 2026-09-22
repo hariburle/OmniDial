@@ -686,7 +686,16 @@ object ContactHelper {
     }
 
     /**
-     * Opens Google Voice direct messaging composer for the target phone number.
+     * Opens Google Voice messaging for the target phone number.
+     *
+     * Google Voice declares no SMS-compose intent filter (no ACTION_SENDTO
+     * handler for smsto:/sms:), so a targeted compose intent can never resolve
+     * even when the app is installed -- confirmed by on-device probes
+     * (`dumpsys package` + `cmd package query-activities` + `am start`).
+     * Fallback chain: direct compose attempt (future-proof) -> hand the typed
+     * text to GV's composer via ACTION_SEND (best effort; the recipient cannot
+     * be pre-filled) -> open the GV app itself. The "not installed" message
+     * only shows when the package is genuinely absent.
      */
     fun launchGoogleVoiceMessage(context: Context, rawNumber: String, messageText: String? = null) {
         val cleanNumber = rawNumber.trim()
@@ -694,26 +703,60 @@ object ContactHelper {
             android.widget.Toast.makeText(context, "Invalid phone number for Google Voice", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
+        val voicePackage = "com.google.android.apps.googlevoice"
+        // 1. Direct SMS-composer intent (resolves if Google ever adds the filter).
         try {
             val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$cleanNumber")).apply {
-                setPackage("com.google.android.apps.googlevoice")
+                setPackage(voicePackage)
                 if (!messageText.isNullOrBlank()) {
                     putExtra("sms_body", messageText)
                 }
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(smsIntent)
+            return
         } catch (_: Exception) {
+            // Expected today: Google Voice declares no such target.
+        }
+        // Tell the user what's about to happen: they're landing in the GV app
+        // (or its composer) instead of a pre-filled message screen, so the
+        // context switch isn't a surprise.
+        android.widget.Toast.makeText(
+            context,
+            "Opening Google Voice — pick the contact to message",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+        // 2. Best effort: share the typed text into GV's composer. On-device
+        // probes show GV accepts ACTION_SEND text/plain and opens its compose
+        // UI, but no documented extra pre-fills the recipient.
+        if (!messageText.isNullOrBlank()) {
             try {
-                val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse("sms:$cleanNumber")).apply {
-                    setPackage("com.google.android.apps.googlevoice")
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    setPackage(voicePackage)
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, messageText)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
-                context.startActivity(viewIntent)
-            } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Google Voice is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
+                context.startActivity(sendIntent)
+                return
+            } catch (_: Exception) {
+                // Fall through to opening the app itself.
             }
         }
+        // 3. The app IS installed (calls prove it); open it so the user can
+        // pick the conversation and compose there.
+        try {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(voicePackage)?.apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (launchIntent != null) {
+                context.startActivity(launchIntent)
+                return
+            }
+        } catch (_: Exception) {
+            // Fall through to the not-installed message below.
+        }
+        android.widget.Toast.makeText(context, "Google Voice is not installed on this device", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     fun launchSms(context: Context, rawNumber: String) {

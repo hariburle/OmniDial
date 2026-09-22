@@ -129,6 +129,35 @@
 - [ ] **Task 14.2: Google Voice Provider Plugin**
   - *Goal*: Detect Google Voice and support routing via Telecom calling account or direct intent.
   - *Deliverable*: Google Voice channel plugin and Keypad dock integration.
+- [ ] **Task 14.3: Generic Calling-Channel Registry (beyond hardcoded providers)**
+  - *Goal*: Replace hardcoded WhatsApp / WhatsApp Business / Google Voice package checks and channel classes with a generic, extendable channel system, so the app stays resilient in markets where users rely on other tools (Telegram, Signal, SIP providers).
+  - *Deliverable*: Generic `AppChannel` model replacing hardcoded `CallingChannel` subtypes; unfiltered `TelecomManager.callCapablePhoneAccounts` enumeration in `ChannelDiscoveryManager`; per-app adapter registry (package → call recipe + branding); graceful fallback for discovered apps with no known recipe; one-time migration of stored channel ids (`"whatsapp"` → `"app:com.whatsapp"`). Design: `documents/omnidial-generic-channels-design.md`.
+
+
+  ---
+
+### 🔀 Phase 15 (Future): New Rule Sets Beyond the Incoming-Call Engine
+*Pattern-based outgoing channel routing, quiet hours, smarter incoming screening, post-call follow-ups, and natural-language rule creation (documented in [`documents/omnidial-rule-sets-design.md`](omnidial-rule-sets-design.md)). Builds on the generic channel ids from Task 14.3. All new rule sets ship disabled by default — day-one behavior is unchanged.*
+- [ ] **Task 15.1: Outgoing Channel Routing Rules**
+  - *Goal*: Let users say "all +91 numbers → WhatsApp" or "all employees of Acme → SIM 2" instead of pinning numbers one at a time.
+  - *Deliverable*: `channel_routing_rules` table (number pattern / company / title conditions → channel, user-ordered priority); `ChannelRoutingEvaluator` hooked into the keypad channel resolution; per-rule dry-run test; automation-log entries.
+- [ ] **Task 15.2: Natural-Language Rule Creation**
+  - *Goal*: Let users type "everyone at Acme uses SIM 2" and get a rule, without learning a rule builder.
+  - *Deliverable*: On-device template parser (no cloud LLM) producing the same rule objects as the manual builder; mandatory type → parsed-preview → confirm flow showing the rule in plain words plus its match count; ambiguous input pre-fills the manual form instead of guessing.
+- [ ] **Task 15.3: Quiet Hours**
+  - *Goal*: Time-of-day awareness for incoming calls (favorites ring through at night, work hours auto-decline + SMS for non-VIPs).
+  - *Deliverable*: `quiet_hours_windows` table with per-window exception lists; evaluation inside the existing incoming automation pass with VIP exceptions punching through.
+- [ ] **Task 15.4: Incoming Screening+**
+  - *Goal*: Go beyond the gate buzzer — decline + auto-SMS for spam suspects, VIP ring-through, unknown-number policies.
+  - *Deliverable*: New `actionKind` values (decline / decline+SMS / silent-ring) on `caller_rules`, reusing existing table, UI, and Test button with zero behavior change for existing rows.
+- [ ] **Task 15.5: Post-Call Follow-Up Rules**
+  - *Goal*: Pattern-driven follow-ups instead of manual notes/reminders every time (e.g. after calls to family numbers, prompt for a note).
+  - *Deliverable*: `post_call_rules` table (pattern → `prompt_note` / `create_reminder` / `notify_callback`); new branch in `CallManager.handleCallEnded`, isolated from call behavior.
+- [ ] **Task 15.6: Location/Roaming Conditions & Scheduled Toggles**
+  - *Goal*: Rules that react to where the phone is (roaming → always ask before cellular calls) and arm/disarm on a schedule.
+  - *Deliverable*: Roaming/location as first-class rule conditions (after fixing the deprecated Wi-Fi SSID read); scheduled enable/disable via the existing `ReminderScheduler` AlarmManager pattern.
+
+
 
 ---
 

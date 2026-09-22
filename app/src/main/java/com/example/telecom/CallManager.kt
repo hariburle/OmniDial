@@ -750,11 +750,26 @@ object CallManager {
 
     private fun getCurrentWifiSsid(context: Context): String? {
         try {
-            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
-            val info = wifiManager?.connectionInfo
-            val ssid = info?.ssid
-            if (ssid != null && ssid != "<unknown ssid>" && ssid != "0x") {
-                return ssid.removePrefix("\"").removeSuffix("\"")
+            val appContext = context.applicationContext
+            val ssid: String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Modern, non-deprecated path (API 29+): read WifiInfo from the active
+                // network's capabilities instead of the deprecated WifiManager.getConnectionInfo().
+                val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE)
+                        as? android.net.ConnectivityManager
+                val activeNetwork = connectivityManager?.activeNetwork
+                val transportInfo = activeNetwork?.let { connectivityManager?.getNetworkCapabilities(it)?.transportInfo }
+                (transportInfo as? android.net.wifi.WifiInfo)?.ssid
+            } else {
+                @Suppress("DEPRECATION")
+                val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE)
+                        as? android.net.wifi.WifiManager
+                wifiManager?.connectionInfo?.ssid
+            }
+            if (ssid != null && ssid != android.net.wifi.WifiManager.UNKNOWN_SSID && ssid != "0x") {
+                return ssid.removeSurrounding("\"")
+            }
+            if (ssid == android.net.wifi.WifiManager.UNKNOWN_SSID) {
+                Log.w(TAG, "Wi-Fi SSID unreadable (<unknown ssid>): Android 10+ requires location permission for SSID-based rules")
             }
         } catch (_: Exception) {}
         return null
