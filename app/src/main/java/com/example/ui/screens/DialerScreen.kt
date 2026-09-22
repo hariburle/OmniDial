@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +59,8 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContactPhone
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.ContentPasteGo
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayCircle
@@ -79,7 +84,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +92,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import com.example.data.ChannelPreferenceRepository
 import com.example.domain.model.CallingChannel
@@ -95,9 +100,12 @@ import com.example.telecom.ChannelDiscoveryManager
 import com.example.ui.components.KeypadChannelDock
 import com.example.ui.components.MultiChannelChoiceDialog
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalTextInputService
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -190,21 +198,29 @@ fun DialerScreen(
     var showChannelPickerSheet by remember { mutableStateOf(false) }
     var pickerTargetNumber by remember { mutableStateOf("") }
 
-    var localNumber by remember(number) { mutableStateOf(number) }
+    var localNumber by remember { mutableStateOf(number) }
     var selectionState by remember { mutableStateOf(TextRange(number.length)) }
+    // Last value synced with the parent. The parent echoes every pushed value
+    // back after a short delay; without this guard, a delayed echo of an
+    // older value would overwrite digits typed after the push.
+    var lastSyncedNumber by remember { mutableStateOf(number) }
 
     LaunchedEffect(localNumber) {
         if (localNumber.isBlank()) {
             userSelectedChannel = null
         }
         delay(200)
-        if (localNumber != number) {
+        if (localNumber != lastSyncedNumber) {
+            lastSyncedNumber = localNumber
             onSelectContactNumber(localNumber)
         }
     }
 
     LaunchedEffect(number) {
-        if (number != localNumber) {
+        // Only accept the parent's value when there are no unsynced local
+        // edits - otherwise this is a stale echo that would eat typing.
+        if (number != localNumber && localNumber == lastSyncedNumber) {
+            lastSyncedNumber = number
             localNumber = number
             selectionState = TextRange(number.length)
         }
@@ -503,6 +519,28 @@ fun DialerScreen(
                 localNumber = newText
             }
 
+            val clipboardManager = LocalClipboardManager.current
+            val pasteFromClipboard: () -> Unit = {
+                val raw = clipboardManager.getText()?.text.orEmpty()
+                val sanitized = raw.filter { it.isDigit() || it == '+' || it == '*' || it == '#' || it == ',' || it == ';' }
+                if (sanitized.isNotBlank()) {
+                    updateLocalNumber(sanitized)
+                    selectionState = TextRange(sanitized.length)
+                } else {
+                    android.widget.Toast.makeText(context, "Clipboard is empty", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            // The paste button is always shown while the entry is empty: a
+            // clipboard pre-check is unreliable (the clipboard can change while
+            // the screen is open with no signal to refresh on), so tapping
+            // validates instead - an empty clipboard shows a toast.
+
+            // Stable long-press reference: the pointerInput detector below uses
+            // a Unit key so it survives recompositions; this keeps the lambda
+            // it invokes always fresh.
+            val latestPaste = rememberUpdatedState(pasteFromClipboard)
+
             val localOnDigitPress: (Char) -> Unit = { digit ->
                 val current = localNumber
                 val start = selectionState.start.coerceIn(0, current.length)
@@ -662,21 +700,29 @@ fun DialerScreen(
                     }
                 }
 
-                // RIGHT HALF (weight 1f): Add Contact for unsaved numbers (clean empty state for saved contacts)
+                // RIGHT HALF (weight 1f): contextual contacts chip - "Contacts"
+                // (pick a contact) when the field is empty, "Add Contact" for
+                // unsaved numbers (clean state for saved contacts)
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    if (number.isNotEmpty() && matchedContact == null) {
+                    // Driven by localNumber (not the parent's delayed echo) so the
+                    // chip flips the instant a key is pressed.
+                    if (localNumber.isEmpty() || matchedContact == null) {
+                        val pickingContact = localNumber.isEmpty()
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
                             modifier = Modifier
-                                .clickable { showAddFavoriteDialog = true }
-                                .testTag("dialer_add_contact_chip")
+                                .clickable {
+                                    if (pickingContact) showContactPicker = true
+                                    else showAddFavoriteDialog = true
+                                }
+                                .testTag(if (pickingContact) "dialer_contacts_chip" else "dialer_add_contact_chip")
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -684,13 +730,13 @@ fun DialerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.PersonAdd,
-                                    contentDescription = "Add Contact",
+                                    imageVector = if (pickingContact) Icons.Default.ContactPhone else Icons.Default.PersonAdd,
+                                    contentDescription = if (pickingContact) "Contacts" else "Add Contact",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = "Add Contact",
+                                    text = if (pickingContact) "Contacts" else "Add Contact",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.primary,
@@ -716,21 +762,10 @@ fun DialerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Box {
-                        if (number.isEmpty()) {
-                            IconButton(
-                                onClick = { showContactPicker = true },
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .testTag("pick_contact_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContactPhone,
-                                    contentDescription = "Select Contact",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                        } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // The overflow menu is always available at the left;
+                            // paste only makes sense before anything is typed
+                            // (add-contact lives in the contextual chip above).
                             IconButton(
                                 onClick = { showOverflowMenu = true },
                                 modifier = Modifier
@@ -744,23 +779,45 @@ fun DialerScreen(
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
+                            // Driven by localNumber so the button hides the instant
+                            // a key is pressed, not 200ms later on the echo.
+                            if (localNumber.isEmpty()) {
+                                IconButton(
+                                    onClick = pasteFromClipboard,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .testTag("dialer_paste_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentPasteGo,
+                                        contentDescription = "Paste",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            } else {
+                                // Keep the left cluster the same width so the
+                                // number field doesn't shift when paste hides.
+                                Spacer(modifier = Modifier.size(48.dp))
+                            }
+                        }
 
-                            DropdownMenu(
+                        DropdownMenu(
                                 expanded = showOverflowMenu,
                                 onDismissRequest = { showOverflowMenu = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Add to Contacts") },
+                                    text = { Text("Paste") },
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Default.PersonAdd,
+                                            imageVector = Icons.Default.ContentPaste,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     },
                                     onClick = {
-                                        showAddFavoriteDialog = true
+                                        pasteFromClipboard()
                                         showOverflowMenu = false
                                     }
                                 )
@@ -778,41 +835,39 @@ fun DialerScreen(
                                         showOverflowMenu = false
                                     }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text("Send Text Message (SMS)") },
-                                    onClick = {
-                                        ContactHelper.launchSms(context, effectiveNumber.ifBlank { number })
-                                        showOverflowMenu = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Send WhatsApp Message") },
-                                    onClick = {
-                                        ContactHelper.launchWhatsAppMessage(context, effectiveNumber.ifBlank { number }, isBusiness = false)
-                                        showOverflowMenu = false
-                                    }
-                                )
-                                val hasWaBizChannel = availableChannels.any { it is CallingChannel.WhatsApp && it.isBusiness }
-                                if (hasWaBizChannel) {
-                                    DropdownMenuItem(
-                                        text = { Text("Send WhatsApp Business Message") },
-                                        onClick = {
-                                            ContactHelper.launchWhatsAppMessage(context, effectiveNumber.ifBlank { number }, isBusiness = true)
-                                            showOverflowMenu = false
-                                        }
-                                    )
-                                }
                             }
-                        }
                     }
 
+                    // Long-press anywhere on the number display pastes from the
+                    // clipboard. (The system paste popup is unavailable because
+                    // platform text input is suppressed to keep the keyboard
+                    // away.) The detector uses a Unit key so it is not torn
+                    // down by recompositions mid-hold; taps pass through
+                    // untouched, so cursor placement still works.
+                    val hapticView = LocalView.current
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    val longPressed = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                        waitForUpOrCancellation()
+                                    } == null
+                                    if (longPressed) {
+                                        hapticView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                        latestPaste.value()
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                     if (localNumber.isEmpty()) {
                         Text(
-                            text = "Enter number or pick contact",
+                            text = "Enter number",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.weight(1f)
+                            textAlign = TextAlign.Center
                         )
                     } else {
                         val tFV = TextFieldValue(text = localNumber, selection = selectionState)
@@ -846,7 +901,7 @@ fun DialerScreen(
                                     singleLine = true,
                                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                     modifier = Modifier
-                                        .weight(1f)
+                                        .fillMaxWidth()
                                         .testTag("dialer_number_display"),
                                     decorationBox = { innerTextField ->
                                         Box(
@@ -859,6 +914,7 @@ fun DialerScreen(
                                 )
                             }
                         }
+                    }
                     }
 
                     // Backspace button with click to delete single digit & long-press to clear entire field
