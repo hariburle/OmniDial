@@ -79,6 +79,11 @@ Real screenshots live in `docs/screenshots/` and are shown on `index.html`
 - **Refreshing:** retake on a current build, keep the same filename, and the
   site picks it up. Recommended: portrait, ~1080px wide PNG, dark mode on
   (matches the site theme).
+- **Automated refresh:** run `capture-screenshots.bat` from the repo root. It
+  regenerates the composable shots via `recordRoborazziDebug`, copies them
+  into `docs/screenshots/`, then walks you through capturing the device-only
+  screens (spam card, spam badge) from your phone over adb — just navigate to
+  each screen and press Enter when prompted.
 - **Checklist per screenshot** (what the capture should show):
   - `panel_1_favorites.png` — Favorites grid with several starred contacts
   - `panel_2_keypad.png` — T9 keypad with suggestions visible
@@ -88,6 +93,8 @@ Real screenshots live in `docs/screenshots/` and are shown on `index.html`
   - `feature_gate_rules.png` — Rules screen with a gate-buzzer rule
   - `feature_unsaved_actions.png` — Keypad 4-action hub for an unsaved number
   - `feature_post_call_note.png` — Post-call note/reminder sheet
+  - `feature_screening_card.png` — Settings with the Caller ID & Spam card visible (device capture)
+  - `feature_spam_badge.png` — Recents entry with an honest "Blocked by OmniDial" badge (device capture)
 - The annotated **snippets** inside guides are pure CSS mockups, not images —
   edit them inline in the guide HTML (no design tool needed).
 
