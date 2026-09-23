@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.SpamNumber
 import com.example.ui.components.BackupManagementCard
 import com.example.ui.components.CallRedirectionCard
+import com.example.ui.components.CallScreeningCard
 import com.example.ui.components.SpamManagementDialog
 import com.example.ui.components.WhatsAppIcon
 import androidx.compose.foundation.horizontalScroll
@@ -854,6 +855,10 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.primary
         )
         CallRedirectionCard()
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        CallScreeningCard()
 
         Spacer(modifier = Modifier.height(8.dp))
 

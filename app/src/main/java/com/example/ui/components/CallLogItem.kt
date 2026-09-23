@@ -66,12 +66,8 @@ fun CallLogItem(
     val isGoogleVoice = call.callReason?.contains("Google Voice", ignoreCase = true) == true
     val waColor = if (isWaBiz) Color(0xFF128C7E) else Color(0xFF25D366)
     val gvColor = Color(0xFF0F9D58)
-    val isCarrierAutoDropped = call.isSpam && (
-        call.note?.contains("auto-dropped", ignoreCase = true) == true ||
-        call.ruleMatched?.contains("Carrier", ignoreCase = true) == true ||
-        call.callReason?.contains("auto-dropped", ignoreCase = true) == true
-    )
-    val noteToShow = if (isCarrierAutoDropped) null else call.note
+    val dropAttribution = CallDropAttribution.forCall(call.isSpam, call.note, call.ruleMatched, call.callReason)
+    val noteToShow = if (dropAttribution != DropAttribution.NONE) null else call.note
     val reminderToShow = call.reminderTime
     val discoveryManager = remember(context) { com.example.telecom.ChannelDiscoveryManager.getInstance(context) }
     val availableChannels by discoveryManager.availableChannels.collectAsState()
@@ -559,8 +555,8 @@ fun CallLogItem(
                         }
                     }
 
-                    // Carrier Spam Security Badge (compact single-line badge, replaces wrapping note)
-                    if (isCarrierAutoDropped) {
+                    // Spam block badge: names who actually dropped the call (compact single-line badge, replaces wrapping note)
+                    if (dropAttribution != DropAttribution.NONE) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
@@ -579,7 +575,7 @@ fun CallLogItem(
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Text(
-                                    text = "Carrier Auto-Dropped",
+                                    text = dropAttribution.badgeText,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -716,7 +712,7 @@ fun CallLogItem(
                             },
                             onClick = {
                                 showOverflowMenu = false
-                                onOpenNoteDialog(if (isCarrierAutoDropped && call.note?.contains("auto-dropped", ignoreCase = true) == true) call.copy(note = null) else call)
+                                onOpenNoteDialog(if (dropAttribution != DropAttribution.NONE && call.note?.contains("auto-dropped", ignoreCase = true) == true) call.copy(note = null) else call)
                             }
                         )
                         DropdownMenuItem(

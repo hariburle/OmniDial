@@ -1338,12 +1338,8 @@ fun ContactDetailsBottomSheet(
                                             }
                                         }
 
-                                        val isCarrierAutoDropped = call.isSpam && (
-                                            call.note?.contains("auto-dropped", ignoreCase = true) == true ||
-                                            call.ruleMatched?.contains("Carrier", ignoreCase = true) == true ||
-                                            call.callReason?.contains("auto-dropped", ignoreCase = true) == true
-                                        )
-                                        if (isCarrierAutoDropped) {
+                                        val dropAttribution = CallDropAttribution.forCall(call.isSpam, call.note, call.ruleMatched, call.callReason)
+                                        if (dropAttribution != DropAttribution.NONE) {
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Surface(
                                                 shape = RoundedCornerShape(4.dp),
@@ -1361,7 +1357,7 @@ fun ContactDetailsBottomSheet(
                                                         modifier = Modifier.size(10.dp)
                                                     )
                                                     Text(
-                                                        text = "Carrier Auto-Dropped",
+                                                        text = dropAttribution.badgeText,
                                                         fontSize = 9.5.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = MaterialTheme.colorScheme.onErrorContainer,

@@ -128,6 +128,16 @@
             </intent-filter>
         </service>
 
+        <!-- Call screening: makes OmniDial eligible for the "Caller ID & spam app" default -->
+        <service
+            android:name=".telecom.OmniCallScreeningService"
+            android:permission="android.permission.BIND_SCREENING_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
         <!-- Foreground Service for ongoing call notification and lockscreen banner -->
         <service
             android:name=".telecom.CallForegroundService"

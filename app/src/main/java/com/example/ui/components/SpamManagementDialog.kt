@@ -198,7 +198,7 @@ fun SpamManagementDialog(
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "Automatically decline STIR/SHAKEN failed spam calls",
+                                    text = "Automatically decline calls the carrier flags as spam",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -225,7 +225,7 @@ fun SpamManagementDialog(
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "Screen and silence numbers tagged with spam reports",
+                                    text = "Automatically decline numbers in the spam list",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

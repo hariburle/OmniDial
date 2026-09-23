@@ -74,6 +74,50 @@ object RoleHelper {
         }
     }
 
+    fun createCallScreeningRoleIntent(context: Context): Intent? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = context.getSystemService(RoleManager::class.java)
+            try {
+                if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+                    roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
+                } else {
+                    createDefaultAppsSettingsIntent(context)
+                }
+            } catch (e: Exception) {
+                createDefaultAppsSettingsIntent(context)
+            }
+        } else {
+            createDefaultAppsSettingsIntent(context)
+        }
+    }
+
+    fun isCallScreeningRoleHeld(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = context.getSystemService(RoleManager::class.java)
+            try {
+                roleManager?.isRoleHeld(RoleManager.ROLE_CALL_SCREENING) == true
+            } catch (e: Exception) {
+                android.util.Log.e("RoleHelper", "Failed to check ROLE_CALL_SCREENING", e)
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    fun isCallScreeningRoleAvailable(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = context.getSystemService(RoleManager::class.java)
+            try {
+                roleManager?.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING) == true
+            } catch (e: Exception) {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
     fun createDefaultAppsSettingsIntent(context: Context): Intent {
         val intent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
         return if (intent.resolveActivity(context.packageManager) != null) {
