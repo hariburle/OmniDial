@@ -169,6 +169,15 @@
                 android:resource="@xml/widget_quick_dialer_info" />
         </receiver>
 
+        <!-- Car Bluetooth connect detector: lets the dialer show car-specific copy on the Call Redirection banner -->
+        <receiver
+            android:name=".telecom.CarBluetoothReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

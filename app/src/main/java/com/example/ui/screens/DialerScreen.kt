@@ -126,6 +126,7 @@ import com.example.ui.components.ContactPickerDialog
 import com.example.ui.components.Keypad
 import com.example.ui.components.MultiNumberCallDialog
 import com.example.ui.components.RoleBanner
+import com.example.ui.components.CallRedirectionBanner
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -161,6 +162,8 @@ fun DialerScreen(
     activeSims: List<SimInfo> = emptyList(),
     onToggleSim: () -> Unit = {},
     onRoleChanged: () -> Unit,
+    isRedirectionRoleHeld: Boolean,
+    onRedirectionRoleChanged: () -> Unit,
     onDigitPress: (Char) -> Unit,
     onDeleteDigit: () -> Unit,
     onClearDigits: () -> Unit,
@@ -409,6 +412,19 @@ fun DialerScreen(
             isDefaultDialer = isDefaultDialer,
             context = context,
             onRoleChanged = onRoleChanged
+        )
+
+        // Call Redirection role recovery banner (car-aware copy when a car connected recently)
+        val carRecentlyConnected = remember {
+            val lastCar = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+                .getLong("last_car_bt_connect_ms", 0L)
+            System.currentTimeMillis() - lastCar < 10 * 60 * 1000L
+        }
+        CallRedirectionBanner(
+            isRoleHeld = isRedirectionRoleHeld,
+            carRecentlyConnected = carRecentlyConnected,
+            context = context,
+            onRoleChanged = onRedirectionRoleChanged
         )
 
         // Flexible top container absorbs all dynamic sizing so the edit box, keypad, and buttons stay strictly fixed

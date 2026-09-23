@@ -131,6 +131,10 @@ import com.example.ui.components.DefaultAppPromptDialog
 import com.example.ui.components.FullScreenPermissionPromptDialog
 import com.example.ui.components.OverlayPermissionPromptDialog
 import com.example.ui.components.SimChoiceDialog
+import com.example.ui.components.SetupStep
+import com.example.ui.components.SetupStepState
+import com.example.ui.components.SetupStepStatus
+import com.example.ui.components.SetupWizardDialog
 import com.example.ui.components.WhatsAppChoiceDialog
 import com.example.ui.components.WhatsAppIcon
 import com.example.ui.screens.CallLogScreen
@@ -590,6 +594,96 @@ fun MainAppContent(
     var showOverlayPrompt by remember { mutableStateOf(true) }
     var showFullScreenPrompt by remember { mutableStateOf(true) }
 
+    // ---------- First-run setup wizard state ----------
+    // One guided flow for every role & permission, replacing the scattered
+    // first-run popups. Each grant still needs its own system screen
+    // (Android requirement); the wizard just chains them back-to-back.
+    val wizardPrefs = remember {
+        context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+    }
+    val skippedWizardSteps = remember { mutableStateOf(setOf<SetupStep>()) }
+    var setupWizardCompleted by remember {
+        mutableStateOf(wizardPrefs.getBoolean("setup_wizard_completed", false))
+    }
+    var wizardRunning by remember { mutableStateOf(false) }
+    // Set by launcher callbacks when a system grant screen returns; handled
+    // by an effect below so launcher code stays order-independent.
+    var wizardReturnSignal by remember { mutableStateOf<SetupStep?>(null) }
+
+    fun runtimePermissionList(): List<String> {
+        val list = mutableListOf(
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.WRITE_CONTACTS,
+            Manifest.permission.SEND_SMS
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            list.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            list.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        return list
+    }
+
+    fun computeSetupSteps(): List<SetupStepState> {
+        val skipped = skippedWizardSteps.value
+        fun stateFor(step: SetupStep, done: Boolean) = SetupStepState(
+            step = step,
+            status = when {
+                done -> SetupStepStatus.DONE
+                step in skipped -> SetupStepStatus.SKIPPED
+                else -> SetupStepStatus.PENDING
+            }
+        )
+        val steps = mutableListOf(
+            stateFor(
+                SetupStep.PERMISSIONS,
+                runtimePermissionList().all {
+                    context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+                }
+            ),
+            stateFor(SetupStep.DEFAULT_DIALER, RoleHelper.isDefaultDialer(context))
+        )
+        if (RoleHelper.isCallRedirectionRoleAvailable(context)) {
+            steps.add(
+                stateFor(
+                    SetupStep.CALL_REDIRECTION,
+                    RoleHelper.isCallRedirectionRoleHeld(context)
+                )
+            )
+        }
+        steps.add(
+            stateFor(
+                SetupStep.OVERLAY,
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
+            )
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            steps.add(
+                stateFor(
+                    SetupStep.FULL_SCREEN_INTENT,
+                    nm?.canUseFullScreenIntent() ?: true
+                )
+            )
+        }
+        return steps
+    }
+
+    var wizardSteps by remember { mutableStateOf(computeSetupSteps()) }
+
+    fun refreshWizardSteps() {
+        wizardSteps = computeSetupSteps()
+    }
+
+    fun completeWizard() {
+        wizardPrefs.edit().putBoolean("setup_wizard_completed", true).apply()
+        setupWizardCompleted = true
+    }
+
     LaunchedEffect(activeCall?.id, dismissModalsTrigger) {
         // Whenever a call is initiated or incoming, always ensure call screen is maximized and dialogs dismissed
         if (activeCall != null || dismissModalsTrigger > 0L) {
@@ -597,6 +691,7 @@ fun MainAppContent(
             showDefaultAppPrompt = false
             showOverlayPrompt = false
             showFullScreenPrompt = false
+            wizardRunning = false
             viewModel.maximizeCall()
         }
     }
@@ -618,6 +713,7 @@ fun MainAppContent(
         hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(context)
         } else true
+        wizardReturnSignal = SetupStep.OVERLAY
     }
 
     var hasFullScreenPermission by remember {
@@ -636,6 +732,7 @@ fun MainAppContent(
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             nm?.canUseFullScreenIntent() ?: true
         } else true
+        wizardReturnSignal = SetupStep.FULL_SCREEN_INTENT
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -649,6 +746,7 @@ fun MainAppContent(
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             nm?.canUseFullScreenIntent() ?: true
         } else true
+        refreshWizardSteps()
     }
 
     val defaultDialerLauncher = rememberLauncherForActivityResult(
@@ -657,6 +755,14 @@ fun MainAppContent(
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshSimCards()
         channelDiscoveryManager.refreshChannels()
+        wizardReturnSignal = SetupStep.DEFAULT_DIALER
+    }
+
+    val callRedirectionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        viewModel.refreshCallRedirectionStatus()
+        wizardReturnSignal = SetupStep.CALL_REDIRECTION
     }
 
     // Request necessary runtime permissions
@@ -670,27 +776,18 @@ fun MainAppContent(
         viewModel.refreshContacts()
         viewModel.syncWithDeviceContacts()
         channelDiscoveryManager.refreshChannels()
+        wizardReturnSignal = SetupStep.PERMISSIONS
     }
 
     LaunchedEffect(Unit) {
-        val permissions = mutableListOf(
-            Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_CALL_LOG,
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.WRITE_CONTACTS,
-            Manifest.permission.SEND_SMS
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        val ungranted = permissions.filter {
+        val ungranted = runtimePermissionList().filter {
             context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
         }
-        if (ungranted.isNotEmpty()) {
+        // The setup wizard drives first-run permission requests; only auto-request
+        // here when the wizard won't show, preserving the legacy nag behavior.
+        val wizardWillShow = !setupWizardCompleted &&
+            wizardSteps.any { it.status != SetupStepStatus.DONE }
+        if (ungranted.isNotEmpty() && !wizardWillShow) {
             permissionLauncher.launch(ungranted.toTypedArray())
         } else {
             channelDiscoveryManager.refreshChannels()
@@ -701,6 +798,111 @@ fun MainAppContent(
         if (showChannelOnboarding) {
             channelDiscoveryManager.refreshChannels()
         }
+    }
+
+    // ---------- First-run setup wizard orchestration ----------
+    // (Split to avoid forward references: mark -> launch -> advance -> handle.)
+    fun markWizardStepReturned(step: SetupStep) {
+        // If the step still isn't granted after its system screen returned,
+        // the user backed out: mark it skipped so the chain never loops.
+        val fresh = computeSetupSteps()
+        if (fresh.any { it.step == step && it.status == SetupStepStatus.PENDING }) {
+            skippedWizardSteps.value = skippedWizardSteps.value + step
+        }
+        refreshWizardSteps()
+    }
+
+    fun launchWizardStep(step: SetupStep) {
+        when (step) {
+            SetupStep.PERMISSIONS -> {
+                val ungranted = runtimePermissionList().filter {
+                    context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+                }
+                if (ungranted.isNotEmpty()) {
+                    permissionLauncher.launch(ungranted.toTypedArray())
+                } else {
+                    markWizardStepReturned(step)
+                }
+            }
+            SetupStep.DEFAULT_DIALER -> {
+                val intent = RoleHelper.createDefaultDialerIntent(context)
+                if (intent != null) defaultDialerLauncher.launch(intent)
+                else markWizardStepReturned(step)
+            }
+            SetupStep.CALL_REDIRECTION -> {
+                val intent = RoleHelper.createCallRedirectionRoleIntent(context)
+                if (intent != null) callRedirectionLauncher.launch(intent)
+                else markWizardStepReturned(step)
+            }
+            SetupStep.OVERLAY -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        overlayPermissionLauncher.launch(
+                            Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                        )
+                    } catch (_: Exception) {
+                        try {
+                            overlayPermissionLauncher.launch(
+                                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                            )
+                        } catch (_: Exception) {
+                            markWizardStepReturned(step)
+                        }
+                    }
+                } else {
+                    markWizardStepReturned(step)
+                }
+            }
+            SetupStep.FULL_SCREEN_INTENT -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    try {
+                        fullScreenPermissionLauncher.launch(
+                            Intent(
+                                Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                        )
+                    } catch (_: Exception) {
+                        try {
+                            fullScreenPermissionLauncher.launch(
+                                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                            )
+                        } catch (_: Exception) {
+                            markWizardStepReturned(step)
+                        }
+                    }
+                } else {
+                    markWizardStepReturned(step)
+                }
+            }
+        }
+    }
+
+    fun advanceWizard() {
+        val next = wizardSteps.firstOrNull { it.status == SetupStepStatus.PENDING }
+        if (next == null) {
+            wizardRunning = false
+            completeWizard()
+        } else {
+            launchWizardStep(next.step)
+        }
+    }
+
+    fun handleWizardStepReturn(step: SetupStep) {
+        markWizardStepReturned(step)
+        if (wizardRunning) advanceWizard()
+    }
+
+    val showSetupWizard = !setupWizardCompleted &&
+        wizardSteps.any { it.status != SetupStepStatus.DONE }
+
+    LaunchedEffect(wizardReturnSignal) {
+        val step = wizardReturnSignal ?: return@LaunchedEffect
+        wizardReturnSignal = null
+        handleWizardStepReturn(step)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -1068,6 +1270,8 @@ fun MainAppContent(
                         activeSims = activeSims,
                         onToggleSim = { viewModel.toggleSimSlot() },
                         onRoleChanged = { viewModel.refreshDefaultDialerStatus() },
+                        isRedirectionRoleHeld = viewModel.isCallRedirectionRoleHeld.collectAsStateWithLifecycle().value,
+                        onRedirectionRoleChanged = { viewModel.refreshCallRedirectionStatus() },
                         onDigitPress = { viewModel.appendDigit(it) },
                         onDeleteDigit = { viewModel.deleteLastDigit() },
                         onClearDigits = { viewModel.clearDigits() },
@@ -1342,8 +1546,46 @@ fun MainAppContent(
             }
         }
 
+        // First-run setup wizard: one guided flow for all roles & permissions.
+        // Shown until every step is done or skipped; the scattered prompts below
+        // stay quiet while it is up and resume their nag behavior afterwards.
+        if (!isCallScreenVisible && showSetupWizard) {
+            SetupWizardDialog(
+                steps = wizardSteps,
+                isRunning = wizardRunning,
+                onStartSetup = {
+                    skippedWizardSteps.value = emptySet()
+                    refreshWizardSteps()
+                    wizardRunning = true
+                    advanceWizard()
+                },
+                onStepClick = { step ->
+                    if (!wizardRunning) {
+                        skippedWizardSteps.value = skippedWizardSteps.value - step
+                        refreshWizardSteps()
+                        launchWizardStep(step)
+                    }
+                },
+                onSkipStep = { step ->
+                    skippedWizardSteps.value = skippedWizardSteps.value + step
+                    refreshWizardSteps()
+                },
+                onDismiss = {
+                    wizardRunning = false
+                    completeWizard()
+                    // Legacy fallback: core runtime permissions must still be requested.
+                    val ungranted = runtimePermissionList().filter {
+                        context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+                    }
+                    if (ungranted.isNotEmpty()) {
+                        permissionLauncher.launch(ungranted.toTypedArray())
+                    }
+                }
+            )
+        }
+
         // Check if OmniDial is the default app on startup, and prompt user if not
-        if (!isCallScreenVisible && !isDefaultDialer && showDefaultAppPrompt) {
+        if (!isCallScreenVisible && !showSetupWizard && !isDefaultDialer && showDefaultAppPrompt) {
             DefaultAppPromptDialog(
                 onRequestSetDefault = {
                     val intent = RoleHelper.createDefaultDialerIntent(context)
@@ -1357,7 +1599,7 @@ fun MainAppContent(
         }
 
         // Channel Discovery & First-Launch Onboarding Dialog
-        if (!isCallScreenVisible && showChannelOnboarding && allDiscoveredChannels.isNotEmpty()) {
+        if (!isCallScreenVisible && !showSetupWizard && showChannelOnboarding && allDiscoveredChannels.isNotEmpty()) {
             ChannelSetupDialog(
                 discoveredChannels = allDiscoveredChannels,
                 existingConfigs = channelConfigs,
@@ -1378,7 +1620,7 @@ fun MainAppContent(
         }
 
         // Check Display Over Other Apps permission on startup for car & bluetooth call redirection
-        if (!isCallScreenVisible && !hasOverlayPermission && showOverlayPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+        if (!isCallScreenVisible && !showSetupWizard && !hasOverlayPermission && showOverlayPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
             OverlayPermissionPromptDialog(
                 onRequestPermission = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -1402,7 +1644,7 @@ fun MainAppContent(
         }
 
         // Check Full Screen Intent permission (Android 14+ / API 34+) to wake screen for background calls
-        if (!isCallScreenVisible && hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+        if (!isCallScreenVisible && !showSetupWizard && hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
             FullScreenPermissionPromptDialog(
                 onRequestPermission = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
