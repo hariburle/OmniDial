@@ -162,6 +162,14 @@ class MainViewModel(
             .remove("whatsapp_learned_choices")
             .remove("learned_call_modes")
             .apply()
+        // Also clear per-number channel pins (Room), otherwise the reset is incomplete:
+        // the pins would keep driving in-app routing and re-mirror into the learned sets.
+        viewModelScope.launch {
+            try {
+                com.example.data.ChannelPreferenceRepository.getInstance(appContext).clearAllPreferences()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     // Call method selection dialog state
@@ -1573,11 +1581,11 @@ class MainViewModel(
                     return
                 }
                 "sim_1", "sim1" -> {
-                    placeCall(context, cleanNumber, reason, overrideSimSlot = 0)
+                    placeCall(context, cleanNumber, reason, overrideSimSlot = 1)
                     return
                 }
                 "sim_2", "sim2" -> {
-                    placeCall(context, cleanNumber, reason, overrideSimSlot = 1)
+                    placeCall(context, cleanNumber, reason, overrideSimSlot = 2)
                     return
                 }
                 "cellular", "system" -> {

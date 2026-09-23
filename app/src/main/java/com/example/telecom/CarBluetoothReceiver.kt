@@ -18,13 +18,10 @@ import android.os.Build
  * it posts a reminder notification (at most once per 24h) whose tap opens the
  * system role-grant dialog directly.
  *
- * Register in AndroidManifest.xml:
- *
- * <receiver android:name=".telecom.CarBluetoothReceiver" android:exported="false">
- *     <intent-filter>
- *         <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
- *     </intent-filter>
- * </receiver>
+ * Registered at runtime from TelecomApplication.onCreate(): ACTION_ACL_CONNECTED
+ * is not delivered to manifest-declared receivers on API 26+, so a manifest
+ * entry alone never fires on modern Android. (The manifest entry is kept for
+ * API 24-25; delivery there is harmless and idempotent.)
  */
 class CarBluetoothReceiver : BroadcastReceiver() {
 

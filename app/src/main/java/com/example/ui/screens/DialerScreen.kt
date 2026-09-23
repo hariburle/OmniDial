@@ -508,8 +508,10 @@ fun DialerScreen(
                         }
                     }
 
-                    // 3. International number auto-recommendation: if number starts with +, 011, 00, auto-switch to WhatsApp
-                    if (channelDiscoveryManager.isInternationalNumber(numToCheck)) {
+                    // 3. International number auto-recommendation: if number starts with +, 011, 00, auto-switch to WhatsApp.
+                    // Skipped when the user globally disabled WhatsApp calling ("never") — the car/
+                    // redirection path already honors that setting; the keypad must agree with it.
+                    if (whatsAppCallMode != "never" && channelDiscoveryManager.isInternationalNumber(numToCheck)) {
                         val waChannel = availableChannels.firstOrNull { it is CallingChannel.WhatsApp }
                         if (waChannel != null) {
                             activeChannel = waChannel

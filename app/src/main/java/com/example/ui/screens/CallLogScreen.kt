@@ -299,7 +299,7 @@ fun CallLogScreen(
                 val spam = spamNumbers.firstOrNull { s ->
                     ContactHelper.isSamePhoneNumber(s.phoneNumber, currentGroupCall.phoneNumber)
                 }
-                val isSpam = isSpamNumber?.invoke(currentGroupCall.phoneNumber) ?: (spam != null)
+                val isSpam = currentGroupCall.isSpam || (isSpamNumber?.invoke(currentGroupCall.phoneNumber) ?: (spam != null))
                 groups.add(GroupedCallLog(currentGroupCall, currentCount, isSpam, spam))
                 currentGroupCall = call
                 currentCount = 1
@@ -308,7 +308,7 @@ fun CallLogScreen(
         val lastSpam = spamNumbers.firstOrNull { s ->
             ContactHelper.isSamePhoneNumber(s.phoneNumber, currentGroupCall.phoneNumber)
         }
-        val isSpam = isSpamNumber?.invoke(currentGroupCall.phoneNumber) ?: (lastSpam != null)
+        val isSpam = currentGroupCall.isSpam || (isSpamNumber?.invoke(currentGroupCall.phoneNumber) ?: (lastSpam != null))
         groups.add(GroupedCallLog(currentGroupCall, currentCount, isSpam, lastSpam))
         groups
     }

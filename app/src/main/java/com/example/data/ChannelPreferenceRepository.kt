@@ -18,6 +18,12 @@ class ChannelPreferenceRepository(
     private val cachedPreferences = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /**
+     * Application context, captured in [getInstance]. Used only for the SharedPreferences
+     * mirror below — never for UI.
+     */
+    private var appContext: Context? = null
+
+    /**
      * False until the Room observer has delivered its first emission. Before that the cache is
      * empty for a reason we cannot distinguish from "this number has no preference", so callers
      * must not treat a miss as authoritative.
@@ -66,6 +72,87 @@ class ChannelPreferenceRepository(
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
         cachedPreferences[normalized] = channelId
         appRepository.setNumberChannelPreference(normalized, channelId, customLabel)
+        mirrorToLearnedPrefs(normalized, channelId)
+    }
+
+    /**
+     * Mirrors a per-number channel pin into SharedPreferences sets that
+     * [com.example.telecom.OmniCallRedirectionService] can read.
+     *
+     * Why: the redirection service (the car / Bluetooth / head-unit path) runs on a system
+     * binder thread and cannot do blocking Room reads, so it only consults SharedPreferences.
+     * Without this mirror, a "Remember choice" pin or contact-sheet channel pin set in the
+     * app was silently invisible to car-initiated calls. This follows the existing precedent
+     * of `contact_sim_preferences`, which is mirrored to SharedPreferences for the same reason.
+     *
+     * Three mirrors are maintained:
+     * - the learned-call-mode sets: WhatsApp / WhatsApp Business / Google Voice pins, plus
+     *   cellular-ish pins recorded as "cellular" (the vocabulary the service understands);
+     * - `pinned_cellular_numbers`: numbers with a deliberate "always cellular / SIM" pin, so
+     *   the service can tell them apart from a stale implicit learned "cellular" entry (which
+     *   must NOT outrank the global all-international rule, while the pin must);
+     * - `pinned_sim_numbers`: "e164:slot" entries so a SIM 1 / SIM 2 pin is honored from the car.
+     */
+    private fun mirrorToLearnedPrefs(normalizedE164: String, channelId: String) {
+        val ctx = appContext ?: return
+        if (normalizedE164.isBlank()) return
+        // Map the pin to the learned-mode vocabulary the redirection service understands.
+        // "ask" has no car equivalent (no UI to prompt with), so it clears every mirror.
+        val mappedMode = when (channelId.lowercase()) {
+            "whatsapp" -> "whatsapp"
+            "whatsapp_business" -> "whatsapp_business"
+            "google_voice" -> "google_voice"
+            "sim_1", "sim_2", "cellular", "system" -> "cellular"
+            else -> null
+        }
+        val pinnedSimSlot = when (channelId.lowercase()) {
+            "sim_1" -> 1
+            "sim_2" -> 2
+            else -> null
+        }
+        try {
+            val sp = ctx.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+            val ed = sp.edit()
+            for (key in arrayOf("whatsapp_learned_choices", "learned_call_modes")) {
+                val current = (sp.getStringSet(key, emptySet()) ?: emptySet()).toMutableSet()
+                removeMirrorEntriesForNumber(current, normalizedE164)
+                if (mappedMode != null) {
+                    current.add("$normalizedE164:$mappedMode")
+                }
+                ed.putStringSet(key, current)
+            }
+            val pinnedCellular = (sp.getStringSet("pinned_cellular_numbers", emptySet()) ?: emptySet()).toMutableSet()
+            removeMirrorEntriesForNumber(pinnedCellular, normalizedE164)
+            if (mappedMode == "cellular") {
+                pinnedCellular.add(normalizedE164)
+            }
+            ed.putStringSet("pinned_cellular_numbers", pinnedCellular)
+
+            val pinnedSim = (sp.getStringSet("pinned_sim_numbers", emptySet()) ?: emptySet()).toMutableSet()
+            removeMirrorEntriesForNumber(pinnedSim, normalizedE164)
+            if (pinnedSimSlot != null) {
+                pinnedSim.add("$normalizedE164:$pinnedSimSlot")
+            }
+            ed.putStringSet("pinned_sim_numbers", pinnedSim)
+            ed.apply()
+        } catch (_: Exception) {
+            // Mirror is best-effort; the Room pin remains the in-app source of truth.
+        }
+    }
+
+    /**
+     * Removes every mirror entry for the given number (exact E.164 or same-subscriber suffix
+     * match), so a pin cannot be shadowed by an older conflicting entry — the sets are
+     * unordered and the service takes the first match it finds.
+     */
+    private fun removeMirrorEntriesForNumber(entries: MutableSet<String>, normalizedE164: String) {
+        val suffix10 = normalizedE164.filter { it.isDigit() }.takeLast(10)
+        entries.removeAll { entry ->
+            val numKey = entry.substringBefore(":")
+            val numDigits = numKey.filter { it.isDigit() }
+            numKey == normalizedE164 ||
+                (suffix10.length >= 7 && numDigits.takeLast(10) == suffix10)
+        }
     }
 
     suspend fun setPreferredChannel(
@@ -80,6 +167,8 @@ class ChannelPreferenceRepository(
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
         cachedPreferences.remove(normalized)
         appRepository.deleteNumberChannelPreference(normalized)
+        // Clearing the pin ("ask") leaves no mirror behind.
+        mirrorToLearnedPrefs(normalized, "ask")
     }
 
     suspend fun clearAllPreferences() {
@@ -94,9 +183,13 @@ class ChannelPreferenceRepository(
         fun getInstance(context: Context): ChannelPreferenceRepository {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: run {
-                    val db = AppDatabase.getInstance(context)
+                    val appCtx = context.applicationContext
+                    val db = AppDatabase.getInstance(appCtx)
                     val repo = AppRepository(db.appDao())
-                    ChannelPreferenceRepository(repo).also { INSTANCE = it }
+                    ChannelPreferenceRepository(repo).also {
+                        it.appContext = appCtx
+                        INSTANCE = it
+                    }
                 }
             }
         }

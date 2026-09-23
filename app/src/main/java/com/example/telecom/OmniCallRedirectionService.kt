@@ -74,32 +74,62 @@ class OmniCallRedirectionService : CallRedirectionService() {
         }
 
         val isInternational = ContactHelper.isInternationalNumber(this, cleanNumber)
+
+        // Explicit per-number cellular/SIM pins, mirrored by ChannelPreferenceRepository (the
+        // Room table cannot be read from this binder thread). A deliberate "always cellular"
+        // pin outranks the global all-international rule; a stale implicit learned "cellular"
+        // entry — which may simply record that a cellular call was once placed while in
+        // ask-and-learn mode — does not. This mirrors MainViewModel.initiateCall, where the
+        // per-number pin (step 0) is consulted before the global rule (step 1) and the
+        // learned choice (step 3).
+        fun isPinnedNumber(pinnedSet: Set<String>): Boolean {
+            for (entry in pinnedSet) {
+                val numKey = entry.substringBefore(":")
+                val numKeyDigits = numKey.filter { it.isDigit() }
+                val numKeySuffix10 = if (numKeyDigits.length >= 10) numKeyDigits.takeLast(10) else numKeyDigits
+                if (ContactHelper.isSamePhoneNumber(numKey, cleanNumber) ||
+                    numKey == cleanNumber ||
+                    (suffix10.isNotEmpty() && (numKey.endsWith(suffix10) || numKeySuffix10 == suffix10))) {
+                    return true
+                }
+            }
+            return false
+        }
+        val pinnedCellular = isPinnedNumber(prefs.getStringSet("pinned_cellular_numbers", emptySet()) ?: emptySet())
+
         val shouldRedirectToWhatsApp = when {
-            preferredMode == "whatsapp" -> true
-            preferredMode == "cellular" -> false
+            pinnedCellular -> false
+            preferredMode == "whatsapp" || preferredMode == "whatsapp_business" -> true
             globalMode == "all_international" && isInternational -> true
             else -> false
         }
 
         if (shouldRedirectToWhatsApp) {
+            val useBusiness = preferredMode == "whatsapp_business"
             Log.i(TAG, "External outgoing call for $cleanNumber redirected to WhatsApp (preferredMode=$preferredMode)")
             // Abort cellular network call
             cancelCall()
 
             // Trigger WhatsApp Call immediately
             try {
-                ContactHelper.launchWhatsAppCall(applicationContext, cleanNumber)
+                ContactHelper.launchWhatsAppCall(
+                    applicationContext,
+                    cleanNumber,
+                    isBusiness = if (useBusiness) true else null
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Direct WhatsApp launch error, dispatching notification fallback", e)
             }
             // Always post full-screen call notification to guarantee execution from background / car mode
             showWhatsAppRedirectionNotification(cleanNumber)
         } else {
-            // Check contact-specific preferred SIM slot
+            // Check contact-specific preferred SIM slot. Per-number SIM pins mirrored from the
+            // Room channel preferences are consulted first so they win over the legacy table.
             val simPrefsSet = (prefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet()) +
                               (legacyPrefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet())
+            val pinnedSimSet = prefs.getStringSet("pinned_sim_numbers", emptySet()) ?: emptySet()
             var preferredSimSlot: Int? = null
-            for (entry in simPrefsSet) {
+            for (entry in pinnedSimSet.toList() + simPrefsSet.toList()) {
                 val parts = entry.split(":")
                 if (parts.size >= 2) {
                     val numKey = parts[0]
