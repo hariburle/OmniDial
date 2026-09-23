@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
  *
  * <service
  *     android:name=".telecom.OmniCallScreeningService"
- *     android:permission="android.permission.BIND_CALL_SCREENING_SERVICE"
+ *     android:permission="android.permission.BIND_SCREENING_SERVICE"
  *     android:exported="true">
  *     <intent-filter>
  *         <action android:name="android.telecom.CallScreeningService" />
@@ -53,6 +53,23 @@ class OmniCallScreeningService : CallScreeningService() {
         super.onDestroy()
     }
 
+    /**
+     * Mirrors the whitelist honored by CallManager's legacy auto-decline path:
+     * numbers the user explicitly marked "not spam" and saved device contacts
+     * are never silenced, even if they also appear in the spam database.
+     */
+    private fun isWhitelisted(number: String): Boolean {
+        if (number.isBlank()) return false
+        return try {
+            val prefs = applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val notSpam = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()
+            if (notSpam.any { com.example.util.ContactHelper.isSamePhoneNumber(it, number) }) return true
+            com.example.util.ContactHelper.lookupContactByNumber(applicationContext, number) != null
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     override fun onScreenCall(details: Call.Details) {
         val rawNumber = details.handle?.schemeSpecificPart?.trim().orEmpty()
 
@@ -67,7 +84,7 @@ class OmniCallScreeningService : CallScreeningService() {
                     val normalized = PhoneNumberNormalizer.toE164(rawNumber)
                     val entry = dao.getSpamByNumber(rawNumber, rawNumber)
                         ?: dao.getSpamByNormalizedNumber(normalized)
-                    if (entry != null && entry.isBlocked) {
+                    if (entry != null && entry.isBlocked && !isWhitelisted(rawNumber)) {
                         label = entry.label
                         val autoBlock = applicationContext
                             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)

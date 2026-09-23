@@ -1,9 +1,5 @@
 package com.example.ui.components
 
-import android.app.role.RoleManager
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -198,28 +194,6 @@ fun CallScreeningCard(
                 ) {
                     Text("Set as Caller ID & Spam App", fontSize = 13.sp)
                 }
-                // Temporary diagnostic: shows exactly what the system sees.
-                // Tells us whether the manifest change made it into this build
-                // (service listed below) or the role layer is the problem.
-                val screeningPkgs = remember {
-                    context.packageManager.queryIntentServices(
-                        Intent("android.telecom.CallScreeningService"),
-                        PackageManager.MATCH_ALL
-                    ).map { it.serviceInfo.packageName }.distinct().sorted()
-                }
-                val roleAvailable = remember {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        val rm = context.getSystemService(RoleManager::class.java)
-                        "Role available: ${rm?.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)}"
-                    } else "Role API n/a (pre-Q)"
-                }
-                Text(
-                    text = "Diag — $roleAvailable\nScreening services seen: " +
-                        screeningPkgs.joinToString().ifBlank { "(none)" },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray,
-                    fontSize = 10.sp
-                )
             }
         }
     }

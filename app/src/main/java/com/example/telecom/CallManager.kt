@@ -389,7 +389,12 @@ object CallManager {
 
                 val isDatabaseSpam = matchedSpamNumber != null
                 val isCarrierSpamThreat = isIncoming && !isWhitelisted && autoBlockCarrier && isCarrierSpam(call, number, enrichedName)
-                val shouldAutoDeclineSpam = (isCarrierSpamThreat || (isDatabaseSpam && blockSpamPreset))
+                // When OmniDial holds the Caller ID & spam role, the screening service
+                // already evaluated spam-list numbers (silence or reject per the user's
+                // "Block spam automatically" setting), so don't auto-decline them here
+                // a second time. Carrier-flagged calls stay on the legacy toggle.
+                val screeningOwnsSpamList = isDatabaseSpam && RoleHelper.isCallScreeningRoleHeld(context)
+                val shouldAutoDeclineSpam = (isCarrierSpamThreat || (isDatabaseSpam && blockSpamPreset && !screeningOwnsSpamList))
 
                 if (shouldAutoDeclineSpam) {
                     val spamReason = when {

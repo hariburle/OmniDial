@@ -101,6 +101,7 @@ object BackupManager {
         prefsObj.put("nav_bar_style", prefs.getString("nav_bar_style", "full"))
         prefsObj.put("auto_block_carrier_spam", prefs.getBoolean("auto_block_carrier_spam", true))
         prefsObj.put("block_telemarketers_robocalls", prefs.getBoolean("block_telemarketers_robocalls", true))
+        prefsObj.put("spam_auto_block", prefs.getBoolean("spam_auto_block", false))
         prefsObj.put("silence_unknown_private", prefs.getBoolean("silence_unknown_private", false))
 
         fun stringSetToJson(key: String): JSONArray {
@@ -438,6 +439,7 @@ object BackupManager {
                         if (prefsObj.has("nav_bar_style")) editor.putString("nav_bar_style", prefsObj.optString("nav_bar_style", "full"))
                         if (prefsObj.has("auto_block_carrier_spam")) editor.putBoolean("auto_block_carrier_spam", prefsObj.optBoolean("auto_block_carrier_spam", true))
                         if (prefsObj.has("block_telemarketers_robocalls")) editor.putBoolean("block_telemarketers_robocalls", prefsObj.optBoolean("block_telemarketers_robocalls", true))
+                        if (prefsObj.has("spam_auto_block")) editor.putBoolean("spam_auto_block", prefsObj.optBoolean("spam_auto_block", false))
                         if (prefsObj.has("silence_unknown_private")) editor.putBoolean("silence_unknown_private", prefsObj.optBoolean("silence_unknown_private", false))
 
                         fun jsonToStringSet(key: String): Set<String> {

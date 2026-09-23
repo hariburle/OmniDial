@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.0.1` | `20` | Sep 2026 | Caller ID & spam default app, honest spam badges, setup wizard, and call redirection recovery. |
 | `2.0.0` | `19` | Sep 2026 | Multi-channel calling engine, dynamic keypad channel dock, unified call choice dialogs, blazing fast search, and transactional backups. |
 | `1.5.0` | `18` | Sep 2026 | Partitioned search outside active contact filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture. |
 | `1.4.4` | `17` | Sep 2026 | Smart SIM & roaming call alerts, instant call log updates, and clean nickname presentation across screens. |
@@ -30,7 +31,20 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 2.0.0 (Latest) — Multi-Channel Calling Engine, Keypad Channel Dock & Blazing Fast Search</h3></summary>
+<summary><h3>🚀 Release 2.0.1 (Latest) — Caller ID & Spam App, Honest Spam Badges & Setup Wizard</h3></summary>
+
+### What's New & Improvements:
+- **Caller ID & Spam Default App**: Set OmniDial as Android's "Caller ID & spam app" from Settings. Suspected spam calls are silenced and logged as missed calls — never silently dropped — so you never lose a flagged call you actually wanted. An optional "Block spam automatically" switch rejects them outright.
+- **Honest Spam Badges**: Recent calls now truthfully show who blocked a call ("Blocked by OmniDial · Carrier flagged as spam") instead of the misleading "Carrier Auto-Dropped".
+- **Guided Setup Wizard**: A new first-run walkthrough explains each permission and setup step — default dialer, car & watch call forwarding, appear-on-top, and wake screen — in plain language.
+- **Call Redirection Recovery**: If the car/watch call-forwarding role is ever revoked, a banner on the dialpad (with car-aware wording when a car recently connected) walks you through re-granting it.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 2.0.0 — Multi-Channel Calling Engine, Keypad Channel Dock & Blazing Fast Search</h3></summary>
 
 ### What's New & Improvements:
 - **Dynamic Keypad Calling Dock**: Instantly switch between your cellular SIM cards and WhatsApp right from the dial pad before you place a call. The dock dynamically displays your carrier names, roaming status, and installed calling apps with crisp icons and badges.
@@ -268,8 +282,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v2.0.0.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.0.1.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

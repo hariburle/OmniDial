@@ -2,6 +2,23 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v2.0.1] — Build 20 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Caller ID & Spam Default App**: OmniDial can now be set as Android's "Caller ID & spam app" (Settings → Apps → Default apps). Suspected spam calls are silenced and logged as missed calls — never silently dropped — so a flagged call you wanted is never lost. An optional "Block spam automatically" switch rejects them outright.
+- **Honest Spam Badges**: Recents now truthfully names who dropped a call — "Blocked by OmniDial · Carrier flagged as spam" or "Blocked by OmniDial · Number in spam list" — instead of the misleading "Carrier Auto-Dropped".
+- **Guided Setup Wizard**: New first-run wizard walks through permissions, default dialer, car/watch call forwarding, appear-on-top, and wake-screen setup in plain language.
+- **Call Redirection Recovery**: If the Call Redirection role is ever lost, a banner on the dialpad (with car-aware wording when a car recently connected) guides you to re-grant it, backed by a once-daily reminder notification.
+
+### 🔧 Technical / Architecture Notes
+- **OmniCallScreeningService**: New `CallScreeningService` implementation; spam-list numbers are silenced and logged by default, rejected only when `spam_auto_block` is enabled. Honors the user not-spam whitelist and saved contacts.
+- **Unified Spam Policy**: When the Caller ID & spam role is held, `CallManager` defers spam-list handling to the screening service instead of auto-declining, eliminating double-handling; carrier-flagged calls stay on the legacy toggle.
+- **Role Permission Update**: The screening service declares `android.permission.BIND_SCREENING_SERVICE`, as required by the system role controller on newer Android versions.
+- **`spam_auto_block` Backup Coverage**: The new screening auto-block preference is now included in transactional backups and restores.
+- Incremented `versionCode` to 20 and `versionName` to `"2.0.1"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.0.0] — Build 19 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

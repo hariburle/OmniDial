@@ -6,6 +6,20 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
+### 0. Task 14.1 (Release 2.0.1): Caller ID & Spam Default Role & Screening Policy
+- [ ] **To Test**
+- **Test Steps**:
+  1. Open **Settings** and find the **Caller ID & Spam** card. Verify it shows "Action Needed".
+  2. Tap **Set as Caller ID & Spam App**. Verify the system role dialog appears and grants the role.
+  3. Verify the card flips to "Active" and OmniDial appears under Android **Settings → Apps → Default apps → Caller ID & spam app**.
+  4. Add a test number to the spam blocklist (leave "Block spam automatically" OFF). Call it from another phone.
+  5. Verify the call is silenced (not declined), appears as a missed call in Recents with an accurate badge, and a notification is shown.
+  6. Toggle "Block spam automatically" ON and repeat. Verify the call is rejected outright.
+  7. Whitelist the number (or save it as a contact) and repeat. Verify it rings normally.
+- **Expected Result**:
+  - Screening silences/logs by default and never silently drops wanted calls; the legacy `block_telemarketers_robocalls` auto-decline does not double-handle spam-list numbers while the role is held.
+
+
 ### 1. Task 13.1 (Release 2.0): Dynamic Keypad Channel Dock & Channel Switching
 - [ ] **To Test**
 - **Test Steps**:

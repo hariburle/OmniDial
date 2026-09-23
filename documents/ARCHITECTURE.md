@@ -1,6 +1,6 @@
 # OmniDial — System Architecture & Technical Documentation
 
-> **Current Version**: v2.0.0 (Build 19) — September 2026
+> **Current Version**: v2.0.1 (Build 20) — September 2026
 
 ## 1. Executive Summary
 
@@ -47,7 +47,15 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
                 +---> ContactHelper (System Contacts Provider & CallLog Merging)
                 |
                 +---> CallManager (InCallService, Automation Pipeline, Trust Badges,
-                |                  callLoggedEvent SharedFlow, SIM roaming resolution)
+                |                  callLoggedEvent SharedFlow, SIM roaming resolution;
+                |                  defers spam-list auto-decline while screening role held)
+                |
+                +---> OmniCallScreeningService (CallScreeningService: silences+logs or
+                |       rejects spam-list numbers per spam_auto_block; honors not-spam
+                |       whitelist and saved contacts; requires BIND_SCREENING_SERVICE)
+                |
+                +---> RoleHelper (ROLE_DIALER / ROLE_CALL_REDIRECTION /
+                |       ROLE_CALL_SCREENING request intents + held/available checks)
                 |
                 +---> PhoneNumberNormalizer (libphonenumber E.164 engine)
                 |
@@ -88,6 +96,12 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 
 ```
 Incoming Call Arrives
+        │
+        ▼
+OmniCallScreeningService (only when CALL_SCREENING role held)
+  ├── Spam-list number ──> silence + log as missed call, or reject if spam_auto_block
+  ├── Whitelisted / saved contact ──> always allowed through
+  └── Anything else ──> allowed through untouched
         │
         ▼
 SimHelper.resolveSimInfo(context, accountHandle)
@@ -163,13 +177,13 @@ After call termination, `CallManager` emits a post-call state to `MainViewModel`
 1. **Internal storage** (`context.filesDir/backups/`): Fast local access, survives app updates.
 2. **Public MediaStore** (`Documents/OmniDial/` via `MediaStore.Files`): Survives app uninstalls; scanned and mirrored into internal storage on every app startup.
 
-Backup JSON payload includes: `CallerRule` list, `FavoriteContact` list, `SpeedDial` map, all SharedPreferences keys (SIM mode, spam presets, WhatsApp mode, learned choices).
+Backup JSON payload includes: `CallerRule` list, `FavoriteContact` list, `SpeedDial` map, all SharedPreferences keys (SIM mode, spam presets, screening auto-block, WhatsApp mode, learned choices).
 
 SHA-256 checksum and schema version are embedded in the JSON header for tamper detection on restore.
 
 ---
 
-## 9. Unit Test Coverage (Build 19)
+## 9. Unit Test Coverage (Build 20)
 
 All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk = [36])`):
 
@@ -202,6 +216,9 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 8. **Partitioned Contact Search Outside Active Filters**: Two-pass filtering displays qualifying filter matches at the top and cleanly partitions non-qualifying matches into "Other Matches Outside Filter" with one-tap action sheets.
 9. **Ambient Incoming Ring Silencing**: Integrated `TelecomManager.silenceRinger()` triggered on device pickup/motion, proximity uncover, screen touch, audio route switching, quick decline SMS, or physical volume buttons while keeping the call active in `STATE_RINGING`.
 10. **Release Signing Security**: Added upload keystore integrity validation in `app/build.gradle.kts` to warn on missing upload keys and prevent unintended debug key signing.
+11. **Caller ID & Spam Role (v2.0.1)**: Added `OmniCallScreeningService` (`BIND_SCREENING_SERVICE`, as required by newer Android role controllers), `RoleHelper`, and `CallScreeningCard`; `CallManager` defers spam-list auto-decline while the role is held.
+12. **Honest Spam Badges (v2.0.1)**: `CallDropAttribution` replaces the misleading "Carrier Auto-Dropped" badge with truthful "Blocked by OmniDial" labels.
+13. **Setup Wizard & Redirection Recovery (v2.0.1)**: `SetupWizard` first-run flow plus `CallRedirectionBanner`/`RoleReminderNotification` for Call Redirection role recovery.
 
 ---
 
