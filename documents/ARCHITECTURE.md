@@ -1,6 +1,6 @@
 # OmniDial — System Architecture & Technical Documentation
 
-> **Current Version**: v2.0.2 (Build 21) — September 2026
+> **Current Version**: v2.1.0 (Build 22) — September 2026
 
 ## 1. Executive Summary
 

@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -53,6 +54,7 @@ fun DialerSuggestionsList(
     t9Matches: List<T9SearchResult>,
     matchedContact: DeviceContact?,
     onSelectContactNumber: (String) -> Unit,
+    onOpenContactDetails: ((DeviceContact) -> Unit)? = null,
     contacts: List<DeviceContact> = emptyList(),
     modifier: Modifier = Modifier
 ) {
@@ -112,7 +114,8 @@ fun DialerSuggestionsList(
                     DialerRecentSuggestionCard(
                         call = call,
                         matchedContact = dc,
-                        onClick = { onSelectContactNumber(call.phoneNumber) }
+                        onClick = { onSelectContactNumber(call.phoneNumber) },
+                        onOpenContactDetails = onOpenContactDetails
                     )
                 }
             }
@@ -206,10 +209,23 @@ fun DialerSuggestionsList(
                 reverseLayout = true
             ) {
                 items(searchSuggestions, key = { it.phoneNumber + "_" + it.name }) { match ->
+                    val matchDigits = match.phoneNumber.filter { it.isDigit() }.takeLast(10)
+                    val dc = (if (matchDigits.isNotBlank()) contactsByDigits[matchDigits] else null)
+                        ?: contactsByName[match.name.trim().lowercase()]
+                        ?: DeviceContact(
+                            name = match.name,
+                            phoneNumber = match.phoneNumber,
+                            label = match.label,
+                            photoUri = match.photoUri,
+                            nickname = match.nickname,
+                            phoneNumbers = if (match.allPhoneNumbers.isNotEmpty()) match.allPhoneNumbers else listOf(ContactPhoneNumber(match.phoneNumber, match.label))
+                        )
                     DialerMatchSuggestionCard(
                         match = match,
                         query = number,
-                        onSelectNumber = onSelectContactNumber
+                        resolvedContact = dc,
+                        onSelectNumber = onSelectContactNumber,
+                        onOpenContactDetails = onOpenContactDetails
                     )
                 }
             }
@@ -221,7 +237,8 @@ fun DialerSuggestionsList(
 private fun DialerRecentSuggestionCard(
     call: RecentCall,
     matchedContact: DeviceContact? = null,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onOpenContactDetails: ((DeviceContact) -> Unit)? = null
 ) {
     val callTypeIcon = when (call.callType) {
         1 -> Icons.AutoMirrored.Filled.CallReceived
@@ -243,6 +260,16 @@ private fun DialerRecentSuggestionCard(
         call.phoneNumber
     } else null
 
+    val resolvedContact = remember(matchedContact, call, formalName) {
+        matchedContact ?: DeviceContact(
+            name = formalName ?: call.phoneNumber,
+            phoneNumber = call.phoneNumber,
+            label = "Mobile",
+            photoUri = null,
+            phoneNumbers = listOf(ContactPhoneNumber(call.phoneNumber, "Mobile"))
+        )
+    }
+
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
@@ -261,15 +288,26 @@ private fun DialerRecentSuggestionCard(
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(36.dp),
+                onClick = { onOpenContactDetails?.invoke(resolvedContact) },
+                enabled = onOpenContactDetails != null
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = primaryText.filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" },
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                if (!matchedContact?.photoUri.isNullOrBlank()) {
+                    AsyncImage(
+                        model = matchedContact.photoUri,
+                        contentDescription = primaryText,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = primaryText.filter { it.isLetter() }.take(1).uppercase().ifEmpty { "#" },
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
 
@@ -282,7 +320,14 @@ private fun DialerRecentSuggestionCard(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable(
+                        enabled = onOpenContactDetails != null,
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        onOpenContactDetails?.invoke(resolvedContact)
+                    }
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -318,7 +363,9 @@ private fun DialerRecentSuggestionCard(
 private fun DialerMatchSuggestionCard(
     match: T9SearchResult,
     query: String,
-    onSelectNumber: (String) -> Unit
+    resolvedContact: DeviceContact,
+    onSelectNumber: (String) -> Unit,
+    onOpenContactDetails: ((DeviceContact) -> Unit)? = null
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     val uniqueNumbers = remember(match.allPhoneNumbers, match.phoneNumber) {
@@ -356,7 +403,9 @@ private fun DialerMatchSuggestionCard(
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(36.dp),
+                    onClick = { onOpenContactDetails?.invoke(resolvedContact) },
+                    enabled = onOpenContactDetails != null
                 ) {
                     if (!match.photoUri.isNullOrBlank()) {
                         AsyncImage(
@@ -389,7 +438,14 @@ private fun DialerMatchSuggestionCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable(
+                            enabled = onOpenContactDetails != null,
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onOpenContactDetails?.invoke(resolvedContact)
+                        }
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

@@ -662,6 +662,8 @@ class MainViewModel(
                 }
             }
         }
+        triggerAutoBackupIfEligible()
+        checkForRestorePrompt()
     }
 
     fun refreshRecentCalls() {
@@ -1369,6 +1371,9 @@ class MainViewModel(
     /** Split one participant out of the conference into a private call. Returns false on failure. */
     fun splitConferenceParticipant(participantId: String): Boolean =
         CallManager.splitConferenceParticipant(participantId)
+
+    /** Toggle hold/unhold state on the active call. Returns false on failure. */
+    fun toggleHold(): Boolean = CallManager.toggleHold()
 
     /** All device contacts for the "Add call" contact picker (loaded off the main thread). */
     suspend fun fetchDeviceContactsForChooser(): List<DeviceContact> = withContext(Dispatchers.IO) {
@@ -2682,6 +2687,42 @@ class MainViewModel(
         }
     }
 
+    private val _pendingRestoreBackup = MutableStateFlow<java.io.File?>(null)
+    val pendingRestoreBackup: StateFlow<java.io.File?> = _pendingRestoreBackup.asStateFlow()
+
+    fun triggerAutoBackupIfEligible() {
+        viewModelScope.launch(Dispatchers.IO) {
+            com.example.util.BackupManager.checkAndRunAutoBackup(appContext)
+        }
+    }
+
+    fun checkForRestorePrompt() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val eligible = com.example.util.BackupManager.findEligibleRestoreBackup(appContext)
+            _pendingRestoreBackup.value = eligible
+        }
+    }
+
+    fun dismissRestorePrompt() {
+        val file = _pendingRestoreBackup.value
+        if (file != null) {
+            val key = com.example.util.BackupManager.getBackupKey(file.name)
+            val prefs = appContext.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putString("restore_prompt_dismissed_for", key).apply()
+        }
+        _pendingRestoreBackup.value = null
+    }
+
+    fun restoreEligibleBackup(onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
+        val file = _pendingRestoreBackup.value ?: return
+        restoreLocalBackup(file) { result ->
+            if (result.success) {
+                _pendingRestoreBackup.value = null
+            }
+            onComplete(result)
+        }
+    }
+
     companion object {
         @Volatile
         private var inMemoryCachedDeviceContacts: List<DeviceContact>? = null
@@ -2693,7 +2734,7 @@ class MainViewModel(
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val db = AppDatabase.getInstance(context)
-                    val repo = AppRepository(db.appDao())
+                    val repo = AppRepository(db.appDao(), context.applicationContext)
                     return MainViewModel(repo, context.applicationContext) as T
                 }
             }

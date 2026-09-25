@@ -6,6 +6,32 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
+### 0. Task 16.1 (Release 2.0.3): In-Call Screen Redesign & Audio-Adaptive Bento Layout
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **Phase 1: Caller Hero Card & Bento Control Grid (Single Call)**:
+     - Place or receive an active call with a contact that has a photo. Verify the full-width hero card renders the contact photo with a bottom scrim overlay showing name, phone number, and label cleanly.
+     - Place or receive a call with an unknown number or contact without photo. Verify the animated name-hashed gradient renders smoothly with the caller's monogram initials.
+     - Verify the 2×3 Bento control grid:
+       - **Mute**: Tap to mute/unmute; verify active state highlight and microphone icon switch.
+       - **Speaker / Audio**: Tap to toggle speakerphone; long-press to open the audio route selection popup.
+       - **Keypad**: Tap to expand DTMF keypad; tap again to collapse.
+       - **Hold**: Tap to put the call on hold; verify "Resume" label and active state highlight. Tap again to resume call.
+       - **Add Call / Contextual Actions**: Verify bottom row displays "Add call" when applicable.
+  2. **Phase 2: Conference Split View (Multi-Call)**:
+     - During an active call, tap **Add call** and dial a second contact. Tap **Merge** once both connect.
+     - Verify the hero card switches to the **Conference Split View** with stacked participant cards.
+     - Verify each participant displays their contact photo (or distinct gradient monogram if photo unavailable).
+     - Test **Private**: Tap "Private" on one participant card. Verify that participant splits into a private call while holding the conference.
+     - Test **End**: Tap the red End button on one participant card. Verify only that participant is disconnected while the other remains connected.
+  3. **Phase 3: Audio-Route-Aware Dynamic Transitions**:
+     - Toggle between **Earpiece** and **Speakerphone**:
+       - When routed to Earpiece / Wired Headset, verify the hero card smoothly animates to compact mode (220dp) and Bento buttons scale to 64dp for comfortable single-handed reachability.
+       - When routed to Speaker or Bluetooth, verify the hero card smoothly expands to desk mode (280dp), Bento buttons scale to 72dp, and the audio route badge (Speaker / Bluetooth device name) appears on the hero card.
+     - Verify all transitions are fluid with zero UI jitter or layout jumps.
+- **Expected Result**:
+  - Polished calling card hero layout, responsive Bento controls with working native hold, visual multi-caller conference cards with inline controls, and smooth route-adaptive layout transitions.
+
 ### 0. Task 15.1 (Release 2.0.2): Multi-Call & Conference Calling Subsystem
 - [ ] **To Test**
 - **Test Steps**:
@@ -250,6 +276,46 @@ Items currently pending verification or undergoing testing. Verified items are a
 - **Expected Result**:
   - Untouched post-call screens close in 5s; interacted-but-blank in ~60s; typed notes are preserved until saved or the 10-minute cap.
   - The minimized green popup never survives a disconnected call; orientation returns to normal when the call UI is minimized or closed.
+
+### 10. Bento Grid In-Call Redesign & Dynamic Audio Routing (v2.1.0)
+- [ ] **To Test**
+- **Test Steps**:
+  1. Place an ongoing call. Verify the caller hero card displays large avatar, caller name, number, SIM badge, and active timer.
+  2. Verify the 2x3 Bento control grid displays Mute, Keypad, Add Call, Hold, and Audio routing.
+  3. When only earpiece and speaker are available: verify the audio card says "Speaker" and tapping it immediately toggles speakerphone on/off with visual tint.
+  4. When Bluetooth device or car audio is connected: verify the audio card displays "Audio ▾" (or active device name) and tapping it opens the route picker sheet.
+  5. Select Bluetooth/Earpiece/Speaker from the picker and verify audio routing switches seamlessly.
+- **Expected Result**:
+  - Clean, modern Bento grid layout. 2-way mode toggles Speaker directly; multi-route mode opens route picker.
+
+### 11. Dial-pad Suggestion Cards Contact Details Sheet (v2.1.0)
+- [ ] **To Test**
+- **Test Steps**:
+  1. Open Keypad. Observe recent calls above keypad.
+  2. Tap the avatar / profile picture of a recent call. Verify the Contact Details bottom sheet opens immediately.
+  3. Close sheet and tap the contact's name. Verify the Contact Details bottom sheet opens.
+  4. Tap the phone number or arrow. Verify the number is populated into the dialer edit field.
+  5. Type digits to perform a T9 search. Tap avatar or name on a search match and verify the Contact Details sheet opens.
+- **Expected Result**:
+  - Touching avatar or contact name opens full contact sheet; touching number or arrow fills dialer.
+
+### 12. Favorites Search In-Row Direct Calling (v2.1.0)
+- [ ] **To Test**
+- **Test Steps**:
+  1. Go to Favorites tab. Tap the search icon and search for a contact with multiple numbers.
+  2. In the search results, tap directly on a phone number row or tap the green 📞 call icon.
+  3. Verify the call is placed immediately to that specific number.
+  4. Tap the contact name/header in search results; verify the full Contact Details sheet opens.
+- **Expected Result**:
+  - Direct 1-tap calling from within Favorites search without navigation friction.
+
+### 13. Fresh Install Auto-Restore & Compact Default Checkbox (v2.1.0)
+- [ ] **To Test**
+- **Test Steps**:
+  1. On a fresh install with an existing backup in `Documents/OmniDial/`, verify the restore banner appears at app launch.
+  2. Open any contact's details sheet with multiple numbers. Verify the default indicator is a compact Material 3 checkbox instead of an oversized circular button.
+- **Expected Result**:
+  - Clean auto-restore prompt and compact default checkbox.
 
 ---
 

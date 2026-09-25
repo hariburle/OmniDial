@@ -1,6 +1,6 @@
 # OmniDial — Architecture & System Design Document
 
-> **Current Version**: v2.0.2 (Build 21) — September 2026
+> **Current Version**: v2.1.0 (Build 22) — September 2026
 
 This document serves as the primary technical specification and maintenance guide for **OmniDial**. It documents the system architecture, component contracts, data persistence models, telephony integrations, build pipelines, and maintenance runbooks.
 
@@ -27,6 +27,7 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 14. **Multi-Call & Conference Calling Subsystem**: In-call Swap, Merge, dynamic participant card roster, conference hold/resume, and individual participant disconnection powered by `ConferenceUiGating`.
 15. **Floating Call Pill & PiP Auto-Dismiss**: Lifecycle synchronization ensuring floating ongoing call pills and Picture-in-Picture windows automatically teardown cleanly upon call disconnect.
 16. **Just-In-Time Reminders & Permissions Hub**: Contextual inline banners and cards across Contacts, Recents, and Rules alongside a dedicated real-time Permissions Hub card in Settings for all 6 setup wizard options.
+17. **Bento Card In-Call UI & Dynamic Audio Routing**: Modern 2x3 Bento control grid with caller hero card, dynamic 2-way Speaker toggle vs multi-route Bluetooth picker, split conference view, and dialer avatar/name tap-to-open contact sheet.
 
 ---
 

@@ -74,7 +74,8 @@ data class ActiveCallInfo(
 data class ConferenceParticipant(
     val id: String,
     val displayName: String,
-    val phoneNumber: String
+    val phoneNumber: String,
+    val photoUri: String? = null
 )
 
 @Immutable
@@ -1406,10 +1407,14 @@ object CallManager {
                             logConf("labeled child $id as '${it.displayName}'")
                         }
                     }
-                    if (name.isNullOrBlank() && number.isNotBlank()) {
+                    var photoUri: String? = null
+                    if (number.isNotBlank()) {
                         appContext?.let { ctx ->
-                            com.example.util.ContactHelper.lookupContactByNumber(ctx, number)?.let {
-                                name = it.name
+                            com.example.util.ContactHelper.lookupContactByNumber(ctx, number)?.let { contact ->
+                                if (name.isNullOrBlank()) {
+                                    name = contact.name
+                                }
+                                photoUri = contact.photoUri
                             }
                         }
                     }
@@ -1417,7 +1422,8 @@ object CallManager {
                     ConferenceParticipant(
                         id = id,
                         displayName = name ?: number.ifBlank { "Unknown" },
-                        phoneNumber = number
+                        phoneNumber = number,
+                        photoUri = photoUri
                     )
                 } catch (_: Exception) {
                     null
@@ -1451,6 +1457,24 @@ object CallManager {
             true
         } catch (e: Exception) {
             Log.e(TAG, "splitConferenceParticipant failed", e)
+            false
+        }
+    }
+
+    /** Toggle call hold/unhold state on the primary native call. Returns false on failure. */
+    fun toggleHold(): Boolean {
+        val call = nativeCall ?: return false
+        return try {
+            if (call.state == Call.STATE_HOLDING) {
+                call.unhold()
+                Log.d(TAG, "unhold requested for active call")
+            } else if (call.state == Call.STATE_ACTIVE) {
+                call.hold()
+                Log.d(TAG, "hold requested for active call")
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "toggleHold failed: ${e.message}")
             false
         }
     }
@@ -1774,6 +1798,22 @@ object CallManager {
                     extra.disconnect()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error disconnecting extra call", e)
+                }
+            }
+            for (part in participantCalls.values.toList()) {
+                try {
+                    part.disconnect()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error disconnecting participant call", e)
+                }
+            }
+            for (tracked in extraCallCallbacks.keys.toList()) {
+                if (tracked !== nativeCall && tracked !== collapsedSurvivorCall && !extraCalls.containsKey(tracked) && !participantCalls.containsValue(tracked)) {
+                    try {
+                        tracked.disconnect()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error disconnecting tracked child leg", e)
+                    }
                 }
             }
         }

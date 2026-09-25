@@ -129,6 +129,51 @@ fun BackupManagementCard(
                 }
             }
 
+            val prefs = remember(context) { context.getSharedPreferences("kishan_dialer_prefs", android.content.Context.MODE_PRIVATE) }
+            var autoBackupEnabled by remember { mutableStateOf(prefs.getBoolean("auto_backup_enabled", true)) }
+            val lastAutoBackupTimestamp = remember(autoBackupEnabled) { prefs.getLong("last_auto_backup_timestamp", 0L) }
+            val lastBackupFormatted = remember(lastAutoBackupTimestamp) {
+                if (lastAutoBackupTimestamp > 0L) {
+                    java.text.SimpleDateFormat("MMM d, yyyy h:mm a", java.util.Locale.getDefault()).format(java.util.Date(lastAutoBackupTimestamp))
+                } else "Never"
+            }
+
+            // Automatic backup toggle + last auto backup info
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Automatic backup",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Last automatic backup: $lastBackupFormatted",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoBackupEnabled,
+                        onCheckedChange = { isChecked ->
+                            autoBackupEnabled = isChecked
+                            prefs.edit().putBoolean("auto_backup_enabled", isChecked).apply()
+                        },
+                        modifier = Modifier.testTag("switch_auto_backup")
+                    )
+                }
+            }
+
             // Primary single-tap "Create Backup" action
             Button(
                 onClick = {

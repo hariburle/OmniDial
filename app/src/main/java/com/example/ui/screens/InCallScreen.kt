@@ -4,6 +4,9 @@ import com.example.ui.components.InCallControlButton
 import com.example.ui.components.SwipeUpAnswerView
 import com.example.ui.components.ButtonTapAnswerView
 import com.example.ui.components.SwipeSliderAnswerView
+import com.example.ui.components.CallerHeroCard
+import com.example.ui.components.BentoCallControlGrid
+import com.example.ui.components.ConferenceSplitView
 
 import android.telecom.Call
 import android.telecom.CallAudioState
@@ -186,6 +189,7 @@ fun InCallScreen(
     onClosePostCall: () -> Unit = onDismiss,
     callAnswerStyle: String = "swipe_slider",
     heldCalls: List<com.example.telecom.ActiveCallInfo> = emptyList(),
+    onHold: () -> Unit = {},
     // --- Conference calling (add person / merge / swap / manage) ---
     canAddCall: Boolean = false,
     onAddCall: (String) -> Unit = {},
@@ -374,122 +378,45 @@ fun InCallScreen(
                     }
                 }
 
-                // Caller Avatar (shows contact photo if available)
-                Surface(
-                    modifier = Modifier
-                        .size(112.dp)
-                        .testTag("in_call_avatar"),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                    shadowElevation = 4.dp
-                ) {
-                    if (!callInfo.photoUri.isNullOrBlank()) {
-                        coil.compose.AsyncImage(
-                            model = callInfo.photoUri,
-                            contentDescription = "Caller Photo",
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Box(contentAlignment = Alignment.Center) {
-                            if (isVoicemail) {
-                                Icon(
-                                    imageVector = Icons.Default.Voicemail,
-                                    contentDescription = "Voicemail",
-                                    modifier = Modifier.size(56.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            } else if (isConference) {
-                                Icon(
-                                    imageVector = Icons.Filled.Group,
-                                    contentDescription = "Conference call",
-                                    modifier = Modifier.size(56.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            } else if (callInfo.displayName.isNotBlank() && callInfo.displayName != "Incoming Caller" && callInfo.displayName != "Calling...") {
-                                val primaryInitial = (callInfo.nickname?.ifBlank { null } ?: callInfo.displayName).take(1).uppercase()
-                                Text(
-                                    text = primaryInitial,
-                                    style = MaterialTheme.typography.displaySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Caller",
-                                    modifier = Modifier.size(64.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                // Caller Hero Card — full-width photo or gradient monogram
+                // For conferences with ≤3 participants, show split view instead.
+                if (isConference && conferenceParticipants.isNotEmpty()) {
+                    ConferenceSplitView(
+                        participants = conferenceParticipants,
+                        onEndParticipant = onEndParticipant,
+                        onSplitParticipant = { id ->
+                            showManageConferenceDialog = false
+                            onSplitParticipant(id)
                         }
+                    )
+                } else {
+                    // Resolve audio route name for hero card badge
+                    val heroAudioLabel = when (audioRoute) {
+                        CallAudioState.ROUTE_BLUETOOTH -> bluetoothDeviceName
+                        CallAudioState.ROUTE_SPEAKER -> "Speaker"
+                        else -> null
                     }
+
+                    CallerHeroCard(
+                        callInfo = callInfo,
+                        isConference = isConference,
+                        isVoicemail = isVoicemail,
+                        conferenceParticipantNames = conferenceParticipants.mapNotNull {
+                            it.displayName.takeIf { d -> d.isNotBlank() && d != "Unknown" }
+                        },
+                        audioRouteName = heroAudioLabel,
+                        audioRoute = audioRoute
+                    )
                 }
 
-                // Caller Name, Nickname, Label & Number
+                // Badges row: SIM, Trust, Call Reason, Community ID
+                // These are compact chips below the hero card.
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val formalName = callInfo.displayName
-                    val nickname = callInfo.nickname?.ifBlank { null }
-                    val primaryNameToDisplay = if (isConference) "Conference" else nickname ?: formalName
-                    Text(
-                        text = primaryNameToDisplay,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
-                    )
-
-                    // If nickname is primary, display the formal full name below
-                    if (!isConference && nickname != null && formalName.isNotBlank() && !nickname.equals(formalName, ignoreCase = true) && formalName != callInfo.phoneNumber && formalName != "Incoming Caller") {
-                        Text(
-                            text = formalName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    // Label and Number — a conference shows the participant count, or the
-                    // participant names when there are just one or two of them.
-                    val numberSubtitle = if (isConference) {
-                        val n = conferenceParticipants.size
-                        val named = conferenceParticipants.mapNotNull {
-                            it.displayName.takeIf { d -> d.isNotBlank() && d != "Unknown" }
-                        }
-                        if (named.size == n && n in 1..2) named.joinToString("\n")
-                        else if (named.isNotEmpty() && n in 1..4) named.joinToString("\n")
-                        else if (n > 0) "$n ${if (n == 1) "person" else "people"}"
-                        else ""
-                    } else buildString {
-                        if (!callInfo.numberLabel.isNullOrBlank()) {
-                            append(callInfo.numberLabel)
-                            if (callInfo.phoneNumber.isNotBlank()) {
-                                append(" • ")
-                            }
-                        }
-                        if (callInfo.phoneNumber.isNotBlank()) {
-                            append(callInfo.phoneNumber)
-                        }
-                    }
-
-                    if (numberSubtitle.isNotBlank()) {
-                        Text(
-                            text = numberSubtitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    // SIM badge is hidden during a conference: every participant is
-                    // already connected, so per-call routing info no longer applies.
+                    // SIM badge (hidden during conference)
                     if (!isConference) {
-                        // SIM & Roaming Indicator Badge
                         val simLabel = if (!callInfo.simDisplayName.isNullOrBlank()) {
                             callInfo.simDisplayName
                         } else {
@@ -497,7 +424,6 @@ fun InCallScreen(
                         }
 
                         if (callInfo.isRoaming) {
-                            Spacer(modifier = Modifier.height(4.dp))
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
                                 color = Color(0xFFFEF3C7),
@@ -524,7 +450,6 @@ fun InCallScreen(
                                 }
                             }
                         } else {
-                            Spacer(modifier = Modifier.height(4.dp))
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
@@ -550,10 +475,9 @@ fun InCallScreen(
                                 }
                             }
                         }
-
                     }
 
-                    // Trust Badge (Verified Business, Priority Logistics, Spam Risk)
+                    // Trust Badge
                     if (callInfo.trustTier != com.example.domain.usecase.TrustTier.NEUTRAL_UNKNOWN || !callInfo.trustBadgeLabel.isNullOrBlank()) {
                         com.example.ui.components.TrustBadge(
                             tier = callInfo.trustTier,
@@ -562,9 +486,8 @@ fun InCallScreen(
                         )
                     }
 
-                    // Contextual Caller ID ("Call Reason")
+                    // Call Reason
                     if (!callInfo.callReason.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(6.dp))
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = MaterialTheme.colorScheme.secondaryContainer,
@@ -591,9 +514,8 @@ fun InCallScreen(
                         }
                     }
 
-                    // Live Community Caller ID Info
+                    // Community Caller ID
                     callInfo.communityInfo?.let { comm ->
-                        Spacer(modifier = Modifier.height(6.dp))
                         val isSpam = comm.spamScore > 50
                         Surface(
                             shape = RoundedCornerShape(20.dp),
@@ -1195,98 +1117,64 @@ fun InCallScreen(
                         }
                     }
                 } else {
-                    // Active or Outgoing Call:
-                    // 1. Controls Row: Add call / Merge / Swap / Manage (conference) + Mute, Keypad
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 32.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                    // Active or Outgoing Call: Bento Grid Controls + Audio Routes + End
+                    val hasMultipleAudioRoutes = availableBluetoothDevices.isNotEmpty() ||
+                        (supportedAudioRoutes and (CallAudioState.ROUTE_BLUETOOTH or CallAudioState.ROUTE_WIRED_HEADSET)) != 0
+
+                    BentoCallControlGrid(
+                        isMuted = isMuted,
+                        isSpeakerOn = isSpeakerOn,
+                        showKeypad = showKeypad,
+                        audioRoute = audioRoute,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        canAddCall = canAddCall,
+                        canMergeCalls = canMergeCalls,
+                        canSwapCalls = canSwapCalls,
+                        isConference = isConference,
+                        isOnHold = callInfo.state == Call.STATE_HOLDING,
+                        hasMultipleAudioRoutes = hasMultipleAudioRoutes,
+                        onToggleMute = onToggleMute,
+                        onToggleSpeaker = onToggleSpeaker,
+                        onToggleKeypad = onToggleKeypad,
+                        onHold = onHold,
+                        onShowAudioRoutes = { showAudioRouteSelector = !showAudioRouteSelector },
+                        onAddCall = { showAddCallDialog = true },
+                        onMergeCalls = onMergeCalls,
+                        onSwapCalls = onSwapCalls,
+                        onManageConference = { showManageConferenceDialog = true }
+                    )
+
+                    // Audio Routes Popup (shown via long-press on Speaker in bento grid)
+                    AnimatedVisibility(
+                        visible = showAudioRouteSelector,
+                        enter = fadeIn() + slideInVertically { it / 2 },
+                        exit = fadeOut() + slideOutVertically { it / 2 }
                     ) {
-                        // Add call — dial a second person (framework holds the current call)
-                        if (canAddCall) {
-                            InCallControlButton(
-                                icon = Icons.Default.PersonAdd,
-                                label = "Add call",
-                                isActive = false,
-                                onClick = { showAddCallDialog = true },
-                                testTag = "incall_add_call_button"
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            ExplicitAudioRoutesBar(
+                                currentRoute = audioRoute,
+                                supportedRoutes = supportedAudioRoutes,
+                                bluetoothDeviceName = bluetoothDeviceName,
+                                availableBluetoothDevices = availableBluetoothDevices,
+                                activeBluetoothDeviceAddress = activeBluetoothDeviceAddress,
+                                onSelectRoute = { route ->
+                                    onSelectAudioRoute(route)
+                                    showAudioRouteSelector = false
+                                },
+                                onSelectBluetoothDevice = { address ->
+                                    onSelectBluetoothDevice(address)
+                                    showAudioRouteSelector = false
+                                }
                             )
                         }
-
-                        // Merge — combine the held call into this one
-                        if (canMergeCalls) {
-                            InCallControlButton(
-                                icon = Icons.Filled.CallMerge,
-                                label = "Merge",
-                                isActive = false,
-                                onClick = onMergeCalls,
-                                testTag = "incall_merge_button"
-                            )
-                        }
-
-                        // Swap — switch between the active and held call without merging
-                        if (canSwapCalls) {
-                            InCallControlButton(
-                                icon = Icons.Filled.SwapCalls,
-                                label = "Swap",
-                                isActive = false,
-                                onClick = onSwapCalls,
-                                testTag = "incall_swap_button"
-                            )
-                        }
-
-                        // Manage — conference participant list (end / private per person)
-                        if (isConference) {
-                            InCallControlButton(
-                                icon = Icons.Default.People,
-                                label = "Manage",
-                                isActive = false,
-                                onClick = { showManageConferenceDialog = true },
-                                testTag = "incall_manage_conference_button"
-                            )
-                        }
-
-                        // Mute
-                        InCallControlButton(
-                            icon = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                            label = if (isMuted) "Unmute" else "Mute",
-                            isActive = isMuted,
-                            onClick = onToggleMute,
-                            testTag = "incall_mute_button"
-                        )
-
-                        // Keypad
-                        InCallControlButton(
-                            icon = Icons.Default.Dialpad,
-                            label = if (showKeypad) "Hide Keypad" else "Keypad",
-                            isActive = showKeypad,
-                            onClick = onToggleKeypad,
-                            testTag = "incall_keypad_button"
-                        )
                     }
 
-                    // 2. Explicit Audio Routes Bar (Direct one-tap switching)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        ExplicitAudioRoutesBar(
-                            currentRoute = audioRoute,
-                            supportedRoutes = supportedAudioRoutes,
-                            bluetoothDeviceName = bluetoothDeviceName,
-                            availableBluetoothDevices = availableBluetoothDevices,
-                            activeBluetoothDeviceAddress = activeBluetoothDeviceAddress,
-                            onSelectRoute = onSelectAudioRoute,
-                            onSelectBluetoothDevice = onSelectBluetoothDevice
-                        )
-                    }
-
-                    // 3. End Call Button (Red)
+                    // End Call Button (Red)
                     FilledIconButton(
                         onClick = onDisconnect,
                         modifier = Modifier

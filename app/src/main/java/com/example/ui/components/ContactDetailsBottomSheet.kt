@@ -59,6 +59,8 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Voicemail
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -66,6 +68,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -749,39 +753,28 @@ fun ContactDetailsBottomSheet(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // 1. Star / Default Number toggle button
-                                    IconButton(
-                                        onClick = {
-                                            if (isDefaultNumber) {
-                                                currentDefaultNumber = ""
-                                                onClearDefaultNumber()
-                                                Toast.makeText(context, "Default number cleared", Toast.LENGTH_SHORT).show()
-                                            } else {
+                                    // 1. Default Number marker checkbox
+                                    Checkbox(
+                                        checked = isDefaultNumber,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
                                                 currentDefaultNumber = pn.number
                                                 onSetAsDefaultNumber(pn.number, pn.label)
-                                                Toast.makeText(context, "★ Set as default: ${pn.number}", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "Set as default dialing number: ${pn.number}", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                currentDefaultNumber = ""
+                                                onClearDefaultNumber()
+                                                Toast.makeText(context, "Default dialing number cleared", Toast.LENGTH_SHORT).show()
                                             }
                                         },
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = MaterialTheme.colorScheme.primary,
+                                            uncheckedColor = MaterialTheme.colorScheme.outline
+                                        ),
                                         modifier = Modifier
-                                            .size(36.dp)
-                                            .testTag("star_toggle_${pn.number}")
-                                    ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (isDefaultNumber) Color(0xFFF59E0B).copy(alpha = 0.15f) else containerBg,
-                                            border = if (isDefaultNumber) BorderStroke(1.5.dp, Color(0xFFF59E0B)) else containerBorder,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = if (isDefaultNumber) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                                    contentDescription = if (isDefaultNumber) "Default number (Tap to clear)" else "Set as default number",
-                                                    tint = if (isDefaultNumber) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    }
+                                            .size(24.dp)
+                                            .testTag("default_number_toggle_${pn.number}")
+                                    )
 
                                     // 2. Consolidated Message Button (SMS, WhatsApp chat, or Google Voice based on channel)
                                     val isWaBiz = effectiveChannelId == "whatsapp_business"

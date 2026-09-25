@@ -186,10 +186,10 @@ fun CallLogItem(
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
-                        } else if (!nameToUse.isNullOrBlank()) {
+                        } else if (!nameToUse.isNullOrBlank() && nameToUse.any { it.isLetter() }) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = nameToUse.take(1).uppercase(),
+                                    text = nameToUse.filter { it.isLetter() }.take(1).uppercase(),
                                     fontWeight = FontWeight.Bold,
                                     color = if (isGoogleVoice) gvColor else if (isWhatsApp) Color(0xFF15803D) else typeColor,
                                     fontSize = 16.sp

@@ -16,7 +16,9 @@ import com.example.data.RecentCall
 import com.example.data.SpamNumber
 import com.example.data.NumberChannelPreference
 import com.example.data.ChannelConfig
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -43,9 +45,23 @@ data class BackupRestoreResult(
 
 object BackupManager {
 
+    private val backupMutex = Mutex()
+
+    fun markBackupDirty(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("auto_backup_dirty", true).apply()
+        } catch (_: Exception) {}
+    }
+
     fun generateBackupFileName(): String {
         val formatter = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
         return "omnidial_backup_${formatter.format(Date())}.bak"
+    }
+
+    fun generateAutoBackupFileName(): String {
+        val formatter = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
+        return "omnidial_auto_${formatter.format(Date())}.bak"
     }
 
     suspend fun createBackupJson(context: Context): String = withContext(Dispatchers.IO) {
@@ -827,10 +843,10 @@ object BackupManager {
         return dir
     }
 
-    suspend fun saveLocalBackup(context: Context): Boolean = withContext(Dispatchers.IO) {
+    suspend fun saveLocalBackup(context: Context, isAutoBackup: Boolean = false): Boolean = withContext(Dispatchers.IO) {
         try {
             val json = createBackupJson(context)
-            val fileName = generateBackupFileName()
+            val fileName = if (isAutoBackup) generateAutoBackupFileName() else generateBackupFileName()
             
             // 1. Save to private internal storage
             val internalDir = getLocalBackupsDir(context)
@@ -895,10 +911,135 @@ object BackupManager {
                 // Public storage persistence is best-effort fallback
             }
 
+            // Clear dirty flag and record timestamp
+            try {
+                val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+                val editor = prefs.edit().putBoolean("auto_backup_dirty", false)
+                if (isAutoBackup) {
+                    editor.putLong("last_auto_backup_timestamp", System.currentTimeMillis())
+                }
+                editor.apply()
+            } catch (_: Exception) {}
+
+            if (isAutoBackup) {
+                rotateAutoBackups(context, keepCount = 5)
+            }
+
             true
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    private fun rotateAutoBackups(context: Context, keepCount: Int = 5) {
+        try {
+            val internalDir = getLocalBackupsDir(context)
+            val autoFiles = internalDir.listFiles { f ->
+                f.isFile && f.name.startsWith("omnidial_auto_") && f.name.endsWith(".bak")
+            } ?: emptyArray()
+
+            if (autoFiles.size > keepCount) {
+                val sorted = autoFiles.sortedByDescending { it.lastModified() }
+                for (oldFile in sorted.drop(keepCount)) {
+                    val key = getBackupKey(oldFile.name)
+                    oldFile.delete()
+                    getExternalBackupsDir(context)?.let { ext ->
+                        File(ext, oldFile.name).takeIf { it.exists() }?.delete()
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && key.isNotEmpty()) {
+                        try {
+                            val resolver = context.contentResolver
+                            resolver.delete(
+                                MediaStore.Files.getContentUri("external"),
+                                "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                                arrayOf(oldFile.name)
+                            )
+                            resolver.delete(
+                                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                "${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+                                arrayOf(oldFile.name)
+                            )
+                        } catch (_: Throwable) {}
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("BackupManager", "Error rotating auto backups", e)
+        }
+    }
+
+    suspend fun checkAndRunAutoBackup(context: Context): Boolean = withContext(Dispatchers.IO) {
+        if (!backupMutex.tryLock()) return@withContext false
+        try {
+            val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+            val isEnabled = prefs.getBoolean("auto_backup_enabled", true)
+            val isDirty = prefs.getBoolean("auto_backup_dirty", false)
+            val lastTime = prefs.getLong("last_auto_backup_timestamp", 0L)
+            val now = System.currentTimeMillis()
+            val sixHoursMs = 6L * 60L * 60L * 1000L
+
+            if (!isEnabled || !isDirty || (now - lastTime < sixHoursMs)) {
+                return@withContext false
+            }
+
+            // Database emptiness check: never back up an empty DB over real backups
+            val db = AppDatabase.getInstance(context)
+            val dao = db.appDao()
+            val rulesCount = dao.getAllRulesList().size
+            val favsCount = dao.getAllFavoritesList().size
+            val recentsCount = dao.getAllRecentCallsList().size
+            if (rulesCount == 0 && favsCount == 0 && recentsCount == 0) {
+                return@withContext false
+            }
+
+            val success = saveLocalBackup(context, isAutoBackup = true)
+            if (success) {
+                Log.d("BackupManager", "Automatic backup completed successfully at $now")
+            }
+            success
+        } catch (e: Exception) {
+            Log.e("BackupManager", "Auto backup check failed", e)
+            false
+        } finally {
+            backupMutex.unlock()
+        }
+    }
+
+    suspend fun findEligibleRestoreBackup(context: Context): File? = withContext(Dispatchers.IO) {
+        try {
+            val db = AppDatabase.getInstance(context)
+            val dao = db.appDao()
+            // ALL must hold: zero favorites AND zero recents AND zero rules
+            if (dao.getAllFavoritesList().isNotEmpty() ||
+                dao.getAllRecentCallsList().isNotEmpty() ||
+                dao.getAllRulesList().isNotEmpty()
+            ) {
+                return@withContext null
+            }
+            val prefs = context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+            val dismissedKey = prefs.getString("restore_prompt_dismissed_for", "") ?: ""
+
+            val backups = listLocalBackups(context)
+            for (file in backups) {
+                val key = getBackupKey(file.name)
+                if (key.isNotEmpty() && key == dismissedKey) {
+                    break
+                }
+                // Check if file is non-empty and valid json
+                try {
+                    val text = file.readText().trim().removePrefix("\uFEFF")
+                    if (text.isNotBlank()) {
+                        val root = JSONObject(text)
+                        if (root.has("appName") || root.has("version")) {
+                            return@withContext file
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            null
+        } catch (e: Exception) {
+            null
         }
     }
 

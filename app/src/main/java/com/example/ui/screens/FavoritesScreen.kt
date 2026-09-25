@@ -191,6 +191,9 @@ fun FavoritesScreen(
     onCallNumberDirect: ((String, Int?) -> Unit)? = null,
     onCallGoogleVoice: ((String) -> Unit)? = null,
     dismissModalsTrigger: Long = 0L,
+    pendingRestoreBackup: java.io.File? = null,
+    onRestoreBackup: () -> Unit = {},
+    onDismissRestorePrompt: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -220,17 +223,21 @@ fun FavoritesScreen(
     var nicknameDialogText by remember { mutableStateOf("") }
     val effectiveDeviceContacts = deviceContacts
     var multiNumberContactToCall by remember { mutableStateOf<DeviceContact?>(null) }
+    var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
 
     BackHandler(
         enabled = searchQuery.isNotBlank() || 
                   isSearchActive || 
                   isConfigureMode || 
+                  contactDetailsTarget != null ||
                   nicknameDialogTarget != null || 
                   pendingCallConfirmation != null || 
                   pendingUnknownCallTarget != null || 
                   multiNumberContactToCall != null
     ) {
-        if (nicknameDialogTarget != null) {
+        if (contactDetailsTarget != null) {
+            contactDetailsTarget = null
+        } else if (nicknameDialogTarget != null) {
             nicknameDialogTarget = null
         } else if (pendingCallConfirmation != null) {
             pendingCallConfirmation = null
@@ -248,7 +255,6 @@ fun FavoritesScreen(
     }
 
     var favoriteContactToCall by remember { mutableStateOf<FavoriteContact?>(null) }
-    var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
 
     LaunchedEffect(dismissModalsTrigger) {
         if (dismissModalsTrigger > 0L) {
@@ -526,6 +532,15 @@ fun FavoritesScreen(
             }
         }
 
+        // Fresh-Install Restore Prompt Banner
+        pendingRestoreBackup?.let { backupFile ->
+            com.example.ui.components.FreshInstallRestoreBanner(
+                backupFile = backupFile,
+                onRestore = onRestoreBackup,
+                onDismiss = onDismissRestorePrompt
+            )
+        }
+
         if (searchQuery.isNotBlank()) {
             // Precomputed lookups for performance optimization in Favorites list search
             val fastFavoritesLast10DigitsMap = remember(favorites) {
@@ -609,7 +624,12 @@ fun FavoritesScreen(
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                contactDetailsTarget = Pair(contact, favContactForThis)
+                                            }
                                     ) {
                                         Surface(
                                             shape = CircleShape,
@@ -715,7 +735,12 @@ fun FavoritesScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable { onCallNumber(pn.number) }
+                                        ) {
                                             Text(
                                                 text = pn.label,
                                                 style = MaterialTheme.typography.labelSmall,
@@ -729,49 +754,71 @@ fun FavoritesScreen(
                                             )
                                         }
 
-                                        if (isThisNumberDefault) {
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = Color(0xFFF59E0B),
-                                                contentColor = Color.White
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            FilledIconButton(
+                                                onClick = { onCallNumber(pn.number) },
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .testTag("fav_search_call_${pn.number}"),
+                                                colors = IconButtonDefaults.filledIconButtonColors(
+                                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
                                             ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                Icon(
+                                                    imageVector = Icons.Default.Call,
+                                                    contentDescription = "Call ${pn.number}",
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+
+                                            if (isThisNumberDefault) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Color(0xFFF59E0B),
+                                                    contentColor = Color.White
                                                 ) {
-                                                    Icon(imageVector = Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                                    Text("Default", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                                }
-                                            }
-                                        } else if (isFav) {
-                                            OutlinedButton(
-                                                onClick = {
-                                                    onUpdateFavoriteNumber(favContactForThis!!, pn.number, pn.label)
-                                                },
-                                                modifier = Modifier.height(32.dp),
-                                                contentPadding = PaddingValues(horizontal = 8.dp)
-                                            ) {
-                                                Icon(imageVector = Icons.Default.StarBorder, contentDescription = null, modifier = Modifier.size(14.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Set Default", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        } else {
-                                            Button(
-                                                onClick = {
-                                                    if (effectiveNickname.isNullOrBlank()) {
-                                                        nicknameDialogTarget = Pair(contact, pn.number)
-                                                        nicknameDialogText = ""
-                                                    } else {
-                                                        onAddFavorite(contact.name, pn.number, pn.label, contact.photoUri, effectiveNickname)
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Icon(imageVector = Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                                                        Text("Default", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                                     }
-                                                },
-                                                modifier = Modifier.height(32.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp)
-                                            ) {
-                                                Icon(imageVector = Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFF59E0B))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Add ★", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            } else if (isFav) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        onUpdateFavoriteNumber(favContactForThis!!, pn.number, pn.label)
+                                                    },
+                                                    modifier = Modifier.height(32.dp),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                                ) {
+                                                    Icon(imageVector = Icons.Default.StarBorder, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Set Default", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                                }
+                                            } else {
+                                                Button(
+                                                    onClick = {
+                                                        if (effectiveNickname.isNullOrBlank()) {
+                                                            nicknameDialogTarget = Pair(contact, pn.number)
+                                                            nicknameDialogText = ""
+                                                        } else {
+                                                            onAddFavorite(contact.name, pn.number, pn.label, contact.photoUri, effectiveNickname)
+                                                        }
+                                                    },
+                                                    modifier = Modifier.height(32.dp),
+                                                    contentPadding = PaddingValues(horizontal = 10.dp)
+                                                ) {
+                                                    Icon(imageVector = Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFF59E0B))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Add ★", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
                                             }
                                         }
                                     }
@@ -1615,6 +1662,87 @@ fun FavoritesScreen(
                 pendingUnknownCallTarget = null
             },
             onDismiss = { pendingUnknownCallTarget = null }
+        )
+    }
+
+    contactDetailsTarget?.let { (detailContact, matchedFav) ->
+        ContactDetailsBottomSheet(
+            contact = detailContact,
+            favoriteContact = matchedFav,
+            isFavorite = (matchedFav != null),
+            whatsAppCallMode = whatsAppCallMode,
+            onCallNumberDirect = { num, slot ->
+                if (onCallNumberDirect != null) {
+                    onCallNumberDirect(num, slot)
+                } else {
+                    onCallNumber(num)
+                }
+                contactDetailsTarget = null
+            },
+            onCallNumber = { num ->
+                onCallNumber(num)
+                contactDetailsTarget = null
+            },
+            onSelectInDialer = { num ->
+                onSelectNumber(num)
+                contactDetailsTarget = null
+            },
+            onToggleFavorite = {
+                if (matchedFav != null) {
+                    onDeleteFavorite(matchedFav)
+                } else {
+                    val defNum = detailContact.phoneNumber.ifBlank { detailContact.phoneNumbers.firstOrNull()?.number ?: "" }
+                    val defLabel = detailContact.label.ifBlank { detailContact.phoneNumbers.firstOrNull()?.label ?: "Mobile" }
+                    onAddFavorite(detailContact.name, defNum, defLabel, detailContact.photoUri, detailContact.nickname)
+                }
+            },
+            onSetAsDefaultNumber = { num, label ->
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(detailContact, num, label)
+                } else {
+                    if (matchedFav != null) {
+                        onUpdateFavoriteNumber(matchedFav, num, label)
+                    }
+                    onUpdateContact(detailContact.phoneNumber, detailContact.name, num, label, detailContact.nickname)
+                }
+                contactDetailsTarget = Pair(detailContact.copy(phoneNumber = num, label = label), matchedFav)
+            },
+            onClearDefaultNumber = {
+                val firstNum = detailContact.phoneNumbers.firstOrNull()?.number ?: detailContact.phoneNumber
+                val firstLabel = detailContact.phoneNumbers.firstOrNull()?.label ?: detailContact.label
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(detailContact, firstNum, firstLabel)
+                } else {
+                    onUpdateContact(detailContact.phoneNumber, detailContact.name, firstNum, firstLabel, detailContact.nickname)
+                }
+                contactDetailsTarget = Pair(detailContact.copy(phoneNumber = firstNum, label = firstLabel), matchedFav)
+            },
+            onCreateRule = { num ->
+                onCreateRule(num)
+                contactDetailsTarget = null
+            },
+            onAddNewContact = { name, number, label, saveToDevice, addToFav ->
+                val dest = if (saveToDevice) ContactSaveDestination.PHONE_CONTACTS else ContactSaveDestination.APP_ONLY
+                onAddNewContact(name, number, label, dest, addToFav)
+                contactDetailsTarget = null
+            },
+            onDeleteContact = { contactToDelete ->
+                onDeleteContact(contactToDelete)
+                contactDetailsTarget = null
+            },
+            getPreferredCallingMode = getPreferredCallingMode,
+            onSaveLearnedCallMode = onSaveLearnedCallMode,
+            activeSims = activeSims,
+            getPreferredSimSlot = getPreferredSimSlot,
+            onSetPreferredSimSlot = onSetPreferredSimSlot,
+            globalSimPreferenceMode = globalSimPreferenceMode,
+            onEditContact = { name, number, label, nickname ->
+                onUpdateContact(detailContact.phoneNumber, name, number, label, nickname)
+                contactDetailsTarget = null
+            },
+            onDismiss = {
+                contactDetailsTarget = null
+            }
         )
     }
 }

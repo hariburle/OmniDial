@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.1.0` | `22` | Sep 2026 | In-call Bento Card UI overhaul, dynamic audio route picker, split conference participants view, fresh-install auto-restore, and dialer avatar/name contact details card. |
 | `2.0.2` | `21` | Sep 2026 | Multi-call & conference calling, floating call pill auto-dismiss, just-in-time permission reminders, and settings permissions hub. |
 | `2.0.1` | `20` | Sep 2026 | Caller ID & spam default app, honest spam badges, setup wizard, and call redirection recovery. |
 | `2.0.0` | `19` | Sep 2026 | Multi-channel calling engine, dynamic keypad channel dock, unified call choice dialogs, blazing fast search, and transactional backups. |
@@ -32,7 +33,22 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 2.0.2 (Latest) — Multi-Call & Conference Calling, Call Pill Auto-Dismiss & Permissions Hub</h3></summary>
+<summary><h3>🚀 Release 2.1.0 (Latest) — In-Call Bento Grid Overhaul, Audio Routing Picker & Dialer Contact Cards</h3></summary>
+
+### What's New & Improvements:
+- **Redesigned In-Call Bento Card Experience**: A gorgeous, ergonomic in-call screen featuring a prominent caller hero card with crisp caller badges, call duration counter, and a tactile 2x3 Bento control grid. Critical actions like Mute, Keypad, Add Call, and Hold are immediately accessible without clutter.
+- **Smart Dynamic Audio Routing**: Switching audio routes is now effortless. In standard phone mode, tap the Speaker card to toggle between earpiece and speakerphone. When Bluetooth headsets, car audio, or hearing aids are connected, the card expands into an "Audio ▾" selector with an intuitive 1-tap route picker popup.
+- **Split Conference Participant Cards**: When merged into a conference call, individual participant cards display with clear connected status badges, allowing you to privately hang up or manage callers without affecting the rest of the conference.
+- **Dialer Contact Cards On Tap**: Touching any contact's profile picture or name directly from the dial-pad suggestion list now opens the full Contact Details sheet, allowing instant favoriting, default number settings, and contact edits without leaving the dialer.
+- **Favorites Search In-Row Calling**: Searching in the Favorites tab now allows calling any of a contact's phone numbers directly with a single tap on the number or call button.
+- **Fresh Install Auto-Restore & Clean Checkbox**: Seamlessly restore your favorite contacts, rules, and settings from a convenient banner right after a fresh install, and enjoy a cleaner, compact checkbox for setting default phone numbers.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 2.0.2 — Multi-Call & Conference Calling, Call Pill Auto-Dismiss & Permissions Hub</h3></summary>
 
 ### What's New & Improvements:
 - **Full Multi-Call & Conference Management**: Seamlessly handle multiple active calls right from the in-call screen. Add incoming or secondary calls, switch between callers with one tap using **Swap**, merge them into a conference with **Merge**, view all connected participants with active/on-hold status, and privately disconnect individual callers or hold the conference.
@@ -296,8 +312,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v2.0.2.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.1.0.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

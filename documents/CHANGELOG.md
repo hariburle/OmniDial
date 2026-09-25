@@ -2,6 +2,25 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v2.1.0] — Build 22 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Redesigned Bento Card In-Call UI**: Replaced legacy button layouts with an ergonomic caller hero card and a tactile 2x3 Bento control grid with Mute, Keypad, Add Call, Hold, and dynamic Audio routing.
+- **Smart Audio Routing & Route Picker**: In standard 2-route mode (earpiece + speaker), the audio card acts as an instant "Speaker" toggle with active status tint. In multi-route mode (Bluetooth headset, car audio, hearing aids), it becomes an "Audio ▾" selector opening a clean 1-tap route picker popup.
+- **Split Conference Participant View**: In conference calls, `ConferenceSplitView` displays separated caller cards with active/on-hold status badges and individual disconnect buttons.
+- **Dialer Suggestion Cards Tap-to-Details**: Touching any contact's profile picture or name in the dial-pad recent calls or T9 search suggestions opens the complete `ContactDetailsBottomSheet` (with quick actions, all numbers, defaults, and favoriting) while tapping the rest of the card still populates the dialer.
+- **Favorites Search In-Row Calling**: Searching in the Favorites tab now features direct in-row phone number calling, a dedicated call icon button, and sheet opening from the contact header.
+- **Fresh Install Auto-Restore & Clean Default Checkbox**: Restoring backups is now prompted via a convenient banner immediately following a fresh install. Default contact numbers in contact cards now use a compact Material 3 checkbox instead of an oversized circular icon button.
+
+### 🔧 Technical / Architecture Notes
+- **Bento Grid Architecture**: Created `CallerHeroCard.kt`, `BentoCallControlGrid.kt`, and `ConferenceSplitView.kt` in `com.example.ui.components` with fluid Material 3 layout bounds and animated active states.
+- **Audio Route Detection**: Enhanced `CallManager.kt` and `InCallScreen.kt` audio state observation to distinguish 2-way toggle vs multi-route picker based on `CallAudioState.supportedRouteMask`.
+- **Dialer Suggestions Integration**: Added `onOpenContactDetails` callback cascade across `DialerSuggestionsList.kt`, `DialerRecentSuggestionCard`, `DialerMatchSuggestionCard`, and `DialerScreen.kt`, wiring into `ContactDetailsBottomSheet`.
+- **Auto-Backup Test Suite**: Added `AutoBackupTest.kt` verifying periodic automated backup generation and public storage persistence.
+- Incremented `versionCode` to 22 and `versionName` to `"2.1.0"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.0.2] — Build 21 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

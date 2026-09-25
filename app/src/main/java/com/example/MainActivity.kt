@@ -243,6 +243,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         CallManager.isCallUiForegrounded = true
+        viewModel.checkForRestorePrompt()
+        viewModel.triggerAutoBackupIfEligible()
         val currentCall = CallManager.activeCall.value
         if (currentCall != null && currentCall.state != android.telecom.Call.STATE_DISCONNECTED) {
             com.example.telecom.OngoingCallNotificationHelper.showCallNotification(this, currentCall)
@@ -285,6 +287,7 @@ class MainActivity : ComponentActivity() {
         if (active != null && active.state != android.telecom.Call.STATE_DISCONNECTED) {
             com.example.telecom.OngoingCallNotificationHelper.showCallNotification(this, active)
         }
+        viewModel.triggerAutoBackupIfEligible()
     }
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
@@ -513,6 +516,7 @@ fun MainAppContent(
     val swipeToSwitchPanels by viewModel.swipeToSwitchPanels.collectAsStateWithLifecycle()
     val navBarStyle by viewModel.navBarStyle.collectAsStateWithLifecycle()
     val localBackups by viewModel.localBackups.collectAsStateWithLifecycle()
+    val pendingRestoreBackup by viewModel.pendingRestoreBackup.collectAsStateWithLifecycle()
 
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = (if (initialTab in 0..4) initialTab else 0)) { 5 }
@@ -1214,6 +1218,15 @@ fun MainAppContent(
                         recentCalls = recentCalls,
                         ignoredContacts = ignoredContacts,
                         confirmFavoritesCall = confirmFavoritesCall,
+                        pendingRestoreBackup = pendingRestoreBackup,
+                        onRestoreBackup = {
+                            viewModel.restoreEligibleBackup { result ->
+                                android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        onDismissRestorePrompt = {
+                            viewModel.dismissRestorePrompt()
+                        },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },
                         learnedCallModes = learnedCallModes,
@@ -1401,7 +1414,14 @@ fun MainAppContent(
                         showDialerQuickActions = showDialerQuickActions,
                         deviceContacts = deviceContacts,
                         precomputedSearchContacts = searchContacts,
-                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) }
+                        onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
+                        onDeleteContact = { viewModel.deleteContact(it) },
+                        onUpdateContact = { oldPhone, newName, newPhone, newLabel, nickname ->
+                            viewModel.updateContact(oldPhone, newName, newPhone, newLabel, nickname)
+                        },
+                        onUpdateFavoriteNumber = { contact, newNum, newLabel ->
+                            viewModel.updateFavoritePhoneNumber(contact, newNum, newLabel)
+                        }
                     )
                     3 -> ContactsScreen(
                         favorites = favorites,
@@ -1626,6 +1646,7 @@ fun MainAppContent(
                     onClosePostCall = { viewModel.dismissCall() },
                     callAnswerStyle = callAnswerStyle,
                     heldCalls = extraCallInfos,
+                    onHold = { viewModel.toggleHold() },
                     canAddCall = canAddCall,
                     onAddCall = { number -> viewModel.placeConferenceCall(context, number) },
                     canMergeCalls = canMergeCalls,

@@ -123,6 +123,7 @@ import com.example.ui.components.AddFavoriteDialog
 import com.example.ui.components.ContactSaveDestination
 import com.example.ui.components.CreateContactDialog
 import com.example.ui.components.ContactPickerDialog
+import com.example.ui.components.ContactDetailsBottomSheet
 import com.example.ui.components.Keypad
 import com.example.ui.components.MultiNumberCallDialog
 import com.example.ui.components.RoleBanner
@@ -190,6 +191,9 @@ fun DialerScreen(
     whatsAppCallMode: String = "ask_learn",
     onPlaceCallDirect: ((String, Int?) -> Unit)? = null,
     onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
+    onDeleteContact: ((DeviceContact) -> Unit)? = null,
+    onUpdateContact: ((oldPhone: String, newName: String, newPhone: String, newLabel: String, nickname: String?) -> Unit)? = null,
+    onUpdateFavoriteNumber: ((FavoriteContact, String, String) -> Unit)? = null,
     channelPreferenceRepository: ChannelPreferenceRepository = remember(context) { ChannelPreferenceRepository.getInstance(context) },
     channelDiscoveryManager: ChannelDiscoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) },
     modifier: Modifier = Modifier
@@ -249,9 +253,11 @@ fun DialerScreen(
     var multiNumberContactToCall by remember { mutableStateOf<DeviceContact?>(null) }
     var multiNumberSpeedDialSlot by remember { mutableStateOf<Int?>(null) }
     var multiNumberFavoriteTarget by remember { mutableStateOf<FavoriteContact?>(null) }
+    var contactForDetailsSheet by remember { mutableStateOf<DeviceContact?>(null) }
 
     BackHandler(
-        enabled = number.isNotBlank() ||
+        enabled = contactForDetailsSheet != null ||
+                  number.isNotBlank() ||
                   assignSpeedDialSlotTarget != null ||
                   promptAssignSlotTarget != null ||
                   speedDialActionSlotTarget != null ||
@@ -262,7 +268,9 @@ fun DialerScreen(
                   showCallReasonMenu ||
                   showChannelPickerSheet
     ) {
-        if (showChannelPickerSheet) {
+        if (contactForDetailsSheet != null) {
+            contactForDetailsSheet = null
+        } else if (showChannelPickerSheet) {
             showChannelPickerSheet = false
         } else if (assignSpeedDialSlotTarget != null) {
             assignSpeedDialSlotTarget = null
@@ -444,6 +452,9 @@ fun DialerScreen(
                     selectionState = TextRange(chosenNum.length)
                     userSelectedChannel = null
                     onSelectContactNumber(chosenNum)
+                },
+                onOpenContactDetails = { contact ->
+                    contactForDetailsSheet = contact
                 },
                 contacts = allSearchContacts,
                 modifier = Modifier.fillMaxSize()
@@ -1490,6 +1501,103 @@ fun DialerScreen(
                 }
             },
             onDismiss = { showChannelPickerSheet = false }
+        )
+    }
+
+    if (contactForDetailsSheet != null) {
+        val detailContact = contactForDetailsSheet!!
+        val matchedFav = remember(detailContact, favorites) {
+            val favDigits = detailContact.phoneNumber.filter { c -> c.isDigit() }.takeLast(10)
+            favorites.firstOrNull { fav ->
+                val phoneMatch = if (favDigits.isNotBlank()) {
+                    fav.phoneNumber.filter { c -> c.isDigit() }.takeLast(10) == favDigits
+                } else false
+                phoneMatch ||
+                fav.name.equals(detailContact.name.trim(), ignoreCase = true) ||
+                (!detailContact.nickname.isNullOrBlank() && fav.name.equals(detailContact.nickname!!.trim(), ignoreCase = true))
+            }
+        }
+        val isFav = matchedFav != null
+
+        ContactDetailsBottomSheet(
+            contact = detailContact,
+            favoriteContact = matchedFav,
+            isFavorite = isFav,
+            whatsAppCallMode = whatsAppCallMode,
+            onCallNumberDirect = { num, slot ->
+                if (onPlaceCallDirect != null) {
+                    onPlaceCallDirect(num, slot)
+                } else {
+                    onPlaceCall(num, null)
+                }
+                contactForDetailsSheet = null
+            },
+            onCallNumber = { num ->
+                onPlaceCall(num, null)
+                contactForDetailsSheet = null
+            },
+            onSelectInDialer = { num ->
+                localNumber = num
+                selectionState = TextRange(num.length)
+                userSelectedChannel = null
+                onSelectContactNumber(num)
+                contactForDetailsSheet = null
+            },
+            onToggleFavorite = {
+                if (matchedFav != null) {
+                    onDeleteFavorite(matchedFav)
+                } else {
+                    val defNum = detailContact.phoneNumber.ifBlank { detailContact.phoneNumbers.firstOrNull()?.number ?: "" }
+                    val defLabel = detailContact.label.ifBlank { detailContact.phoneNumbers.firstOrNull()?.label ?: "Mobile" }
+                    onAddFavorite(detailContact.name, defNum, defLabel, detailContact.photoUri)
+                }
+            },
+            onSetAsDefaultNumber = { num, label ->
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(detailContact, num, label)
+                }
+                if (matchedFav != null && onUpdateFavoriteNumber != null) {
+                    onUpdateFavoriteNumber(matchedFav, num, label)
+                }
+                contactForDetailsSheet = detailContact.copy(phoneNumber = num, label = label)
+            },
+            onClearDefaultNumber = {
+                val firstNum = detailContact.phoneNumbers.firstOrNull()?.number ?: detailContact.phoneNumber
+                val firstLabel = detailContact.phoneNumbers.firstOrNull()?.label ?: detailContact.label
+                if (onSetDefaultContactNumber != null) {
+                    onSetDefaultContactNumber(detailContact, firstNum, firstLabel)
+                }
+                if (matchedFav != null && onUpdateFavoriteNumber != null) {
+                    onUpdateFavoriteNumber(matchedFav, firstNum, firstLabel)
+                }
+                contactForDetailsSheet = detailContact.copy(phoneNumber = firstNum, label = firstLabel)
+            },
+            onCreateRule = { num ->
+                onCreateRuleForNumber(num)
+                contactForDetailsSheet = null
+            },
+            onAddNewContact = { name, num, label, saveToDevice, addToFav ->
+                val dest = if (saveToDevice) ContactSaveDestination.PHONE_CONTACTS else ContactSaveDestination.APP_ONLY
+                onAddNewContact(name, num, label, dest, addToFav)
+                contactForDetailsSheet = null
+            },
+            onDeleteContact = if (onDeleteContact != null) {
+                { contactToDelete ->
+                    onDeleteContact(contactToDelete)
+                    contactForDetailsSheet = null
+                }
+            } else null,
+            onEditContact = { name, num, label, nickname ->
+                if (onUpdateContact != null) {
+                    onUpdateContact(detailContact.phoneNumber, name, num, label, nickname)
+                }
+                contactForDetailsSheet = null
+            },
+            getPreferredCallingMode = getPreferredCallingMode,
+            activeSims = activeSims,
+            onDismiss = {
+                contactForDetailsSheet = null
+            }
         )
     }
 }
