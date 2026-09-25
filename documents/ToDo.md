@@ -7,6 +7,28 @@
 
 ---
 
+## 🚨 Active work — week of Sep 23, 2026 (pending)
+
+Short-term pending items. Full conference history: [`documents/conference-work-log.md`](conference-work-log.md).
+
+### Conference calling (in progress — 6 patches so far, merge works)
+- [ ] Collapse-pending patch (to write): retain pre-merge identity in `onCallRemoved` (first of two merged participants still unlabeled); keep a still-ACTIVE empty conference shell primary, remember the detached survivor, promote the survivor only if the shell itself dies, End disconnects both legs (dropping one participant falsely showed "call ended" while the other phone had live two-way audio — dangerous).
+- [ ] Build (`.\gradlew.bat installRelease`) + device test: merge → both names in Manage, header names + group icon; drop one participant → survivor continues with their name; End → all legs die (verify on the other phone).
+- [ ] If anything misbehaves: `adb logcat -s OmniConf:D` from before Merge through 15s after the failure.
+
+### Awaiting build / device test
+- [ ] `omnidial-reminder-expiry-fix.patch` — firing a reminder clears only the time, keeps the note.
+- [ ] `omnidial-channel-routing-fixes.patch` — applied cleanly; build/test unconfirmed.
+- [ ] `omnidial-car-bt-receiver-fix.patch`, `omnidial-unspam-menu-fix.patch`, `omnidial-wifi-ssid-fix.patch` — status unconfirmed.
+
+### Not started
+- [ ] Quiet throttled automatic backup (spec approved 2026-09-23; explicit one-tap restore; no silent restore).
+- [ ] Default-number redesign (per-number star = radio for "default number", never touches favorites; persist for non-favorites).
+- [ ] Annotated-call-log-only backups.
+- [ ] Task 14.3 generic calling-channel registry; Phase 15 rule sets (designs delivered, not implemented).
+
+---
+
 ## 🎯 Active Strategic Roadmap (Reordered: Patches → Minor → Major)
 
 ### 🛠️ Phase 8 (Patch Release — v1.1.3): Architecture Modernization & Sensory Haptics

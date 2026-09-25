@@ -1,6 +1,6 @@
 # OmniDial — Architecture & System Design Document
 
-> **Current Version**: v2.0.1 (Build 20) — September 2026
+> **Current Version**: v2.0.2 (Build 21) — September 2026
 
 This document serves as the primary technical specification and maintenance guide for **OmniDial**. It documents the system architecture, component contracts, data persistence models, telephony integrations, build pipelines, and maintenance runbooks.
 
@@ -22,8 +22,11 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 9. **Post-Call Quick Actions & Reminders**: 4-second bottom sheet with Save Contact, Block Spam, WhatsApp Message, and AlarmManager-backed Set Reminder.
 10. **In-Call Telecom Experience**: Custom full-screen in-call interface with SIM name chip, roaming amber badge, mute, hold, DTMF, speaker/Bluetooth routing, ambient lift & touch ring silencing, and flip-to-silence.
 11. **Partitioned Filter Contact Discovery**: Real-time two-pass search displaying qualifying filter matches at the top and partitioning non-qualifying matches into a dedicated "Other Matches Outside Filter" section with direct action sheets.
+12. **Multi-Channel UX & Communication Hub Design**: Cognitive-overload-free paradigm for Cellular (SIM 1/2), WhatsApp, messaging, and video routing.
 13. **Caller ID & Spam Default**: `OmniCallScreeningService` silences and logs spam-list calls (never silently drops) with an optional auto-block switch; `CallDropAttribution` keeps Recents badges honest; unified spam policy defers to screening while the role is held.
-12. **Multi-Channel UX & Communication Hub Design**: Cognitive-overload-free paradigm for Cellular (SIM 1/2), WhatsApp, messaging, and video routing (see [MULTI_CHANNEL_UX_DESIGN_THINKING.md](file:///d:/Try/Git-Repos/Kishan-Dialer/documents/MULTI_CHANNEL_UX_DESIGN_THINKING.md) and [MULTI_CHANNEL_CALLING_BLUEPRINT.md](file:///d:/Try/Git-Repos/Kishan-Dialer/documents/MULTI_CHANNEL_CALLING_BLUEPRINT.md)).
+14. **Multi-Call & Conference Calling Subsystem**: In-call Swap, Merge, dynamic participant card roster, conference hold/resume, and individual participant disconnection powered by `ConferenceUiGating`.
+15. **Floating Call Pill & PiP Auto-Dismiss**: Lifecycle synchronization ensuring floating ongoing call pills and Picture-in-Picture windows automatically teardown cleanly upon call disconnect.
+16. **Just-In-Time Reminders & Permissions Hub**: Contextual inline banners and cards across Contacts, Recents, and Rules alongside a dedicated real-time Permissions Hub card in Settings for all 6 setup wizard options.
 
 ---
 

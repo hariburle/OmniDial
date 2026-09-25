@@ -56,7 +56,25 @@ data class ActiveCallInfo(
     val trustBadgeLabel: String? = null,
     val simSlot: Int = 1,
     val simDisplayName: String? = null,
-    val isRoaming: Boolean = false
+    val isRoaming: Boolean = false,
+    // Conference capabilities, refreshed from Call.Details (kept for diagnostics;
+    // button visibility no longer depends on them — see ConferenceUiGating.kt)
+    val canMergeConference: Boolean = false,
+    val canSwapConference: Boolean = false,
+    val canSeparateFromConference: Boolean = false,
+    val isConference: Boolean = false,
+    // True when this info was built from a real android.telecom.Call (cellular).
+    // Merge/swap are only offered for native calls.
+    val hasNativeCall: Boolean = false
+)
+
+/**
+ * A single participant inside a merged conference call (a child [Call] of the conference).
+ */
+data class ConferenceParticipant(
+    val id: String,
+    val displayName: String,
+    val phoneNumber: String
 )
 
 @Immutable
@@ -88,6 +106,25 @@ data class BluetoothDeviceItem(
  */
 object CallManager {
     private const val TAG = "CallManager"
+    /** Logcat tag for conference diagnostics: filter with `adb logcat -s OmniConf:D`. */
+    private const val CONF_TAG = "OmniConf"
+
+    private fun logConf(msg: String) {
+        Log.d(CONF_TAG, msg)
+    }
+
+    private fun callStateName(state: Int): String = when (state) {
+        Call.STATE_NEW -> "NEW"
+        Call.STATE_CONNECTING -> "CONNECTING"
+        Call.STATE_DIALING -> "DIALING"
+        Call.STATE_RINGING -> "RINGING"
+        Call.STATE_ACTIVE -> "ACTIVE"
+        Call.STATE_HOLDING -> "HOLDING"
+        Call.STATE_DISCONNECTED -> "DISCONNECTED"
+        Call.STATE_DISCONNECTING -> "DISCONNECTING"
+        Call.STATE_SELECT_PHONE_ACCOUNT -> "SELECT_PHONE_ACCOUNT"
+        else -> "UNKNOWN($state)"
+    }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var automationJob: Job? = null
@@ -116,6 +153,58 @@ object CallManager {
     // Call UI State
     private val _activeCall = MutableStateFlow<ActiveCallInfo?>(null)
     val activeCall: StateFlow<ActiveCallInfo?> = _activeCall.asStateFlow()
+
+    /**
+     * Calls other than the primary one (e.g. the first call while a second "add call" is dialed).
+     * Tracked with lightweight callbacks so the primary-call machinery is untouched.
+     */
+    private val extraCalls = LinkedHashMap<Call, ActiveCallInfo>()
+    private val extraCallCallbacks = mutableMapOf<Call, Call.Callback>()
+    private val _extraCallInfos = MutableStateFlow<List<ActiveCallInfo>>(emptyList())
+    val extraCallInfos: StateFlow<List<ActiveCallInfo>> = _extraCallInfos.asStateFlow()
+
+    /**
+     * Participants of the current merged conference (children of the conference [Call]).
+     * Refreshed whenever the primary call's state/details change.
+     */
+    private val participantCalls = mutableMapOf<String, Call>()
+    private val _conferenceParticipants = MutableStateFlow<List<ConferenceParticipant>>(emptyList())
+    val conferenceParticipants: StateFlow<List<ConferenceParticipant>> = _conferenceParticipants.asStateFlow()
+
+    /**
+     * Name/number identities retained for the current conference's participants. The
+     * framework re-adds merged participants as new, usually blank, child Call objects:
+     * a tracked call that is reparented under the conference keeps its identity here,
+     * and one that the framework tears down during the merge keeps it too. Manage rows
+     * are labeled from these (matched by number when the child has one) instead of
+     * showing "Unknown".
+     */
+    private val absorbedParticipantInfos = mutableListOf<ActiveCallInfo>()
+
+    private fun retainParticipantIdentity(info: ActiveCallInfo) {
+        absorbedParticipantInfos.removeAll {
+            it.id == info.id || (it.phoneNumber.isNotBlank() && it.phoneNumber == info.phoneNumber)
+        }
+        absorbedParticipantInfos.add(info)
+        while (absorbedParticipantInfos.size > 20) absorbedParticipantInfos.removeAt(0)
+        logConf("retained participant identity: ${info.displayName} (${info.phoneNumber}), total retained: ${absorbedParticipantInfos.size}")
+    }
+
+    /**
+     * Which retained identity labeled each live conference child. When the conference
+     * collapses, the survivor is promoted using its labeled identity directly — no
+     * number re-matching needed (the child's own details are often blank by then).
+     */
+    private val labeledChildIdentities = mutableMapOf<Call, ActiveCallInfo>()
+
+    /** IDs of participants explicitly ended from Manage (to exclude them from survivor selection). */
+    private val droppedParticipantIds = mutableSetOf<String>()
+
+    /** Detached survivor Call object remembered while the conference shell is still active. */
+    private var collapsedSurvivorCall: Call? = null
+
+    /** Synthetic 1:1 call info for the survivor when the conference collapses to one person. */
+    private var collapsedSurvivorIdentity: ActiveCallInfo? = null
 
     private val _callLoggedEvent = MutableSharedFlow<Long>(extraBufferCapacity = 5)
     val callLoggedEvent: SharedFlow<Long> = _callLoggedEvent.asSharedFlow()
@@ -245,9 +334,260 @@ object CallManager {
         }
     }
 
+    /**
+     * The full-featured callback for the primary (foreground) call: drives _activeCall, the
+     * foreground service, notifications, proximity sensor, and conference participant tracking.
+     * Extracted so a promoted extra call (after the primary is removed) can be re-attached
+     * without re-running contact/spam enrichment.
+     */
+    private fun createPrimaryCallback(call: Call, context: Context): Call.Callback {
+        return object : Call.Callback() {
+            override fun onStateChanged(call: Call, state: Int) {
+                Log.d(TAG, "Call state changed: $state")
+                if (state != Call.STATE_RINGING) {
+                    _isRingerSilenced.value = false
+                }
+                val current = _activeCall.value
+                if (current != null) {
+                    val connectTime = if (state == Call.STATE_ACTIVE && current.connectTimeMillis == 0L) {
+                        com.example.util.HapticFeedbackHelper.performCallConnected(context)
+                        System.currentTimeMillis()
+                    } else current.connectTimeMillis
+
+                    val flags = conferenceFlags(call)
+                    val isCollapsed = collapsedSurvivorIdentity != null
+                    _activeCall.value = current.copy(
+                        state = state,
+                        connectTimeMillis = connectTime,
+                        displayName = if (isCollapsed) (collapsedSurvivorIdentity?.displayName ?: current.displayName) else current.displayName,
+                        phoneNumber = if (isCollapsed) (collapsedSurvivorIdentity?.phoneNumber ?: current.phoneNumber) else current.phoneNumber,
+                        photoUri = if (isCollapsed) (collapsedSurvivorIdentity?.photoUri ?: current.photoUri) else current.photoUri,
+                        canMergeConference = if (isCollapsed) false else flags.canMerge,
+                        canSwapConference = if (isCollapsed) false else flags.canSwap,
+                        canSeparateFromConference = if (isCollapsed) false else flags.canSeparate,
+                        isConference = if (isCollapsed) false else flags.isConference
+                    )
+                    CallForegroundService.start(context)
+                    OngoingCallNotificationHelper.showCallNotification(context, _activeCall.value!!)
+                    if (!isCollapsed) {
+                        refreshConferenceParticipants()
+                    }
+                }
+
+                if (state == Call.STATE_DISCONNECTED) {
+                    releaseProximityWakeLock()
+                    val survivor = collapsedSurvivorCall
+                    if (survivor != null && survivor.state != Call.STATE_DISCONNECTED && survivor.state != Call.STATE_DISCONNECTING) {
+                        logConf("conference shell disconnected, promoting survivor ${survivor.hashCode()}")
+                        promoteCollapsedSurvivor(context)
+                        return
+                    }
+                    handleCallEnded(context, current)
+                } else {
+                    updateProximitySensor(context)
+                }
+            }
+
+            override fun onDetailsChanged(call: Call, details: Call.Details) {
+                Log.d(TAG, "Call details changed")
+                val current = _activeCall.value
+                if (current != null) {
+                    val updatedSim = SimHelper.resolveSimInfo(context, details.accountHandle)
+                    val updatedSlot = updatedSim?.slotIndex?.plus(1) ?: SimHelper.resolveSimSlot(context, details.accountHandle)
+                    val updatedName = updatedSim?.displayName
+                    val updatedRoaming = updatedSim?.isRoaming == true
+                    val flags = conferenceFlags(call)
+                    val isCollapsed = collapsedSurvivorIdentity != null
+                    if (updatedSlot != current.simSlot || updatedName != current.simDisplayName ||
+                        updatedRoaming != current.isRoaming || flags.canMerge != current.canMergeConference ||
+                        flags.canSwap != current.canSwapConference || flags.canSeparate != current.canSeparateFromConference ||
+                        flags.isConference != current.isConference || isCollapsed
+                    ) {
+                        _activeCall.value = current.copy(
+                            simSlot = updatedSlot,
+                            simDisplayName = updatedName,
+                            isRoaming = updatedRoaming,
+                            displayName = if (isCollapsed) (collapsedSurvivorIdentity?.displayName ?: current.displayName) else current.displayName,
+                            phoneNumber = if (isCollapsed) (collapsedSurvivorIdentity?.phoneNumber ?: current.phoneNumber) else current.phoneNumber,
+                            photoUri = if (isCollapsed) (collapsedSurvivorIdentity?.photoUri ?: current.photoUri) else current.photoUri,
+                            canMergeConference = if (isCollapsed) false else flags.canMerge,
+                            canSwapConference = if (isCollapsed) false else flags.canSwap,
+                            canSeparateFromConference = if (isCollapsed) false else flags.canSeparate,
+                            isConference = if (isCollapsed) false else flags.isConference
+                        )
+                        if (!isCollapsed) {
+                            refreshConferenceParticipants()
+                        }
+                    }
+                }
+            }
+
+            override fun onChildrenChanged(call: Call, children: List<Call>) {
+                logConf("primary ${call.hashCode()} children -> ${children.size}")
+                if (children.isEmpty()) {
+                    // The conference may have collapsed (e.g. one of two participants was
+                    // disconnected and the framework detached the survivor). If a live
+                    // detached child remains, it becomes the primary call.
+                    if (maybeCollapseConference(call, context)) return
+                }
+                refreshConferenceParticipants()
+            }
+
+            override fun onParentChanged(call: Call, parent: Call?) {
+                logConf("primary ${call.hashCode()} parent -> ${parent?.hashCode()}")
+            }
+        }
+    }
+
     fun onCallAdded(call: Call, context: Context) {
-        // Must run before nativeCall is reassigned, so the previous call's callback is released.
-        unregisterActiveCallCallback()
+        logConf("onCallAdded id=${call.hashCode()} state=${callStateName(call.state)} " +
+            "isConference=${call.details?.hasProperty(Call.Details.PROPERTY_CONFERENCE)} " +
+            "children=${call.children.size} parent=${call.parent?.hashCode()} " +
+            "extras=${extraCalls.size}")
+        // A call that arrives already parented is a conference participant, never a new
+        // standalone call. Some stacks re-add merged participants as new child Call objects
+        // right after the merge — letting such a call demote the real conference would flip
+        // isConference off on the primary and hide Manage mid-conference. Track it lightly:
+        // no primary-callback steal, no extraCalls entry (it is not mergeable), no Recents
+        // write (participants are subsumed by the conference).
+        val addedParent = try { call.parent } catch (_: Exception) { null }
+        if (addedParent != null) {
+            logConf("parented child ${call.hashCode()} arrived under ${addedParent.hashCode()}; primary untouched")
+            val childCallback = object : Call.Callback() {
+                override fun onStateChanged(c: Call, state: Int) {
+                    logConf("child ${c.hashCode()} state -> ${callStateName(state)}")
+                    if (state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) {
+                        try { c.unregisterCallback(this) } catch (_: Exception) {}
+                        extraCallCallbacks.remove(c)
+                        labeledChildIdentities.remove(c)
+                        if (collapsedSurvivorCall === c) {
+                            logConf("collapsed survivor husk ${c.hashCode()} disconnected; live shell ${nativeCall?.hashCode()} continues")
+                            collapsedSurvivorCall = null
+                            return
+                        }
+                        refreshConferenceParticipants()
+                    }
+                }
+
+                override fun onDetailsChanged(c: Call, details: Call.Details) {
+                    // Details (name/number) can populate after the add — refresh labels.
+                    if (collapsedSurvivorIdentity == null) {
+                        refreshConferenceParticipants()
+                    }
+                }
+
+                override fun onParentChanged(c: Call, parent: Call?) {
+                    logConf("tracked child ${c.hashCode()} parent -> ${parent?.hashCode()}")
+                    if (parent == null) {
+                        val conf = nativeCall
+                        if (conf != null) {
+                            maybeCollapseConference(conf, context)
+                        }
+                        if (collapsedSurvivorIdentity == null) {
+                            refreshConferenceParticipants()
+                        }
+                    }
+                }
+            }
+            extraCallCallbacks[call]?.let {
+                try { call.unregisterCallback(it) } catch (_: Exception) {}
+            }
+            extraCallCallbacks[call] = childCallback
+            try { call.registerCallback(childCallback) } catch (_: Exception) {}
+            refreshConferenceParticipants()
+            return
+        }
+        // A fresh standalone call arrives. Only clear retained participant identities
+        // if there are NO existing tracked calls (not mid-conference, not second call).
+        val isFirstCall = (nativeCall == null && extraCalls.isEmpty())
+        if (isFirstCall) {
+            absorbedParticipantInfos.clear()
+            labeledChildIdentities.clear()
+            droppedParticipantIds.clear()
+            collapsedSurvivorCall = null
+            collapsedSurvivorIdentity = null
+        }
+        val prevCall = nativeCall
+        val prevCallback = activeCallCallback
+        if (prevCall != null && prevCall != call && prevCallback != null &&
+            prevCall.state != Call.STATE_DISCONNECTED && prevCall.state != Call.STATE_DISCONNECTING
+        ) {
+            // A live call is already tracked (e.g. the user tapped "Add call" and dialed a second
+            // person, or Telecom added a new conference parent). Retain its identity immediately
+            // so blank child Call objects from Telecom can be labeled later.
+            try { prevCall.unregisterCallback(prevCallback) } catch (_: Exception) {}
+            activeCallCallback = null
+            _activeCall.value?.let {
+                retainParticipantIdentity(it)
+                extraCalls[prevCall] = it
+            }
+            val lightCallback = object : Call.Callback() {
+                override fun onStateChanged(c: Call, state: Int) {
+                    val info = extraCalls[c] ?: return
+                    if (state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) {
+                        // Retain its identity: on some stacks the originals are torn down
+                        // (not reparented) when the merge completes, and the framework
+                        // re-adds each participant as a new, often blank, child object.
+                        // The retained name/number labels that participant's Manage row.
+                        retainParticipantIdentity(info)
+                        try { c.unregisterCallback(this) } catch (_: Exception) {}
+                        extraCalls.remove(c)
+                        extraCallCallbacks.remove(c)
+                        _extraCallInfos.value = extraCalls.values.toList()
+                        logEndedCall(context, info)
+                    } else {
+                        val flags = conferenceFlags(c)
+                        extraCalls[c] = info.copy(
+                            state = state,
+                            canMergeConference = flags.canMerge,
+                            canSwapConference = flags.canSwap,
+                            canSeparateFromConference = flags.canSeparate,
+                            isConference = flags.isConference
+                        )
+                        _extraCallInfos.value = extraCalls.values.toList()
+                    }
+                }
+
+                override fun onDetailsChanged(c: Call, details: Call.Details) {
+                    val info = extraCalls[c] ?: return
+                    val flags = conferenceFlags(c)
+                    extraCalls[c] = info.copy(
+                        canMergeConference = flags.canMerge,
+                        canSwapConference = flags.canSwap,
+                        canSeparateFromConference = flags.canSeparate,
+                        isConference = flags.isConference
+                    )
+                    _extraCallInfos.value = extraCalls.values.toList()
+                }
+
+                override fun onParentChanged(c: Call, parent: Call?) {
+                    logConf("extra ${c.hashCode()} parent -> ${parent?.hashCode()}")
+                    if (parent != null && extraCalls.containsKey(c)) {
+                        // This call is now a child of a conference — stop tracking it as a
+                        // separate "second call" so merge/swap hide and it shows under Manage.
+                        // Retain its name/number: the framework may re-add it as a new, blank
+                        // child Call object, and Manage rows need the real identity.
+                        extraCalls[c]?.let { retainParticipantIdentity(it) }
+                        try { c.unregisterCallback(this) } catch (_: Exception) {}
+                        extraCalls.remove(c)
+                        extraCallCallbacks.remove(c)
+                        _extraCallInfos.value = extraCalls.values.toList()
+                        refreshConferenceParticipants()
+                    }
+                }
+
+                override fun onChildrenChanged(c: Call, children: List<Call>) {
+                    logConf("extra ${c.hashCode()} children -> ${children.size}")
+                }
+            }
+            prevCall.registerCallback(lightCallback)
+            extraCallCallbacks[prevCall] = lightCallback
+            _extraCallInfos.value = extraCalls.values.toList()
+            Log.d(TAG, "Stashed previous live call for conference tracking: $prevCall")
+        } else {
+            // Must run before nativeCall is reassigned, so the previous call's callback is released.
+            unregisterActiveCallCallback()
+        }
         this.nativeCall = call
         this.appContext = context.applicationContext
         val number = extractPhoneNumber(call)
@@ -272,6 +612,7 @@ object CallManager {
         val isRoaming = resolvedSimInfo?.isRoaming == true
 
         // Instant UI Presentation (<16ms): Post placeholder call state immediately before any disk/Room queries
+        val confFlags = conferenceFlags(call)
         val initialCallInfo = ActiveCallInfo(
             id = call.hashCode().toString(),
             phoneNumber = number,
@@ -288,55 +629,17 @@ object CallManager {
             trustBadgeLabel = if (isVoicemail) "Voicemail" else null,
             simSlot = resolvedSimSlot,
             simDisplayName = resolvedSimName,
-            isRoaming = isRoaming
+            isRoaming = isRoaming,
+            canMergeConference = confFlags.canMerge,
+            canSwapConference = confFlags.canSwap,
+            canSeparateFromConference = confFlags.canSeparate,
+            isConference = confFlags.isConference,
+            hasNativeCall = true
         )
         _activeCall.value = initialCallInfo
         _isRingerSilenced.value = false
 
-        val stateCallback = object : Call.Callback() {
-            override fun onStateChanged(call: Call, state: Int) {
-                Log.d(TAG, "Call state changed: $state")
-                if (state != Call.STATE_RINGING) {
-                    _isRingerSilenced.value = false
-                }
-                val current = _activeCall.value
-                if (current != null) {
-                    val connectTime = if (state == Call.STATE_ACTIVE && current.connectTimeMillis == 0L) {
-                        com.example.util.HapticFeedbackHelper.performCallConnected(context)
-                        System.currentTimeMillis()
-                    } else current.connectTimeMillis
-
-                    _activeCall.value = current.copy(state = state, connectTimeMillis = connectTime)
-                    CallForegroundService.start(context)
-                    OngoingCallNotificationHelper.showCallNotification(context, _activeCall.value!!)
-                }
-
-                if (state == Call.STATE_DISCONNECTED) {
-                    releaseProximityWakeLock()
-                    handleCallEnded(context, current)
-                } else {
-                    updateProximitySensor(context)
-                }
-            }
-
-            override fun onDetailsChanged(call: Call, details: Call.Details) {
-                Log.d(TAG, "Call details changed")
-                val current = _activeCall.value
-                if (current != null) {
-                    val updatedSim = SimHelper.resolveSimInfo(context, details.accountHandle)
-                    val updatedSlot = updatedSim?.slotIndex?.plus(1) ?: SimHelper.resolveSimSlot(context, details.accountHandle)
-                    val updatedName = updatedSim?.displayName
-                    val updatedRoaming = updatedSim?.isRoaming == true
-                    if (updatedSlot != current.simSlot || updatedName != current.simDisplayName || updatedRoaming != current.isRoaming) {
-                        _activeCall.value = current.copy(
-                            simSlot = updatedSlot,
-                            simDisplayName = updatedName,
-                            isRoaming = updatedRoaming
-                        )
-                    }
-                }
-            }
-        }
+        val stateCallback = createPrimaryCallback(call, context)
         activeCallCallback = stateCallback
         call.registerCallback(stateCallback)
 
@@ -441,7 +744,18 @@ object CallManager {
                         Log.e(TAG, "Error writing spam log", e)
                     }
                     SpamNotificationHelper.showBlockedSpamNotification(context, number, enrichedName)
-                    _activeCall.value = null
+                    if (nativeCall == call) {
+                        _activeCall.value = null
+                        // The framework's onCallRemoved (after the reject above) runs handleCallEnded
+                        // and promotes any remaining extra call.
+                    } else {
+                        // The dropped call was already stashed as an extra call — just stop tracking it.
+                        extraCallCallbacks.remove(call)?.let {
+                            try { call.unregisterCallback(it) } catch (_: Exception) {}
+                        }
+                        extraCalls.remove(call)
+                        _extraCallInfos.value = extraCalls.values.toList()
+                    }
                     return@launch
                 }
 
@@ -453,6 +767,7 @@ object CallManager {
                     communityInfo = communityInfo
                 )
 
+                val enrichedConfFlags = conferenceFlags(call)
                 val enrichedCallInfo = ActiveCallInfo(
                     id = call.hashCode().toString(),
                     phoneNumber = number,
@@ -469,9 +784,22 @@ object CallManager {
                     trustBadgeLabel = trustBadge.second,
                     simSlot = resolvedSimSlot,
                     simDisplayName = resolvedSimName,
-                    isRoaming = isRoaming
+                    isRoaming = isRoaming,
+                    canMergeConference = enrichedConfFlags.canMerge,
+                    canSwapConference = enrichedConfFlags.canSwap,
+                    canSeparateFromConference = enrichedConfFlags.canSeparate,
+                    isConference = enrichedConfFlags.isConference,
+                    hasNativeCall = true
                 )
-                _activeCall.value = enrichedCallInfo
+                if (nativeCall == call) {
+                    _activeCall.value = enrichedCallInfo
+                    refreshConferenceParticipants()
+                } else {
+                    // No longer the primary call (a second call was added while this enrichment
+                    // was running) — update the stashed copy instead of clobbering the new call.
+                    extraCalls[call]?.let { extraCalls[call] = enrichedCallInfo }
+                    _extraCallInfos.value = extraCalls.values.toList()
+                }
 
                 if (!isCallUiForegrounded) {
                     OngoingCallNotificationHelper.showCallNotification(context, enrichedCallInfo)
@@ -506,28 +834,81 @@ object CallManager {
 
     fun onCallRemoved(call: Call, context: Context) {
         if (nativeCall == call) {
+            val survivor = collapsedSurvivorCall
+            if (survivor != null && survivor.state != Call.STATE_DISCONNECTED && survivor.state != Call.STATE_DISCONNECTING) {
+                logConf("conference shell removed, promoting survivor ${survivor.hashCode()}")
+                promoteCollapsedSurvivor(context)
+                return
+            }
+            _activeCall.value?.let { retainParticipantIdentity(it) }
             handleCallEnded(context, _activeCall.value)
             unregisterActiveCallCallback()
             nativeCall = null
+            clearConferenceParticipants()
+            // If another tracked call is still live (e.g. the second "add call" party hung up, or
+            // the first call was never merged), promote it to primary instead of leaving the UI
+            // on a dead post-call screen.
+            promoteExtraCallIfAny(context)
+        } else {
+            if (collapsedSurvivorCall === call) {
+                logConf("collapsed survivor husk ${call.hashCode()} removed; live shell continues")
+                collapsedSurvivorCall = null
+                extraCallCallbacks.remove(call)?.let {
+                    try { call.unregisterCallback(it) } catch (_: Exception) {}
+                }
+                return
+            }
+            // A stashed extra call ended: log it and drop it. The primary-call UI is untouched.
+            val info = extraCalls.remove(call)
+            extraCallCallbacks.remove(call)?.let {
+                try { call.unregisterCallback(it) } catch (_: Exception) {}
+            }
+            if (info != null) {
+                retainParticipantIdentity(info)
+                logEndedCall(context, info)
+                _extraCallInfos.value = extraCalls.values.toList()
+                Log.d(TAG, "Extra call removed and logged")
+            }
         }
     }
 
-    private fun handleCallEnded(context: Context, callInfo: ActiveCallInfo?) {
-        OmniCallRedirectionService.dismissRedirectionNotification(context)
-        _isRingerSilenced.value = false
-        releaseProximityWakeLock()
-        TelecomVoipHelper.endVoipCall()
-        automationJob?.cancel()
-        automationJob = null
-        simulatedTimerJob?.cancel()
-        simulatedTimerJob = null
-        CallForegroundService.stop(context)
-        OngoingCallNotificationHelper.cancelCallNotification(context)
-        appContext?.let { ctx ->
-            CallForegroundService.stop(ctx)
-            OngoingCallNotificationHelper.cancelCallNotification(ctx)
+    /**
+     * Promote the most recent still-live extra call to primary. Returns true if one was promoted.
+     */
+    private fun promoteExtraCallIfAny(context: Context): Boolean {
+        val remaining = extraCalls.entries.firstOrNull { (c, _) ->
+            c.state != Call.STATE_DISCONNECTED && c.state != Call.STATE_DISCONNECTING
+        } ?: return false
+        val (promotedCall, promotedInfo) = remaining
+        extraCalls.remove(promotedCall)
+        extraCallCallbacks.remove(promotedCall)?.let {
+            try { promotedCall.unregisterCallback(it) } catch (_: Exception) {}
         }
+        _extraCallInfos.value = extraCalls.values.toList()
+        nativeCall = promotedCall
+        _activeCall.value = promotedInfo
+        val callback = createPrimaryCallback(promotedCall, context)
+        activeCallCallback = callback
+        promotedCall.registerCallback(callback)
+        CallForegroundService.start(context)
+        OngoingCallNotificationHelper.showCallNotification(context, promotedInfo)
+        refreshConferenceParticipants()
+        Log.d(TAG, "Promoted remaining call to primary")
+        return true
+    }
 
+    /**
+     * Write one ended call to the recents database (deduped by session id).
+     * Extracted from handleCallEnded so stashed extra calls can be logged without
+     * touching the primary-call UI state.
+     */
+    private fun logEndedCall(context: Context, callInfo: ActiveCallInfo?) {
+        // A merged conference parent is a container, not a real call — its number is blank and
+        // each participant was already logged individually. Never write it to Recents.
+        if (callInfo != null && callInfo.isConference && callInfo.phoneNumber.isBlank()) {
+            Log.d(TAG, "Skipping Recents entry for blank conference-parent call")
+            return
+        }
         if (callInfo != null) {
             val sessionId = callInfo.id
             val isAlreadyLogged = synchronized(loggedCallSessionIds) {
@@ -590,6 +971,27 @@ object CallManager {
                 Log.d(TAG, "Call session $sessionId already recorded. Skipping duplicate insert.")
             }
         }
+    }
+
+    private fun handleCallEnded(context: Context, callInfo: ActiveCallInfo?) {
+        OmniCallRedirectionService.dismissRedirectionNotification(context)
+        _isRingerSilenced.value = false
+        releaseProximityWakeLock()
+        TelecomVoipHelper.endVoipCall()
+        automationJob?.cancel()
+        automationJob = null
+        simulatedTimerJob?.cancel()
+        simulatedTimerJob = null
+        collapsedSurvivorCall = null
+        collapsedSurvivorIdentity = null
+        CallForegroundService.stop(context)
+        OngoingCallNotificationHelper.cancelCallNotification(context)
+        appContext?.let { ctx ->
+            CallForegroundService.stop(ctx)
+            OngoingCallNotificationHelper.cancelCallNotification(ctx)
+        }
+
+        logEndedCall(context, callInfo)
 
         // Post-call state: keep in STATE_DISCONNECTED so InCallScreen note-taking panel can display.
         // It will be dismissed by the user or by InCallScreen's auto-close timer if not interacted with.
@@ -599,6 +1001,15 @@ object CallManager {
         }
         _isMuted.value = false
         _isSpeakerOn.value = false
+
+        if (!isCallUiForegrounded) {
+            scope.launch {
+                delay(2000)
+                if (_activeCall.value?.state == Call.STATE_DISCONNECTED) {
+                    dismissActiveCall()
+                }
+            }
+        }
     }
 
     /**
@@ -696,6 +1107,352 @@ object CallManager {
         automationJob = null
         simulatedTimerJob?.cancel()
         simulatedTimerJob = null
+        clearExtraCalls()
+        clearConferenceParticipants()
+    }
+
+    private fun clearExtraCalls() {
+        for ((call, callback) in extraCallCallbacks) {
+            try { call.unregisterCallback(callback) } catch (_: Exception) {}
+        }
+        extraCallCallbacks.clear()
+        extraCalls.clear()
+        _extraCallInfos.value = emptyList()
+    }
+
+    private fun clearConferenceParticipants() {
+        participantCalls.clear()
+        absorbedParticipantInfos.clear()
+        labeledChildIdentities.clear()
+        droppedParticipantIds.clear()
+        collapsedSurvivorCall = null
+        collapsedSurvivorIdentity = null
+        _conferenceParticipants.value = emptyList()
+    }
+
+    /**
+     * If the primary call is an empty but still-live conference and a detached former
+     * child is still live, the conference collapsed (e.g. one of two participants was
+     * disconnected and the framework detached the survivor).
+     *
+     * CRITICAL BUG 1 FIX:
+     * On many carriers (e.g. Spectrum Mobile / IMS), the conference shell Call stays
+     * ACTIVE with 0 children and carries the live two-way audio. The detached child
+     * Call object is a husk that quickly disconnects/dies. Promoting the husk over the
+     * live shell causes a false "call ended" while audio is still live.
+     *
+     * We keep the active conference shell as primary (nativeCall), remember the survivor,
+     * update the UI to show the survivor's identity with isConference = false, and
+     * dismiss the Manage dialog. The survivor Call object is only promoted if the shell
+     * itself disconnects.
+     */
+    private fun maybeCollapseConference(conference: Call, context: Context): Boolean {
+        if (nativeCall !== conference) return false
+        if (!conferenceFlags(conference).isConference) return false
+        if (conference.state == Call.STATE_DISCONNECTED ||
+            conference.state == Call.STATE_DISCONNECTING
+        ) return false
+        if (conference.children.isNotEmpty()) return false
+        if (collapsedSurvivorIdentity != null) return true
+
+        val liveCandidates = extraCallCallbacks.keys.filter { c ->
+            !extraCalls.containsKey(c) &&
+                c.state != Call.STATE_DISCONNECTED &&
+                c.state != Call.STATE_DISCONNECTING &&
+                c.hashCode().toString() !in droppedParticipantIds
+        }
+        val survivor = liveCandidates.firstOrNull {
+            (try { it.parent } catch (_: Exception) { null }) == null
+        } ?: liveCandidates.firstOrNull()
+
+        val number = survivor?.let { extractPhoneNumber(it) } ?: ""
+        // Prefer labeled child identity, or matching by number/id, or non-dropped absorbed identity
+        val retained = (survivor?.let { labeledChildIdentities[it] })
+            ?: absorbedParticipantInfos.firstOrNull { info ->
+                info.id !in droppedParticipantIds &&
+                    number.isNotBlank() &&
+                    ContactHelper.isSamePhoneNumber(info.phoneNumber, number)
+            }
+            ?: absorbedParticipantInfos.firstOrNull { info ->
+                info.id !in droppedParticipantIds
+            }
+            ?: absorbedParticipantInfos.firstOrNull()
+
+        val survivorInfo = retained?.copy(
+            id = survivor?.hashCode()?.toString() ?: conference.hashCode().toString(),
+            state = conference.state,
+            canMergeConference = false,
+            canSwapConference = false,
+            canSeparateFromConference = false,
+            isConference = false,
+            hasNativeCall = true
+        ) ?: ActiveCallInfo(
+            id = conference.hashCode().toString(),
+            phoneNumber = number,
+            displayName = number.ifBlank { "Ongoing Call" },
+            state = conference.state,
+            isIncoming = false,
+            connectTimeMillis = _activeCall.value?.connectTimeMillis ?: System.currentTimeMillis(),
+            canMergeConference = false,
+            canSwapConference = false,
+            canSeparateFromConference = false,
+            isConference = false,
+            hasNativeCall = true
+        )
+
+        logConf("keeping active conference shell ${conference.hashCode()} as primary for survivor ${survivor?.hashCode()} (${survivorInfo.displayName})")
+        collapsedSurvivorCall = survivor
+        collapsedSurvivorIdentity = survivorInfo
+
+        _activeCall.value = survivorInfo
+        participantCalls.clear()
+        _conferenceParticipants.value = emptyList()
+
+        CallForegroundService.start(context)
+        OngoingCallNotificationHelper.showCallNotification(context, survivorInfo)
+        return true
+    }
+
+    private fun promoteCollapsedSurvivor(context: Context) {
+        val survivor = collapsedSurvivorCall ?: return
+        val info = collapsedSurvivorIdentity ?: _activeCall.value ?: return
+        collapsedSurvivorCall = null
+        collapsedSurvivorIdentity = null
+
+        unregisterActiveCallCallback()
+        extraCallCallbacks.remove(survivor)?.let {
+            try { survivor.unregisterCallback(it) } catch (_: Exception) {}
+        }
+
+        nativeCall = survivor
+        _activeCall.value = info.copy(
+            id = survivor.hashCode().toString(),
+            state = survivor.state,
+            canMergeConference = false,
+            canSwapConference = false,
+            canSeparateFromConference = false,
+            isConference = false
+        )
+        val callback = createPrimaryCallback(survivor, context)
+        activeCallCallback = callback
+        try { survivor.registerCallback(callback) } catch (_: Exception) {}
+        participantCalls.clear()
+        _conferenceParticipants.value = emptyList()
+        CallForegroundService.start(context)
+        OngoingCallNotificationHelper.showCallNotification(context, _activeCall.value!!)
+        Log.d(TAG, "Promoted collapsed survivor ${survivor.hashCode()} to primary")
+    }
+
+    // -------------------------------------------------------------------------
+    // Conference calling ("add person", merge, swap, manage participants)
+    // -------------------------------------------------------------------------
+
+    private data class ConferenceFlags(
+        val canMerge: Boolean = false,
+        val canSwap: Boolean = false,
+        val canSeparate: Boolean = false,
+        val isConference: Boolean = false
+    )
+
+    /**
+     * Reads merge/swap/separate/conference flags from a [Call]'s details.
+     * Any failure means "not supported" — buttons stay hidden rather than crash.
+     */
+    private fun conferenceFlags(call: Call): ConferenceFlags {
+        return try {
+            val details = call.details ?: return ConferenceFlags()
+            ConferenceFlags(
+                canMerge = details.can(Call.Details.CAPABILITY_MERGE_CONFERENCE),
+                canSwap = details.can(Call.Details.CAPABILITY_SWAP_CONFERENCE),
+                canSeparate = details.can(Call.Details.CAPABILITY_SEPARATE_FROM_CONFERENCE),
+                isConference = details.hasProperty(Call.Details.PROPERTY_CONFERENCE)
+            )
+        } catch (_: Exception) {
+            ConferenceFlags()
+        }
+    }
+
+    /** Merge the held call(s) into the primary call. Returns false if the merge failed. */
+    fun mergeConferenceCalls(): Boolean {
+        return try {
+            val primary = nativeCall
+            if (primary == null) {
+                Log.w(TAG, "merge requested with no primary call")
+                return false
+            }
+            // Retain identities of primary and all extra calls before merge
+            _activeCall.value?.let { retainParticipantIdentity(it) }
+            for (info in extraCalls.values) {
+                retainParticipantIdentity(info)
+            }
+            if (primary.details?.hasProperty(Call.Details.PROPERTY_CONFERENCE) == true) {
+                // Already a conference object (e.g. created by the carrier) — merge its
+                // participants at the network level.
+                primary.mergeConference()
+                Log.d(TAG, "mergeConference() on existing conference requested")
+            } else {
+                // Two separate calls: ask Telecom to conference them together.
+                // NOTE: Call.mergeConference() only works on an existing conference object;
+                // on a plain call it is a silent no-op. Call.conference(other) is the API
+                // that merges two separate calls into a conference.
+                val other = extraCalls.keys.firstOrNull {
+                    it.state != Call.STATE_DISCONNECTED && it.state != Call.STATE_DISCONNECTING
+                }
+                if (other == null) {
+                    Log.w(TAG, "merge requested with no second call to merge")
+                    return false
+                }
+                logConf("merge request: primary=${primary.hashCode()} state=${callStateName(primary.state)} " +
+                    "other=${other.hashCode()} state=${callStateName(other.state)}")
+                primary.conference(other)
+                Log.d(TAG, "conference(primary, second call) requested")
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "mergeConference failed", e)
+            false
+        }
+    }
+
+    /** Swap the active and held calls without merging. Returns false if unsupported/failed. */
+    fun swapConferenceCalls(): Boolean {
+        return try {
+            val primary = nativeCall
+            if (primary == null) {
+                Log.w(TAG, "swap requested with no primary call")
+                return false
+            }
+            if (primary.details?.hasProperty(Call.Details.PROPERTY_CONFERENCE) == true) {
+                primary.swapConference()
+                Log.d(TAG, "swapConference() on existing conference requested")
+            } else {
+                // Two separate calls: hold the active one and resume the held one.
+                // NOTE: Call.swapConference() only works on an existing conference object;
+                // on plain calls it is a silent no-op.
+                val all = listOf(primary) + extraCalls.keys
+                val active = all.firstOrNull { it.state == Call.STATE_ACTIVE }
+                val held = all.firstOrNull { it != active && it.state == Call.STATE_HOLDING }
+                if (active == null || held == null) {
+                    Log.w(TAG, "swap requested without an active+held call pair")
+                    return false
+                }
+                active.hold()
+                held.unhold()
+                Log.d(TAG, "swap via hold(active) + unhold(held) requested")
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "swapConference failed", e)
+            false
+        }
+    }
+
+    /**
+     * Refresh the participant list from the conference call's children.
+     * Called whenever the primary call's state or details change.
+     */
+    fun refreshConferenceParticipants() {
+        if (collapsedSurvivorIdentity != null) {
+            logConf("skipping refreshConferenceParticipants: conference collapsed to survivor")
+            return
+        }
+        try {
+            val children = nativeCall?.children ?: emptyList()
+            val source: List<Call> = when {
+                children.isNotEmpty() -> {
+                    logConf("participants from conference children: ${children.size}")
+                    children
+                }
+                extraCalls.isNotEmpty() -> {
+                    // No conference children reported (yet) — fall back to the live tracked
+                    // calls so participant names still show after a merge.
+                    val tracked = listOfNotNull(nativeCall) + extraCalls.keys
+                    val live = tracked.filter {
+                        it.state != Call.STATE_DISCONNECTED && it.state != Call.STATE_DISCONNECTING
+                    }
+                    logConf("participants from tracked-call fallback: ${live.size}")
+                    live
+                }
+                else -> emptyList()
+            }
+            participantCalls.clear()
+            val usedRetainedIds = mutableSetOf<String>()
+            _conferenceParticipants.value = source.mapNotNull { child ->
+                try {
+                    val id = child.hashCode().toString()
+                    val details = child.details
+                    var number = details?.handle?.schemeSpecificPart ?: ""
+                    val trackedName = extraCalls[child]?.displayName
+                        .takeIf { !it.isNullOrBlank() && it != number }
+                        ?: _activeCall.value?.takeIf { child == nativeCall }?.displayName
+                            .takeIf { !it.isNullOrBlank() && it != number }
+                    var name = details?.callerDisplayName?.takeIf { it.isNotBlank() } ?: trackedName
+                    if (name.isNullOrBlank()) {
+                        // The framework often re-adds merged participants as new child
+                        // objects with a number but no name (or fully blank). Label the
+                        // row from a retained pre-merge identity — matched by number when
+                        // possible, positionally otherwise (retained identities only ever
+                        // belong to this conference's participants) — instead of "Unknown".
+                        val retained = absorbedParticipantInfos.firstOrNull {
+                            it.id !in usedRetainedIds &&
+                                number.isNotBlank() &&
+                                com.example.util.ContactHelper.isSamePhoneNumber(it.phoneNumber, number)
+                        } ?: absorbedParticipantInfos.firstOrNull { it.id !in usedRetainedIds }
+                        retained?.let {
+                            usedRetainedIds.add(it.id)
+                            name = it.displayName.takeIf { d -> d.isNotBlank() }
+                            if (number.isBlank()) number = it.phoneNumber
+                            labeledChildIdentities[child] = it
+                            logConf("labeled child $id as '${it.displayName}'")
+                        }
+                    }
+                    if (name.isNullOrBlank() && number.isNotBlank()) {
+                        appContext?.let { ctx ->
+                            com.example.util.ContactHelper.lookupContactByNumber(ctx, number)?.let {
+                                name = it.name
+                            }
+                        }
+                    }
+                    participantCalls[id] = child
+                    ConferenceParticipant(
+                        id = id,
+                        displayName = name ?: number.ifBlank { "Unknown" },
+                        phoneNumber = number
+                    )
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "refreshConferenceParticipants failed: ${e.message}")
+        }
+    }
+
+    /** Hang up one conference participant. Returns false on failure. */
+    fun endConferenceParticipant(participantId: String): Boolean {
+        val participant = participantCalls[participantId] ?: return false
+        droppedParticipantIds.add(participantId)
+        return try {
+            participant.disconnect()
+            Log.d(TAG, "Disconnect requested for conference participant $participantId")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "endConferenceParticipant failed", e)
+            false
+        }
+    }
+
+    /** Split one participant out of the conference into a private held call. Returns false on failure. */
+    fun splitConferenceParticipant(participantId: String): Boolean {
+        val participant = participantCalls[participantId] ?: return false
+        return try {
+            participant.splitFromConference()
+            Log.d(TAG, "splitFromConference requested for participant $participantId")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "splitConferenceParticipant failed", e)
+            false
+        }
     }
 
     private fun extractPhoneNumber(call: Call): String {
@@ -1006,6 +1763,18 @@ object CallManager {
                 nativeCall?.disconnect()
             } catch (e: Exception) {
                 Log.e(TAG, "Error disconnecting native call", e)
+            }
+            try {
+                collapsedSurvivorCall?.disconnect()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error disconnecting collapsed survivor call", e)
+            }
+            for (extra in extraCalls.keys.toList()) {
+                try {
+                    extra.disconnect()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error disconnecting extra call", e)
+                }
             }
         }
     }

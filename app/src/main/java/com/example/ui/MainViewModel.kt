@@ -35,6 +35,7 @@ import com.example.util.DeviceContact
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -1328,6 +1329,60 @@ class MainViewModel(
             saveLearnedCallMode(cleanNumber, "cellular")
         }
 
+        executeTelecomPlaceCall(context, cleanNumber, effectiveSlot, effectiveReason)
+    }
+
+    /**
+     * "Add call" for conference calling: dials a second person while a call is already live.
+     * Bypasses the single-call guard and the SIM-choice prompt — the added call always goes out
+     * on the current call's SIM so the carrier can merge them. The framework holds the first call.
+     */
+    fun placeConferenceCall(context: Context, number: String) {
+        val cleanNumber = number.trim()
+        if (cleanNumber.isBlank()) return
+        val currentCall = activeCall.value
+        val currentLive = currentCall != null &&
+            currentCall.state != Call.STATE_DISCONNECTED &&
+            currentCall.state != Call.STATE_DISCONNECTING
+        if (!currentLive) {
+            // No live call to add to — fall back to a normal outgoing call.
+            placeCall(context, cleanNumber)
+            return
+        }
+        maximizeCall()
+        val simSlot = currentCall?.simSlot?.coerceIn(1, 2) ?: _selectedSimSlot.value
+        Log.d("MainViewModel", "Placing conference add-call on SIM $simSlot")
+        executeTelecomPlaceCall(context, cleanNumber, simSlot, null)
+    }
+
+    // --- Conference calling -----------------------------------------------------
+    /** Merge the held call(s) into the current call. Returns false if the merge failed. */
+    fun mergeConferenceCalls(): Boolean = CallManager.mergeConferenceCalls()
+
+    /** Swap the active and held calls without merging. Returns false if unsupported/failed. */
+    fun swapConferenceCalls(): Boolean = CallManager.swapConferenceCalls()
+
+    /** Hang up one conference participant. Returns false on failure. */
+    fun endConferenceParticipant(participantId: String): Boolean =
+        CallManager.endConferenceParticipant(participantId)
+
+    /** Split one participant out of the conference into a private call. Returns false on failure. */
+    fun splitConferenceParticipant(participantId: String): Boolean =
+        CallManager.splitConferenceParticipant(participantId)
+
+    /** All device contacts for the "Add call" contact picker (loaded off the main thread). */
+    suspend fun fetchDeviceContactsForChooser(): List<DeviceContact> = withContext(Dispatchers.IO) {
+        try {
+            ContactHelper.fetchDeviceContacts(appContext)
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "fetchDeviceContactsForChooser failed", e)
+            emptyList()
+        }
+    }
+    /**
+     * Low-level cellular call placement shared by [placeCall] and [placeConferenceCall].
+     */
+    private fun executeTelecomPlaceCall(context: Context, cleanNumber: String, effectiveSlot: Int, effectiveReason: String?) {
         try {
             val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
             val uri = Uri.fromParts("tel", cleanNumber, null)
@@ -1379,6 +1434,7 @@ class MainViewModel(
             CallManager.startSimulatedOutgoingCall(context, cleanNumber, effectiveReason)
         }
     }
+
 
     fun placeWhatsAppCall(context: Context, number: String, isBusiness: Boolean? = null) {
         val cleanNumber = number.ifBlank { _dialerNumber.value }
@@ -1763,6 +1819,7 @@ class MainViewModel(
     }
 
     fun dismissCall() {
+        _isCallScreenMinimized.value = false
         CallManager.dismissActiveCall()
     }
 

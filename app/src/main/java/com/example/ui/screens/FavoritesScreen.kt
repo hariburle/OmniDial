@@ -1453,28 +1453,49 @@ fun FavoritesScreen(
 
     if (pendingCallConfirmation != null) {
         val (name, number, requestedWhatsApp) = pendingCallConfirmation!!
-        val isWhatsApp = requestedWhatsApp || (getPreferredCallingMode(number) == "whatsapp")
-        val waChannel = availableChannels.firstOrNull { it is CallingChannel.WhatsApp }
-        val waLabel = waChannel?.shortLabel ?: "WhatsApp"
-        val cellularChannel = availableChannels.firstOrNull { it is CallingChannel.CellularSim }
-        val cellularLabel = cellularChannel?.shortLabel ?: "Cellular"
+        val channelMode = getPreferredCallingMode(number)
+        val resolvedChannel = availableChannels.firstOrNull { it.id.equals(channelMode, ignoreCase = true) }
+            ?: (if (requestedWhatsApp || channelMode == "whatsapp" || channelMode == "whatsapp_business") availableChannels.firstOrNull { it is CallingChannel.WhatsApp } else null)
+            ?: availableChannels.firstOrNull { it is CallingChannel.CellularSim }
+        val isWhatsApp = requestedWhatsApp || (resolvedChannel is CallingChannel.WhatsApp)
+        val isGoogleVoice = (resolvedChannel is CallingChannel.GoogleVoice)
+        val channelLabel = resolvedChannel?.shortLabel ?: if (isWhatsApp) "WhatsApp" else "Cellular"
+
         CallConfirmationDialog(
             phoneNumber = number,
             contactName = name,
             isWhatsApp = isWhatsApp,
-            channelLabel = if (isWhatsApp) waLabel else cellularLabel,
+            channelLabel = channelLabel,
             onConfirm = {
                 val numToCall = number
                 val callWa = isWhatsApp
+                val callGv = isGoogleVoice
+                val targetChannel = resolvedChannel
                 pendingCallConfirmation = null
-                if (callWa) {
-                    onCallWhatsApp(numToCall)
-                } else {
-                    val resolvedSimSlot = getPreferredSimSlot(numToCall).takeIf { it > 0 }
-                    if (onCallNumberDirect != null) {
-                        onCallNumberDirect(numToCall, resolvedSimSlot)
-                    } else {
-                        onCallNumber(numToCall)
+                when {
+                    callWa -> onCallWhatsApp(numToCall)
+                    callGv -> {
+                        if (onCallGoogleVoice != null) {
+                            onCallGoogleVoice(numToCall)
+                        } else {
+                            ContactHelper.launchGoogleVoiceCall(context, numToCall)
+                        }
+                    }
+                    targetChannel is CallingChannel.CellularSim -> {
+                        val slot = targetChannel.slotIndex + 1
+                        if (onCallNumberDirect != null) {
+                            onCallNumberDirect(numToCall, slot)
+                        } else {
+                            onCallNumber(numToCall)
+                        }
+                    }
+                    else -> {
+                        val resolvedSimSlot = getPreferredSimSlot(numToCall).takeIf { it > 0 }
+                        if (onCallNumberDirect != null) {
+                            onCallNumberDirect(numToCall, resolvedSimSlot)
+                        } else {
+                            onCallNumber(numToCall)
+                        }
                     }
                 }
             },

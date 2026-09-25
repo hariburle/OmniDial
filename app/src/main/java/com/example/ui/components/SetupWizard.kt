@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Phone
@@ -49,7 +50,8 @@ import androidx.compose.ui.window.DialogProperties
  * through each system screen back-to-back with one tap each.
  */
 enum class SetupStep {
-    PERMISSIONS,
+    PHONE_PERMISSIONS,
+    CONTACTS,
     DEFAULT_DIALER,
     CALL_REDIRECTION,
     OVERLAY,
@@ -67,17 +69,22 @@ data class SetupStepState(
     val status: SetupStepStatus = SetupStepStatus.PENDING
 )
 
-private data class SetupStepInfo(
+data class SetupStepInfo(
     val title: String,
     val description: String,
     val icon: ImageVector
 )
 
-private fun setupStepInfo(step: SetupStep): SetupStepInfo = when (step) {
-    SetupStep.PERMISSIONS -> SetupStepInfo(
-        title = "Phone, contacts & notifications",
-        description = "Make calls, see your contacts and never miss a call alert.",
+fun setupStepInfo(step: SetupStep): SetupStepInfo = when (step) {
+    SetupStep.PHONE_PERMISSIONS -> SetupStepInfo(
+        title = "Phone & call history",
+        description = "Make calls, view call logs, and receive call alerts.",
         icon = Icons.Default.Phone
+    )
+    SetupStep.CONTACTS -> SetupStepInfo(
+        title = "Contacts access",
+        description = "Search your contacts and save preferred calling channels.",
+        icon = Icons.Default.Contacts
     )
     SetupStep.DEFAULT_DIALER -> SetupStepInfo(
         title = "Default phone app",
@@ -154,12 +161,18 @@ fun SetupWizardDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                val hasPending = steps.any { it.status == SetupStepStatus.PENDING }
+
                 Button(
-                    onClick = onStartSetup,
+                    onClick = if (hasPending) onStartSetup else onDismiss,
                     enabled = !isRunning,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (isRunning) "Setting up…" else "Set up")
+                    Text(
+                        if (isRunning) "Setting up…"
+                        else if (!hasPending) "Done"
+                        else "Set up"
+                    )
                 }
                 TextButton(
                     onClick = onDismiss,

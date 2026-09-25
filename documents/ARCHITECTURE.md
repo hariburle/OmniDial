@@ -1,6 +1,6 @@
 # OmniDial — System Architecture & Technical Documentation
 
-> **Current Version**: v2.0.1 (Build 20) — September 2026
+> **Current Version**: v2.0.2 (Build 21) — September 2026
 
 ## 1. Executive Summary
 
@@ -189,6 +189,7 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 
 | Test File | Coverage |
 |---|---|
+| `ConferenceUiGatingTest` | Gating logic for Swap, Merge, Add Call, and participant controls across call states and capabilities |
 | `Phase13MultiChannelCoreTest` | Dynamic channel discovery, SIM slot labeling, WhatsApp channel dispatch, `ChannelPreferenceRepository`, `ChannelDispatchCoordinator` |
 | `Task10Test` | Multi-channel dock interactions, modal dismissal, transactional backup & restore verification, deduplication |
 | `Phase12PartitionedSearchAndRingSilencingTest` | Partitioned contact filtering outside active filters, ringer silence state flow transitions |
@@ -204,7 +205,7 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 
 ---
 
-## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.0.0)
+## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.0.2)
 
 1. **Multi-Channel Calling Engine (MCCE)**: Introduced `ChannelDiscoveryManager`, `CallingChannel`, `ChannelConfigRepository`, `ChannelPreferenceRepository`, and `ChannelDispatchCoordinator`.
 2. **Dynamic Keypad Channel Dock**: Added `KeypadChannelDock` above dial pad for 1-tap channel switching between SIM 1, SIM 2, and WhatsApp with live roaming and carrier labels.
@@ -216,9 +217,13 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 8. **Partitioned Contact Search Outside Active Filters**: Two-pass filtering displays qualifying filter matches at the top and cleanly partitions non-qualifying matches into "Other Matches Outside Filter" with one-tap action sheets.
 9. **Ambient Incoming Ring Silencing**: Integrated `TelecomManager.silenceRinger()` triggered on device pickup/motion, proximity uncover, screen touch, audio route switching, quick decline SMS, or physical volume buttons while keeping the call active in `STATE_RINGING`.
 10. **Release Signing Security**: Added upload keystore integrity validation in `app/build.gradle.kts` to warn on missing upload keys and prevent unintended debug key signing.
-11. **Caller ID & Spam Role (v2.0.1)**: Added `OmniCallScreeningService` (`BIND_SCREENING_SERVICE`, as required by newer Android role controllers), `RoleHelper`, and `CallScreeningCard`; `CallManager` defers spam-list auto-decline while the role is held.
+11. **Caller ID & Spam Role (v2.0.1)**: Added `OmniCallScreeningService` (`BIND_SCREENING_SERVICE`), `RoleHelper`, and `CallScreeningCard`; `CallManager` defers spam-list auto-decline while the role is held.
 12. **Honest Spam Badges (v2.0.1)**: `CallDropAttribution` replaces the misleading "Carrier Auto-Dropped" badge with truthful "Blocked by OmniDial" labels.
 13. **Setup Wizard & Redirection Recovery (v2.0.1)**: `SetupWizard` first-run flow plus `CallRedirectionBanner`/`RoleReminderNotification` for Call Redirection role recovery.
+14. **Multi-Call & Conference Calling Subsystem (v2.0.2)**: Added full multi-call management in `CallManager.kt` and `InCallScreen.kt` with Swap, Merge, participant list, individual hangup, and conference hold/resume controls, backed by `ConferenceUiGating.kt`.
+15. **Floating Call Pill & PiP Auto-Dismiss (v2.0.2)**: Fixed lingering call pill and Picture-in-Picture window by tying teardown directly to `DISCONNECTED`/`DISCONNECTING` call state transitions.
+16. **Just-In-Time Contextual Reminders (v2.0.2)**: Added warning banners and empty-state action cards in Contacts, Recents, and Rules for missing permissions or roles with 1-tap grant actions.
+17. **Settings Permissions Hub (v2.0.2)**: Added dedicated `PermissionsHubCard` in Settings displaying real-time status of all 6 wizard setup steps, individual launchers, and full wizard rerun.
 
 ---
 

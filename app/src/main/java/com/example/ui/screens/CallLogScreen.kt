@@ -47,8 +47,10 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -159,6 +161,8 @@ fun CallLogScreen(
     getPreferredSimSlot: (String) -> Int = { -1 },
     onSetPreferredSimSlot: (String, Int) -> Unit = { _, _ -> },
     globalSimPreferenceMode: String = "always_ask",
+    isCallLogPermissionGranted: Boolean = true,
+    onRequestCallLogPermission: () -> Unit = {},
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -474,18 +478,36 @@ fun CallLogScreen(
                     imageVector = Icons.Default.History,
                     contentDescription = null,
                     modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    tint = if (!isCallLogPermissionGranted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 )
                 Text(
-                    text = "No Recent Calls",
+                    text = if (!isCallLogPermissionGranted) "Call Log Access Disabled" else "No Recent Calls",
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Calls made or received will appear here.",
+                    text = if (!isCallLogPermissionGranted) {
+                        "Allow OmniDial to access your call history to view incoming, outgoing, and missed calls."
+                    } else {
+                        "Calls made or received will appear here."
+                    },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
+                if (!isCallLogPermissionGranted) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Button(
+                        onClick = onRequestCallLogPermission,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Text("Enable Call History", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     } else {
@@ -494,6 +516,56 @@ fun CallLogScreen(
                 .fillMaxSize()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
+            // JIT Permission Reminder Banner when call log permission is missing
+            if (!isCallLogPermissionGranted) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Call History Access Disabled",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "Grant permission to update and view recent call history.",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onRequestCallLogPermission,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
             // Top Filter Buttons & Search Toggle Row (Stationary at the very top)
             val filterOptions = listOf(
                 FilterOptionData("ALL", "All Calls", Icons.AutoMirrored.Filled.List, null),

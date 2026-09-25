@@ -25,6 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.History
@@ -36,7 +38,9 @@ import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Voicemail
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.Surface
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
@@ -233,6 +237,12 @@ fun RulesScreen(
     channelConfigs: List<ChannelConfig> = emptyList(),
     discoveredChannels: List<CallingChannel> = emptyList(),
     onSaveChannelConfigs: ((List<ChannelConfig>) -> Unit)? = null,
+    isCallRedirectionRoleHeld: Boolean = true,
+    onRequestCallRedirectionRole: () -> Unit = {},
+    setupStepStates: List<com.example.ui.components.SetupStepState> = emptyList(),
+    onLaunchSetupStep: (com.example.ui.components.SetupStep) -> Unit = {},
+    onRerunSetupWizard: () -> Unit = {},
+    onOpenAppSettings: () -> Unit = {},
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -390,6 +400,57 @@ fun RulesScreen(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
+                                }
+                            }
+                        }
+
+                        // JIT Call Redirection Warning Banner
+                        if (!isCallRedirectionRoleHeld) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AltRoute,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.tertiary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Call Redirection Not Active",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                        Text(
+                                            text = "Outgoing rules & car routing require Call Redirection to intercept calls.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = onRequestCallRedirectionRole,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiary,
+                                            contentColor = MaterialTheme.colorScheme.onTertiary
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Text("Enable", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -569,7 +630,11 @@ fun RulesScreen(
                         activeSims = activeSims,
                         channelConfigs = channelConfigs,
                         discoveredChannels = discoveredChannels,
-                        onSaveChannelConfigs = onSaveChannelConfigs
+                        onSaveChannelConfigs = onSaveChannelConfigs,
+                        setupStepStates = setupStepStates,
+                        onLaunchSetupStep = onLaunchSetupStep,
+                        onRerunSetupWizard = onRerunSetupWizard,
+                        onOpenAppSettings = onOpenAppSettings
                     )
                 }
             }

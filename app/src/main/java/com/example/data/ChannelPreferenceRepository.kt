@@ -42,13 +42,77 @@ class ChannelPreferenceRepository(
                     cachedPreferences.keys.retainAll(newMap.keys)
                 }
                 cacheReady = true
+                mirrorAllToSharedPreferences(list)
             }
         }
     }
 
+    /**
+     * Bulk-synchronizes all Room channel preferences into SharedPreferences so the redirection service
+     * (car / Bluetooth / head-unit path) has an up-to-date mirror even after app restart or restore.
+     */
+    private fun mirrorAllToSharedPreferences(list: List<NumberChannelPreference>) {
+        val ctx = appContext ?: return
+        try {
+            val sp = ctx.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
+            val learnedModes = mutableSetOf<String>()
+            val pinnedCellular = mutableSetOf<String>()
+            val pinnedSim = mutableSetOf<String>()
+
+            for (pref in list) {
+                val num = pref.normalizedNumber
+                if (num.isBlank()) continue
+                val chan = pref.preferredChannelId.lowercase()
+                when (chan) {
+                    "whatsapp" -> learnedModes.add("$num:whatsapp")
+                    "whatsapp_business" -> learnedModes.add("$num:whatsapp_business")
+                    "google_voice" -> learnedModes.add("$num:google_voice")
+                    "sim_1" -> {
+                        learnedModes.add("$num:cellular")
+                        pinnedCellular.add(num)
+                        pinnedSim.add("$num:1")
+                    }
+                    "sim_2" -> {
+                        learnedModes.add("$num:cellular")
+                        pinnedCellular.add(num)
+                        pinnedSim.add("$num:2")
+                    }
+                    "cellular", "system" -> {
+                        learnedModes.add("$num:cellular")
+                        pinnedCellular.add(num)
+                    }
+                }
+            }
+
+            sp.edit()
+                .putStringSet("whatsapp_learned_choices", learnedModes)
+                .putStringSet("learned_call_modes", learnedModes)
+                .putStringSet("pinned_cellular_numbers", pinnedCellular)
+                .putStringSet("pinned_sim_numbers", pinnedSim)
+                .apply()
+        } catch (_: Exception) {}
+    }
+
     fun getCachedPreference(phoneNumber: String): String? {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        return cachedPreferences[normalized]
+        cachedPreferences[normalized]?.let { return it }
+
+        val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
+        if (clean.isNotBlank()) {
+            cachedPreferences[clean]?.let { return it }
+        }
+
+        val digits = phoneNumber.filter { it.isDigit() }
+        val suffix10 = if (digits.length >= 10) digits.takeLast(10) else digits
+        if (suffix10.length >= 7) {
+            for ((key, pref) in cachedPreferences) {
+                val keyDigits = key.filter { it.isDigit() }
+                if (keyDigits.endsWith(suffix10) || (keyDigits.length >= 10 && suffix10.endsWith(keyDigits.takeLast(10)))) {
+                    return pref
+                }
+            }
+        }
+        return null
     }
 
     suspend fun getPreferenceForNumber(phoneNumber: String): NumberChannelPreference? {

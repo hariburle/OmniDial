@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.0.2` | `21` | Sep 2026 | Multi-call & conference calling, floating call pill auto-dismiss, just-in-time permission reminders, and settings permissions hub. |
 | `2.0.1` | `20` | Sep 2026 | Caller ID & spam default app, honest spam badges, setup wizard, and call redirection recovery. |
 | `2.0.0` | `19` | Sep 2026 | Multi-channel calling engine, dynamic keypad channel dock, unified call choice dialogs, blazing fast search, and transactional backups. |
 | `1.5.0` | `18` | Sep 2026 | Partitioned search outside active contact filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture. |
@@ -31,7 +32,20 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 2.0.1 (Latest) — Caller ID & Spam App, Honest Spam Badges & Setup Wizard</h3></summary>
+<summary><h3>🚀 Release 2.0.2 (Latest) — Multi-Call & Conference Calling, Call Pill Auto-Dismiss & Permissions Hub</h3></summary>
+
+### What's New & Improvements:
+- **Full Multi-Call & Conference Management**: Seamlessly handle multiple active calls right from the in-call screen. Add incoming or secondary calls, switch between callers with one tap using **Swap**, merge them into a conference with **Merge**, view all connected participants with active/on-hold status, and privately disconnect individual callers or hold the conference.
+- **Smart Call Pill Auto-Dismiss**: The floating ongoing call pill and Picture-in-Picture window now cleanly and immediately disappear the instant any call ends—whether hung up by you or the remote caller—without ever getting stuck on your screen.
+- **Just-in-Time Contextual Permission Reminders**: Clear, helpful reminders appear right where you need them if permissions were skipped. If contacts access is missing in Contacts, call history access is missing in Recents, or call redirection is inactive in Rules, a friendly inline banner and card let you grant access with a single tap.
+- **Settings Permissions Hub**: A dedicated card in Settings now gives you a complete, real-time overview of all 6 permissions and roles. You can see what's active at a glance, enable any missing feature with one tap, rerun the entire guided Setup Wizard, or jump directly to Android App Settings.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 2.0.1 — Caller ID & Spam App, Honest Spam Badges & Setup Wizard</h3></summary>
 
 ### What's New & Improvements:
 - **Caller ID & Spam Default App**: Set OmniDial as Android's "Caller ID & spam app" from Settings. Suspected spam calls are silenced and logged as missed calls — never silently dropped — so you never lose a flagged call you actually wanted. An optional "Block spam automatically" switch rejects them outright.
@@ -282,8 +296,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v2.0.1.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.0.2.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

@@ -6,7 +6,51 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
-### 0. Task 14.1 (Release 2.0.1): Caller ID & Spam Default Role & Screening Policy
+### 0. Task 15.1 (Release 2.0.2): Multi-Call & Conference Calling Subsystem
+- [ ] **To Test**
+- **Test Steps**:
+  1. While in an active call, tap **Add Call** and dial a second contact or number.
+  2. Verify the first call is placed on hold and the second call connects.
+  3. Tap **Swap** to toggle between the active and held call. Verify audio and UI switch cleanly.
+  4. Tap **Merge** to combine the two calls into a single conference.
+  5. Verify the participant list card appears showing both parties with individual status.
+  6. Tap **Hold Conf** to put the entire conference on hold; tap again to resume.
+  7. In the participant card, tap disconnect next to one participant. Verify only that participant is dropped and the other remains active.
+- **Expected Result**:
+  - Full multi-call swap, merge, hold/resume, and participant-level disconnect function smoothly without dropping the main call session.
+
+### 0.1 Task 15.2 (Release 2.0.2): Floating Call Pill & PiP Auto-Dismiss
+- [ ] **To Test**
+- **Test Steps**:
+  1. Start or receive a call.
+  2. Minimize the call screen or press Home to trigger the floating pill or Picture-in-Picture window.
+  3. Disconnect the call from either end (local hangup or remote caller disconnect).
+  4. Verify the floating pill and PiP window cleanly and immediately dismiss without lingering on screen.
+- **Expected Result**:
+  - Zero stuck floating widgets or PiP overlays after call termination.
+
+### 0.2 Task 15.3 (Release 2.0.2): Just-in-Time Contextual Permission Reminders
+- [ ] **To Test**
+- **Test Steps**:
+  1. If contacts permission is revoked or skipped in wizard, navigate to **Contacts**.
+  2. Verify an inline warning banner appears at the top and an empty state card appears prompting to enable contacts. Tap **Enable Contacts** and verify permission request triggers.
+  3. If call log permission is missing, navigate to **Recents**. Verify banner and empty state card appear with **Grant** button.
+  4. If Call Redirection role is missing, navigate to **Rules**. Verify "Call Redirection Not Active" banner appears with **Enable** button.
+- **Expected Result**:
+  - Missing permissions/roles are contextually surfaced right where users need them with 1-tap resolution.
+
+### 0.3 Task 15.4 (Release 2.0.2): Settings Permissions Hub & Setup Wizard Rerun
+- [ ] **To Test**
+- **Test Steps**:
+  1. Open **Settings** and locate the **App Permissions & Setup** hub card.
+  2. Verify all 6 setup wizard options are listed with accurate live status chips ("Active" vs "Enable").
+  3. Tap "Enable" on any pending permission/role. Verify its respective system dialog opens.
+  4. Tap **Rerun Setup Wizard**. Verify the full guided walkthrough reopens with all steps unskipped.
+  5. Tap **Open Android App Settings**. Verify system app details settings page opens.
+- **Expected Result**:
+  - Live status reflection, direct step triggers, full wizard replay, and deep link to system settings.
+
+### 1. Task 14.1 (Release 2.0.1): Caller ID & Spam Default Role & Screening Policy
 - [ ] **To Test**
 - **Test Steps**:
   1. Open **Settings** and find the **Caller ID & Spam** card. Verify it shows "Action Needed".
@@ -176,6 +220,36 @@ Items currently pending verification or undergoing testing. Verified items are a
   5. Verify the card displays an animated primary highlight container and border stroke, which gracefully fades out over 3.5 seconds.
 - **Expected Result**:
   - Tapping missed call notification navigates to Recents, smoothly scrolls to the exact entry, and pulses the highlight before fading back cleanly.
+
+---
+
+### 8. Conference calling: Add call / Merge / Swap / Manage participants
+- [ ] **To Test**
+- **Test Steps**:
+  1. Place a cellular call to person A; verify the in-call screen is locked to portrait and shows an **Add call** button (no Merge/Swap/Manage).
+  2. Tap **Add call** → verify the chooser has **Keypad** and **Contacts** tabs; dial person B from the keypad tab.
+  3. Verify person A is put on hold, person B dials, and the in-call UI now tracks the second call (primary).
+  4. If the carrier supports it, verify **Merge** appears; tap it and verify both calls merge into one conference (header shows "Conference" + participant count, SIM badge hidden, Manage button appears).
+  5. Tap **Manage** → verify both participants are listed; end one participant from the list and verify the other stays connected.
+  6. With two unmerged calls (active + held), verify **Swap** appears if the carrier supports it; tap and verify the active/held calls switch.
+  7. During a merged conference, verify **Add call** is still available.
+  8. End the conference; verify each participant's call is logged exactly once in Recents (no duplicate or blank conference-parent entries).
+  9. With two unmerged calls, hang up the second (primary) call; verify the first (held) call is promoted back to the in-call UI instead of showing a dead post-call screen.
+- **Expected Result**:
+  - Add call, merge, swap, and per-participant end/split all work where the carrier supports them; unsupported buttons stay hidden.
+  - Recents shows one entry per real participant call; ending one call never strands the UI on a dead screen while another call is live.
+
+### 9. Post-call auto-close and minimized-call popup dismissal
+- [ ] **To Test**
+- **Test Steps**:
+  1. End a call without touching the post-call note UI; verify the in-call screen auto-closes after ~5 seconds.
+  2. End a call, tap the note field (but type nothing); verify the screen stays up ~60 seconds after the last interaction, then closes.
+  3. End a call with typed (unsaved) note text; verify the text is never auto-discarded and the screen closes at the 10-minute backstop at the latest.
+  4. Minimize the in-call screen to the green popup, then end the call from the notification or the other side; verify the green popup disappears immediately (no stuck popup 20+ minutes later).
+  5. Verify minimizing the call restores rotation (portrait lock released) and reopening the call re-locks portrait.
+- **Expected Result**:
+  - Untouched post-call screens close in 5s; interacted-but-blank in ~60s; typed notes are preserved until saved or the 10-minute cap.
+  - The minimized green popup never survives a disconnected call; orientation returns to normal when the call UI is minimized or closed.
 
 ---
 

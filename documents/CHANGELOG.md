@@ -2,6 +2,23 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v2.0.2] — Build 21 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Multi-Call & Conference Calling Subsystem**: Seamless handling of multiple simultaneous calls. Swap between active and on-hold calls with 1 tap, merge calls into a conference, view dynamic participant cards with active/hold status, hold/unhold the conference, and disconnect individual callers without ending the entire conference.
+- **Floating Call Pill Auto-Dismiss**: The floating ongoing call pill and Picture-in-Picture window cleanly dismiss immediately when a call terminates (remote disconnect or local hangup), preventing stuck floating widgets.
+- **Just-In-Time (JIT) Contextual Permission Reminders**: Inline warning banners and empty-state action cards in Contacts (for missing contacts permission), Recents (for missing call log permission), and Rules (for missing call redirection role) with direct 1-tap grant/enable buttons.
+- **Settings Permissions Hub**: Comprehensive card in Settings showing the live real-time status of all 6 permissions/roles with "Active" vs "Enable" chips, 1-tap setup step launching, full Setup Wizard rerun, and direct link to Android App Settings.
+
+### 🔧 Technical / Architecture Notes
+- **Conference & Multi-Call Engine**: Integrated full conference and multiple-call management in `CallManager.kt`, tracking primary and secondary `Call` objects, conference parent/children hierarchies, and per-participant call states.
+- **ConferenceUiGating**: Added `ConferenceUiGating.kt` and comprehensive unit test suite `ConferenceUiGatingTest.kt` to robustly determine carrier-agnostic Swap, Merge, and Add Call UI button states.
+- **FloatingCallPill & PiP Teardown Guard**: Added lifecycle collectors in `MainActivity.kt` and `CallManager.kt` to guarantee `isCallScreenMinimized = false` and PiP `finishAndRemoveTask()` on call disconnect transitions.
+- **SetupStep Reuse**: Exported `SetupStepInfo` and `setupStepInfo()` from `SetupWizard.kt` to power the Settings Permissions Hub and live role badges.
+- Incremented `versionCode` to 21 and `versionName` to `"2.0.2"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.0.1] — Build 20 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)

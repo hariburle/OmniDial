@@ -23,6 +23,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -190,6 +192,17 @@ class MainActivity : ComponentActivity() {
         viewModel.handleIncomingIntent(intent)
         if (intent.getBooleanExtra("EXTRA_IN_CALL", false)) {
             viewModel.maximizeCall()
+        }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.activeCall.collect { call ->
+                    if (isInPipMode && (call == null || call.state == Call.STATE_DISCONNECTED || call.state == Call.STATE_DISCONNECTING)) {
+                        viewModel.dismissCall()
+                        finishAndRemoveTask()
+                    }
+                }
+            }
         }
 
         setContent {
@@ -418,6 +431,13 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
+        if (isInPictureInPictureMode) {
+            val active = CallManager.activeCall.value
+            if (active == null || active.state == Call.STATE_DISCONNECTED || active.state == Call.STATE_DISCONNECTING) {
+                viewModel.dismissCall()
+                finishAndRemoveTask()
+            }
+        }
     }
 
     private fun handleDialIntent(intent: Intent?) {
@@ -476,6 +496,9 @@ fun MainAppContent(
     val isFlipToShhhEnabled by viewModel.isFlipToShhhEnabled.collectAsStateWithLifecycle()
     val isShhhActive by viewModel.isShhhActive.collectAsStateWithLifecycle()
     val isCallScreenMinimized by viewModel.isCallScreenMinimized.collectAsStateWithLifecycle()
+    // Conference calling state (add person / merge / swap / manage participants)
+    val extraCallInfos by CallManager.extraCallInfos.collectAsStateWithLifecycle()
+    val conferenceParticipants by CallManager.conferenceParticipants.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val whatsAppCallMode by viewModel.whatsAppCallMode.collectAsStateWithLifecycle()
     val globalSimPreferenceMode by viewModel.globalSimPreferenceMode.collectAsStateWithLifecycle()
@@ -523,6 +546,27 @@ fun MainAppContent(
         (context as? MainActivity)?.updateLockScreenFlags(hasActive)
         if (!hasActive) {
             viewModel.refreshRecentCalls()
+        }
+    }
+
+    // Portrait lock: keep the in-call screen in portrait while a call is on screen.
+    // Rotation is restored as soon as the call ends or the call screen is minimized.
+    val isInCallOverlayVisible = activeCall != null && !isCallScreenMinimized
+    LaunchedEffect(isInCallOverlayVisible) {
+        (context as? MainActivity)?.let { activity ->
+            activity.requestedOrientation = if (isInCallOverlayVisible) {
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            } else {
+                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }
+    }
+
+    // Stuck-screen guard: if the call ended while the in-call screen was minimized, the
+    // post-call state is invisible and can never be dismissed — clear it immediately.
+    LaunchedEffect(activeCall?.state, isCallScreenMinimized) {
+        if ((activeCall?.state == Call.STATE_DISCONNECTED || activeCall?.state == Call.STATE_DISCONNECTING) && isCallScreenMinimized) {
+            viewModel.dismissCall()
         }
     }
 
@@ -601,7 +645,17 @@ fun MainAppContent(
     val wizardPrefs = remember {
         context.getSharedPreferences("kishan_dialer_prefs", Context.MODE_PRIVATE)
     }
-    val skippedWizardSteps = remember { mutableStateOf(setOf<SetupStep>()) }
+    val initialSkipped = remember {
+        val saved = wizardPrefs.getStringSet("skipped_wizard_steps", emptySet()) ?: emptySet()
+        saved.mapNotNull { name ->
+            try {
+                SetupStep.valueOf(name)
+            } catch (_: Exception) {
+                null
+            }
+        }.toSet()
+    }
+    val skippedWizardSteps = remember { mutableStateOf(initialSkipped) }
     var setupWizardCompleted by remember {
         mutableStateOf(wizardPrefs.getBoolean("setup_wizard_completed", false))
     }
@@ -610,13 +664,11 @@ fun MainAppContent(
     // by an effect below so launcher code stays order-independent.
     var wizardReturnSignal by remember { mutableStateOf<SetupStep?>(null) }
 
-    fun runtimePermissionList(): List<String> {
+    fun phonePermissionList(): List<String> {
         val list = mutableListOf(
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.READ_CALL_LOG,
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.WRITE_CONTACTS,
             Manifest.permission.SEND_SMS
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -626,6 +678,21 @@ fun MainAppContent(
             list.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         return list
+    }
+
+    fun contactsPermissionList(): List<String> = listOf(
+        Manifest.permission.READ_CONTACTS,
+        Manifest.permission.WRITE_CONTACTS
+    )
+
+    fun runtimePermissionList(): List<String> = phonePermissionList() + contactsPermissionList()
+
+    fun isPhonePermissionsGranted(): Boolean = phonePermissionList().all {
+        context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun isContactsPermissionGranted(): Boolean = contactsPermissionList().all {
+        context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
     }
 
     fun computeSetupSteps(): List<SetupStepState> {
@@ -639,12 +706,8 @@ fun MainAppContent(
             }
         )
         val steps = mutableListOf(
-            stateFor(
-                SetupStep.PERMISSIONS,
-                runtimePermissionList().all {
-                    context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
-                }
-            ),
+            stateFor(SetupStep.PHONE_PERMISSIONS, isPhonePermissionsGranted()),
+            stateFor(SetupStep.CONTACTS, isContactsPermissionGranted()),
             stateFor(SetupStep.DEFAULT_DIALER, RoleHelper.isDefaultDialer(context))
         )
         if (RoleHelper.isCallRedirectionRoleAvailable(context)) {
@@ -677,6 +740,20 @@ fun MainAppContent(
 
     fun refreshWizardSteps() {
         wizardSteps = computeSetupSteps()
+    }
+
+    fun markWizardStepSkipped(step: SetupStep) {
+        val updated = skippedWizardSteps.value + step
+        skippedWizardSteps.value = updated
+        wizardPrefs.edit().putStringSet("skipped_wizard_steps", updated.map { it.name }.toSet()).apply()
+        refreshWizardSteps()
+    }
+
+    fun unskipWizardStep(step: SetupStep) {
+        val updated = skippedWizardSteps.value - step
+        skippedWizardSteps.value = updated
+        wizardPrefs.edit().putStringSet("skipped_wizard_steps", updated.map { it.name }.toSet()).apply()
+        refreshWizardSteps()
     }
 
     fun completeWizard() {
@@ -766,32 +843,27 @@ fun MainAppContent(
     }
 
     // Request necessary runtime permissions
-    val permissionLauncher = rememberLauncherForActivityResult(
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
         viewModel.registerCallLogObserver()
         viewModel.refreshDefaultDialerStatus()
         viewModel.refreshSimCards()
         viewModel.refreshRecentCalls()
+        channelDiscoveryManager.refreshChannels()
+        wizardReturnSignal = SetupStep.PHONE_PERMISSIONS
+    }
+
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
         viewModel.refreshContacts()
         viewModel.syncWithDeviceContacts()
-        channelDiscoveryManager.refreshChannels()
-        wizardReturnSignal = SetupStep.PERMISSIONS
+        wizardReturnSignal = SetupStep.CONTACTS
     }
 
     LaunchedEffect(Unit) {
-        val ungranted = runtimePermissionList().filter {
-            context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
-        }
-        // The setup wizard drives first-run permission requests; only auto-request
-        // here when the wizard won't show, preserving the legacy nag behavior.
-        val wizardWillShow = !setupWizardCompleted &&
-            wizardSteps.any { it.status != SetupStepStatus.DONE }
-        if (ungranted.isNotEmpty() && !wizardWillShow) {
-            permissionLauncher.launch(ungranted.toTypedArray())
-        } else {
-            channelDiscoveryManager.refreshChannels()
-        }
+        channelDiscoveryManager.refreshChannels()
     }
 
     LaunchedEffect(showChannelOnboarding) {
@@ -807,19 +879,30 @@ fun MainAppContent(
         // the user backed out: mark it skipped so the chain never loops.
         val fresh = computeSetupSteps()
         if (fresh.any { it.step == step && it.status == SetupStepStatus.PENDING }) {
-            skippedWizardSteps.value = skippedWizardSteps.value + step
+            markWizardStepSkipped(step)
+        } else {
+            refreshWizardSteps()
         }
-        refreshWizardSteps()
     }
 
     fun launchWizardStep(step: SetupStep) {
         when (step) {
-            SetupStep.PERMISSIONS -> {
-                val ungranted = runtimePermissionList().filter {
+            SetupStep.PHONE_PERMISSIONS -> {
+                val ungranted = phonePermissionList().filter {
                     context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
                 }
                 if (ungranted.isNotEmpty()) {
-                    permissionLauncher.launch(ungranted.toTypedArray())
+                    phonePermissionLauncher.launch(ungranted.toTypedArray())
+                } else {
+                    markWizardStepReturned(step)
+                }
+            }
+            SetupStep.CONTACTS -> {
+                val ungranted = contactsPermissionList().filter {
+                    context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+                }
+                if (ungranted.isNotEmpty()) {
+                    contactsPermissionLauncher.launch(ungranted.toTypedArray())
                 } else {
                     markWizardStepReturned(step)
                 }
@@ -897,7 +980,7 @@ fun MainAppContent(
     }
 
     val showSetupWizard = !setupWizardCompleted &&
-        wizardSteps.any { it.status != SetupStepStatus.DONE }
+        wizardSteps.any { it.status == SetupStepStatus.PENDING }
 
     LaunchedEffect(wizardReturnSignal) {
         val step = wizardReturnSignal ?: return@LaunchedEffect
@@ -925,7 +1008,10 @@ fun MainAppContent(
                             onToggleMute = { viewModel.toggleMute() },
                             onToggleSpeaker = { viewModel.toggleSpeaker() },
                             onMaximize = { viewModel.maximizeCall() },
-                            onDisconnect = { viewModel.disconnectCall() }
+                            onDisconnect = {
+                                viewModel.disconnectCall()
+                                viewModel.dismissCall()
+                            }
                         )
                     }
                 }
@@ -1258,6 +1344,11 @@ fun MainAppContent(
                             viewModel.deleteRecentCallsForNumber(phoneNumber)
                         },
                         onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
+                        isCallLogPermissionGranted = context.checkSelfPermission(Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED,
+                        onRequestCallLogPermission = {
+                            unskipWizardStep(SetupStep.PHONE_PERMISSIONS)
+                            launchWizardStep(SetupStep.PHONE_PERMISSIONS)
+                        },
                         dismissModalsTrigger = dismissModalsTrigger
                     )
                     2 -> DialerScreen(
@@ -1377,6 +1468,11 @@ fun MainAppContent(
                         },
                         onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
                         onDeleteContact = { viewModel.deleteContact(it) },
+                        isContactsPermissionGranted = isContactsPermissionGranted(),
+                        onRequestContactsPermission = {
+                            unskipWizardStep(SetupStep.CONTACTS)
+                            launchWizardStep(SetupStep.CONTACTS)
+                        },
                         dismissModalsTrigger = dismissModalsTrigger
                     )
                     4 -> RulesScreen(
@@ -1446,6 +1542,28 @@ fun MainAppContent(
                                 viewModel.refreshRecentCalls()
                             }
                         },
+                        isCallRedirectionRoleHeld = RoleHelper.isCallRedirectionRoleHeld(context),
+                        onRequestCallRedirectionRole = {
+                            unskipWizardStep(SetupStep.CALL_REDIRECTION)
+                            launchWizardStep(SetupStep.CALL_REDIRECTION)
+                        },
+                        setupStepStates = wizardSteps,
+                        onLaunchSetupStep = { step ->
+                            unskipWizardStep(step)
+                            launchWizardStep(step)
+                        },
+                        onRerunSetupWizard = {
+                            wizardPrefs.edit().remove("skipped_wizard_steps").putBoolean("setup_wizard_completed", false).apply()
+                            skippedWizardSteps.value = emptySet()
+                            refreshWizardSteps()
+                            setupWizardCompleted = false
+                        },
+                        onOpenAppSettings = {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        },
                         dismissModalsTrigger = dismissModalsTrigger
                     )
                 }
@@ -1458,6 +1576,23 @@ fun MainAppContent(
             exit = fadeOut()
         ) {
             activeCall?.let { call ->
+                // Conference UI gating: driven by the calls OmniDial tracks, not by
+                // carrier-advertised capabilities (many carriers never set them, which
+                // hid Merge/Swap entirely). A rejected merge/swap shows a toast instead.
+                val controls = com.example.telecom.conferenceControls(
+                    callState = call.state,
+                    isConference = call.isConference,
+                    hasNativeCall = call.hasNativeCall,
+                    extraCallCount = extraCallInfos.size,
+                    participantCount = conferenceParticipants.size
+                )
+                val isConferenceCall = call.isConference
+                val canAddCall = controls.showAddCall
+                val canMergeCalls = controls.showMerge
+                val canSwapCalls = controls.showSwap
+                fun toast(msg: String) {
+                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
                 InCallScreen(
                     callInfo = call,
                     isMuted = isMuted,
@@ -1489,7 +1624,27 @@ fun MainAppContent(
                     onUnblockSpam = { num -> viewModel.removeSpam(num) },
                     onDismiss = { viewModel.minimizeCall() },
                     onClosePostCall = { viewModel.dismissCall() },
-                    callAnswerStyle = callAnswerStyle
+                    callAnswerStyle = callAnswerStyle,
+                    heldCalls = extraCallInfos,
+                    canAddCall = canAddCall,
+                    onAddCall = { number -> viewModel.placeConferenceCall(context, number) },
+                    canMergeCalls = canMergeCalls,
+                    onMergeCalls = {
+                        if (!viewModel.mergeConferenceCalls()) toast("Couldn't merge the calls")
+                    },
+                    canSwapCalls = canSwapCalls,
+                    onSwapCalls = {
+                        if (!viewModel.swapConferenceCalls()) toast("Couldn't swap the calls")
+                    },
+                    isConference = isConferenceCall,
+                    conferenceParticipants = conferenceParticipants,
+                    onEndParticipant = { id ->
+                        if (!viewModel.endConferenceParticipant(id)) toast("Couldn't remove participant")
+                    },
+                    onSplitParticipant = { id ->
+                        if (!viewModel.splitConferenceParticipant(id)) toast("Couldn't start a private call")
+                    },
+                    onFetchContacts = { viewModel.fetchDeviceContactsForChooser() }
                 )
             }
         }
@@ -1554,38 +1709,33 @@ fun MainAppContent(
                 steps = wizardSteps,
                 isRunning = wizardRunning,
                 onStartSetup = {
-                    skippedWizardSteps.value = emptySet()
-                    refreshWizardSteps()
                     wizardRunning = true
                     advanceWizard()
                 },
                 onStepClick = { step ->
                     if (!wizardRunning) {
-                        skippedWizardSteps.value = skippedWizardSteps.value - step
-                        refreshWizardSteps()
+                        unskipWizardStep(step)
                         launchWizardStep(step)
                     }
                 },
                 onSkipStep = { step ->
-                    skippedWizardSteps.value = skippedWizardSteps.value + step
-                    refreshWizardSteps()
+                    markWizardStepSkipped(step)
                 },
                 onDismiss = {
                     wizardRunning = false
+                    val pendingSteps = wizardSteps
+                        .filter { it.status == SetupStepStatus.PENDING }
+                        .map { it.step }
+                    val updated = skippedWizardSteps.value + pendingSteps
+                    skippedWizardSteps.value = updated
+                    wizardPrefs.edit().putStringSet("skipped_wizard_steps", updated.map { it.name }.toSet()).apply()
                     completeWizard()
-                    // Legacy fallback: core runtime permissions must still be requested.
-                    val ungranted = runtimePermissionList().filter {
-                        context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
-                    }
-                    if (ungranted.isNotEmpty()) {
-                        permissionLauncher.launch(ungranted.toTypedArray())
-                    }
                 }
             )
         }
 
         // Check if OmniDial is the default app on startup, and prompt user if not
-        if (!isCallScreenVisible && !showSetupWizard && !isDefaultDialer && showDefaultAppPrompt) {
+        if (!isCallScreenVisible && !showSetupWizard && !isDefaultDialer && showDefaultAppPrompt && SetupStep.DEFAULT_DIALER !in skippedWizardSteps.value) {
             DefaultAppPromptDialog(
                 onRequestSetDefault = {
                     val intent = RoleHelper.createDefaultDialerIntent(context)
@@ -1594,7 +1744,10 @@ fun MainAppContent(
                     }
                     showDefaultAppPrompt = false
                 },
-                onDismiss = { showDefaultAppPrompt = false }
+                onDismiss = {
+                    showDefaultAppPrompt = false
+                    markWizardStepSkipped(SetupStep.DEFAULT_DIALER)
+                }
             )
         }
 
@@ -1620,7 +1773,7 @@ fun MainAppContent(
         }
 
         // Check Display Over Other Apps permission on startup for car & bluetooth call redirection
-        if (!isCallScreenVisible && !showSetupWizard && !hasOverlayPermission && showOverlayPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+        if (!isCallScreenVisible && !showSetupWizard && !hasOverlayPermission && showOverlayPrompt && SetupStep.OVERLAY !in skippedWizardSteps.value && (!showDefaultAppPrompt || isDefaultDialer)) {
             OverlayPermissionPromptDialog(
                 onRequestPermission = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -1639,12 +1792,15 @@ fun MainAppContent(
                     }
                     showOverlayPrompt = false
                 },
-                onDismiss = { showOverlayPrompt = false }
+                onDismiss = {
+                    showOverlayPrompt = false
+                    markWizardStepSkipped(SetupStep.OVERLAY)
+                }
             )
         }
 
         // Check Full Screen Intent permission (Android 14+ / API 34+) to wake screen for background calls
-        if (!isCallScreenVisible && !showSetupWizard && hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && (!showDefaultAppPrompt || isDefaultDialer)) {
+        if (!isCallScreenVisible && !showSetupWizard && hasOverlayPermission && !hasFullScreenPermission && showFullScreenPrompt && SetupStep.FULL_SCREEN_INTENT !in skippedWizardSteps.value && (!showDefaultAppPrompt || isDefaultDialer)) {
             FullScreenPermissionPromptDialog(
                 onRequestPermission = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -1663,7 +1819,10 @@ fun MainAppContent(
                     }
                     showFullScreenPrompt = false
                 },
-                onDismiss = { showFullScreenPrompt = false }
+                onDismiss = {
+                    showFullScreenPrompt = false
+                    markWizardStepSkipped(SetupStep.FULL_SCREEN_INTENT)
+                }
             )
         }
     }
@@ -1886,6 +2045,17 @@ fun PipCallContent(viewModel: MainViewModel) {
     val isMuted by viewModel.isMuted.collectAsStateWithLifecycle()
     val isSpeakerOn by viewModel.isSpeakerOn.collectAsStateWithLifecycle()
     var elapsedSeconds by remember { mutableStateOf(0L) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? android.app.Activity
+
+    LaunchedEffect(activeCall?.state, activeCall) {
+        val state = activeCall?.state
+        if (state == null || state == Call.STATE_DISCONNECTED || state == Call.STATE_DISCONNECTING) {
+            delay(500)
+            viewModel.dismissCall()
+            activity?.finishAndRemoveTask()
+        }
+    }
 
     LaunchedEffect(activeCall?.connectTimeMillis, activeCall?.state) {
         val connectTime = activeCall?.connectTimeMillis ?: 0L
@@ -1903,6 +2073,13 @@ fun PipCallContent(viewModel: MainViewModel) {
     val seconds = elapsedSeconds % 60
     val timerText = String.format("%02d:%02d", minutes, seconds)
     val call = activeCall
+    val statusText = when (call?.state) {
+        Call.STATE_DISCONNECTED, Call.STATE_DISCONNECTING -> "Call ended"
+        Call.STATE_HOLDING -> "On hold"
+        Call.STATE_RINGING -> "Incoming call"
+        Call.STATE_DIALING, Call.STATE_CONNECTING -> "Calling..."
+        else -> "Active • $timerText"
+    }
 
     Surface(
         modifier = Modifier
@@ -1958,7 +2135,7 @@ fun PipCallContent(viewModel: MainViewModel) {
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Active • $timerText",
+                        text = statusText,
                         color = Color.White.copy(alpha = 0.9f),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -2014,7 +2191,11 @@ fun PipCallContent(viewModel: MainViewModel) {
 
                 // Hang up
                 IconButton(
-                    onClick = { viewModel.disconnectCall() },
+                    onClick = {
+                        viewModel.disconnectCall()
+                        viewModel.dismissCall()
+                        activity?.finishAndRemoveTask()
+                    },
                     modifier = Modifier
                         .size(32.dp)
                         .background(Color(0xFFDC2626), CircleShape)

@@ -3,7 +3,7 @@
 [![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/Version-2.0.1%20(Build%2020)-brightgreen.svg)](documents/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-2.0.2%20(Build%2021)-brightgreen.svg)](documents/CHANGELOG.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](documents/CHANGELOG.md)
 [![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](documents/DESIGN.md)
 
@@ -131,7 +131,8 @@
 
 The latest release and prior versions are available in the `apks/` directory and on the [OmniDial Website](index.html):
 
-- **[OmniDial-v2.0.1.apk](apks/OmniDial-v2.0.1.apk)** *(Latest — Build 20)*: Caller ID & spam default app (silence-and-log spam handling), honest spam badges, guided setup wizard, and call redirection recovery banner.
+- **[OmniDial-v2.0.2.apk](apks/OmniDial-v2.0.2.apk)** *(Latest — Build 21)*: Multi-call & conference calling subsystem (Swap, Merge, individual participant hangup & conference hold/resume), floating call pill auto-dismiss on call termination, Just-in-Time contextual permission reminders, and Settings Permissions Hub.
+- **[OmniDial-v2.0.1.apk](apks/OmniDial-v2.0.1.apk)** *(Build 20)*: Caller ID & spam default app (silence-and-log spam handling), honest spam badges, guided setup wizard, and call redirection recovery banner.
 - **[OmniDial-v2.0.0.apk](apks/OmniDial-v2.0.0.apk)** *(Build 19)*: Multi-channel calling engine (Cellular SIM 1/2 + WhatsApp), dynamic keypad channel dock, unified call choice dialogs with remembered preferences, hot-path search indexing (<16ms), transactional backup/restore with live progress, and telecom callback lifecycle fixes.
 - **[OmniDial-v1.5.0.apk](apks/OmniDial-v1.5.0.apk)** *(Build 18)*: Partitioned contact search outside active filters, ambient incoming call ring silencing on lift or interaction, and multi-channel calling engine architecture.
 - **[OmniDial-v1.4.4.apk](apks/OmniDial-v1.4.4.apk)** *(Build 17)*: Smart SIM & roaming call alerts, instant call log updates, and polished nickname presentation.

@@ -138,6 +138,8 @@ fun ContactsScreen(
     globalSimPreferenceMode: String = "system",
     whatsAppCallMode: String = "ask_learn",
     onCallNumberDirect: ((String, Int?) -> Unit)? = null,
+    isContactsPermissionGranted: Boolean = true,
+    onRequestContactsPermission: () -> Unit = {},
     dismissModalsTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -618,6 +620,57 @@ fun ContactsScreen(
             )
         }
 
+        // Just-in-Time Contacts Permission Banner
+        if (!isContactsPermissionGranted) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Contacts,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Contacts Access Disabled",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = "Grant permission to view, search, and manage phone contacts.",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onRequestContactsPermission,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("Grant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
         if (sourceFilter == ContactSourceFilter.APP_ONLY && appOnlyCount > 0) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
@@ -812,19 +865,25 @@ fun ContactsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            imageVector = when (smartSortBy) {
-                                SmartContactSort.FAVORITES -> Icons.Default.Star
-                                SmartContactSort.NICKNAMES -> Icons.Default.Face
-                                SmartContactSort.RECENT -> Icons.Default.History
-                                SmartContactSort.FREQUENT -> Icons.Default.LocalFireDepartment
-                                SmartContactSort.REDISCOVER -> Icons.Default.Casino
+                            imageVector = when {
+                                !isContactsPermissionGranted && effectiveContacts.isEmpty() -> Icons.Default.Contacts
+                                smartSortBy == SmartContactSort.FAVORITES -> Icons.Default.Star
+                                smartSortBy == SmartContactSort.NICKNAMES -> Icons.Default.Face
+                                smartSortBy == SmartContactSort.RECENT -> Icons.Default.History
+                                smartSortBy == SmartContactSort.FREQUENT -> Icons.Default.LocalFireDepartment
+                                smartSortBy == SmartContactSort.REDISCOVER -> Icons.Default.Casino
                                 else -> Icons.Default.Person
                             },
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            tint = if (!isContactsPermissionGranted && effectiveContacts.isEmpty()) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            }
                         )
                         val emptyTitle = when {
+                            !isContactsPermissionGranted && effectiveContacts.isEmpty() -> "Contacts Permission Required"
                             searchQuery.isNotBlank() -> "No contacts match '$searchQuery'"
                             smartSortBy == SmartContactSort.FAVORITES -> "No favorite contacts added yet"
                             smartSortBy == SmartContactSort.NICKNAMES -> "No contacts with nicknames found"
@@ -841,7 +900,23 @@ fun ContactsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
-                        if (smartSortBy != SmartContactSort.ALL) {
+                        if (!isContactsPermissionGranted && effectiveContacts.isEmpty()) {
+                            Text(
+                                text = "Allow OmniDial to access your contacts to view your address book and set channel preferences.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = onRequestContactsPermission,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text("Grant Contacts Access", fontWeight = FontWeight.Bold)
+                            }
+                        } else if (smartSortBy != SmartContactSort.ALL) {
                             OutlinedButton(
                                 onClick = { smartSortBy = SmartContactSort.ALL },
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)

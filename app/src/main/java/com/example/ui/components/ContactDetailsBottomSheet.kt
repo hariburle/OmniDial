@@ -650,7 +650,14 @@ fun ContactDetailsBottomSheet(
                             val normalizedPn = remember(pn.number) {
                                 PhoneNumberNormalizer.toE164(pn.number)
                             }
+                            val digitsPn = remember(pn.number) { pn.number.filter { it.isDigit() } }
+                            val suffix10Pn = remember(digitsPn) { if (digitsPn.length >= 10) digitsPn.takeLast(10) else digitsPn }
                             val savedPref = numberChannelPrefs.firstOrNull { it.normalizedNumber == normalizedPn }
+                                ?: numberChannelPrefs.firstOrNull { pref ->
+                                    val prefDigits = pref.normalizedNumber.filter { it.isDigit() }
+                                    ContactHelper.isSamePhoneNumber(pref.normalizedNumber, pn.number) ||
+                                        (suffix10Pn.length >= 7 && (prefDigits.endsWith(suffix10Pn) || (prefDigits.length >= 10 && suffix10Pn.endsWith(prefDigits.takeLast(10)))))
+                                }
                             val effectiveChannelId = savedPref?.preferredChannelId ?: run {
                                 val legacyMode = preferredModes[pn.number] ?: getPreferredCallingMode(pn.number)
                                 val legacySlot = preferredSims[pn.number] ?: getPreferredSimSlot(pn.number)

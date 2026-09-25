@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -72,6 +73,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -81,12 +83,18 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.PhoneDisabled
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.SwapCalls
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Voicemail
 import androidx.compose.material.icons.filled.VolumeOff
@@ -101,6 +109,13 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.Dialog
+import com.example.util.DeviceContact
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -170,6 +185,19 @@ fun InCallScreen(
     onDismiss: () -> Unit = {},
     onClosePostCall: () -> Unit = onDismiss,
     callAnswerStyle: String = "swipe_slider",
+    heldCalls: List<com.example.telecom.ActiveCallInfo> = emptyList(),
+    // --- Conference calling (add person / merge / swap / manage) ---
+    canAddCall: Boolean = false,
+    onAddCall: (String) -> Unit = {},
+    canMergeCalls: Boolean = false,
+    onMergeCalls: () -> Unit = {},
+    canSwapCalls: Boolean = false,
+    onSwapCalls: () -> Unit = {},
+    isConference: Boolean = false,
+    conferenceParticipants: List<com.example.telecom.ConferenceParticipant> = emptyList(),
+    onEndParticipant: (String) -> Unit = {},
+    onSplitParticipant: (String) -> Unit = {},
+    onFetchContacts: suspend () -> List<com.example.util.DeviceContact> = { emptyList() },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -191,19 +219,44 @@ fun InCallScreen(
     var spamActionConfirmed by remember { mutableStateOf(false) }
     var showReportSpamDialog by remember { mutableStateOf(false) }
     var showAudioRouteSelector by remember { mutableStateOf(false) }
+    var showAddCallDialog by remember { mutableStateOf(false) }
+    var showManageConferenceDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(callInfo.state, isUserInteractingWithNote, noteSaved, autoCloseTimerActive) {
-        if (callInfo.state == Call.STATE_DISCONNECTED && !isUserInteractingWithNote && !noteSaved && autoCloseTimerActive) {
-            autoCloseRemainingSeconds = 5
-            while (autoCloseRemainingSeconds > 0) {
-                delay(1000)
-                if (isUserInteractingWithNote || noteSaved || !autoCloseTimerActive) break
-                autoCloseRemainingSeconds--
-            }
-            if (!isUserInteractingWithNote && !noteSaved && autoCloseTimerActive) {
-                onClosePostCall()
-            }
+    // The conference can collapse back to a single call (e.g. one of two participants
+    // is disconnected and the framework detaches the survivor). Never leave Manage
+    // open on a conference that no longer exists.
+    LaunchedEffect(isConference) {
+        if (!isConference) showManageConferenceDialog = false
+    }
+
+    // Post-call auto-close: never leaves the in-call screen stuck on a dead call.
+    // Untouched -> closes 5s after disconnect. If the user interacted but typed nothing, 60s
+    // grace from the last interaction. Typed note text is never auto-discarded, with a 10-minute
+    // absolute cap as the final backstop.
+    var lastNoteInteractionMillis by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(callInfo.state) {
+        if (callInfo.state != Call.STATE_DISCONNECTED) return@LaunchedEffect
+        val disconnectedAt = System.currentTimeMillis()
+        // Phase 1: 5s countdown; closes right away if the user never touched the note UI.
+        autoCloseRemainingSeconds = 5
+        while (autoCloseRemainingSeconds > 0) {
+            delay(1000)
+            if (noteSaved) { onClosePostCall(); return@LaunchedEffect }
+            autoCloseRemainingSeconds--
         }
+        if (noteSaved) { onClosePostCall(); return@LaunchedEffect }
+        if (postCallNote.isBlank() && lastNoteInteractionMillis == 0L) {
+            onClosePostCall(); return@LaunchedEffect
+        }
+        // Phase 2: the user interacted — 60s grace from the last interaction.
+        while (System.currentTimeMillis() - disconnectedAt < 10 * 60 * 1000L) {
+            delay(5000)
+            if (noteSaved) { onClosePostCall(); return@LaunchedEffect }
+            if (postCallNote.isBlank() &&
+                System.currentTimeMillis() - lastNoteInteractionMillis > 60_000L
+            ) { onClosePostCall(); return@LaunchedEffect }
+        }
+        onClosePostCall()
     }
 
     LaunchedEffect(noteSaved) {
@@ -346,6 +399,13 @@ fun InCallScreen(
                                     modifier = Modifier.size(56.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
+                            } else if (isConference) {
+                                Icon(
+                                    imageVector = Icons.Filled.Group,
+                                    contentDescription = "Conference call",
+                                    modifier = Modifier.size(56.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             } else if (callInfo.displayName.isNotBlank() && callInfo.displayName != "Incoming Caller" && callInfo.displayName != "Calling...") {
                                 val primaryInitial = (callInfo.nickname?.ifBlank { null } ?: callInfo.displayName).take(1).uppercase()
                                 Text(
@@ -373,7 +433,7 @@ fun InCallScreen(
                 ) {
                     val formalName = callInfo.displayName
                     val nickname = callInfo.nickname?.ifBlank { null }
-                    val primaryNameToDisplay = nickname ?: formalName
+                    val primaryNameToDisplay = if (isConference) "Conference" else nickname ?: formalName
                     Text(
                         text = primaryNameToDisplay,
                         style = MaterialTheme.typography.headlineMedium,
@@ -383,7 +443,7 @@ fun InCallScreen(
                     )
 
                     // If nickname is primary, display the formal full name below
-                    if (nickname != null && formalName.isNotBlank() && !nickname.equals(formalName, ignoreCase = true) && formalName != callInfo.phoneNumber && formalName != "Incoming Caller") {
+                    if (!isConference && nickname != null && formalName.isNotBlank() && !nickname.equals(formalName, ignoreCase = true) && formalName != callInfo.phoneNumber && formalName != "Incoming Caller") {
                         Text(
                             text = formalName,
                             style = MaterialTheme.typography.titleSmall,
@@ -393,8 +453,18 @@ fun InCallScreen(
                         )
                     }
 
-                    // Label and Number
-                    val numberSubtitle = buildString {
+                    // Label and Number — a conference shows the participant count, or the
+                    // participant names when there are just one or two of them.
+                    val numberSubtitle = if (isConference) {
+                        val n = conferenceParticipants.size
+                        val named = conferenceParticipants.mapNotNull {
+                            it.displayName.takeIf { d -> d.isNotBlank() && d != "Unknown" }
+                        }
+                        if (named.size == n && n in 1..2) named.joinToString("\n")
+                        else if (named.isNotEmpty() && n in 1..4) named.joinToString("\n")
+                        else if (n > 0) "$n ${if (n == 1) "person" else "people"}"
+                        else ""
+                    } else buildString {
                         if (!callInfo.numberLabel.isNullOrBlank()) {
                             append(callInfo.numberLabel)
                             if (callInfo.phoneNumber.isNotBlank()) {
@@ -416,66 +486,71 @@ fun InCallScreen(
                         )
                     }
 
-                    // SIM & Roaming Indicator Badge
-                    val simLabel = if (!callInfo.simDisplayName.isNullOrBlank()) {
-                        callInfo.simDisplayName
-                    } else {
-                        "SIM ${callInfo.simSlot}"
-                    }
+                    // SIM badge is hidden during a conference: every participant is
+                    // already connected, so per-call routing info no longer applies.
+                    if (!isConference) {
+                        // SIM & Roaming Indicator Badge
+                        val simLabel = if (!callInfo.simDisplayName.isNullOrBlank()) {
+                            callInfo.simDisplayName
+                        } else {
+                            "SIM ${callInfo.simSlot}"
+                        }
 
-                    if (callInfo.isRoaming) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color(0xFFFEF3C7),
-                            border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        if (callInfo.isRoaming) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color(0xFFFEF3C7),
+                                border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                                modifier = Modifier.padding(horizontal = 8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Roaming Warning",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = Color(0xFFD97706)
-                                )
-                                Text(
-                                    text = "$simLabel • ROAMING",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF92400E)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Roaming Warning",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = Color(0xFFD97706)
+                                    )
+                                    Text(
+                                        text = "$simLabel • ROAMING",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF92400E)
+                                    )
+                                }
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhoneAndroid,
+                                        contentDescription = "SIM Card",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = simLabel,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
-                    } else {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PhoneAndroid,
-                                    contentDescription = "SIM Card",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = simLabel,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+
                     }
 
                     // Trust Badge (Verified Business, Priority Logistics, Spam Risk)
@@ -544,6 +619,69 @@ fun InCallScreen(
                                 )
                             }
                         }
+                    }
+                }
+
+                // Held Call Banner (when a second call is active or dialing)
+                if (heldCalls.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    for (held in heldCalls) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .fillMaxWidth(0.9f)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Pause,
+                                        contentDescription = "Call on Hold",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "On Hold",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = held.displayName.ifBlank { held.phoneNumber.ifBlank { "Held Call" } },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                if (canSwapCalls) {
+                                    TextButton(
+                                        onClick = onSwapCalls,
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "Swap",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
                 }
 
@@ -889,6 +1027,7 @@ fun InCallScreen(
                                     OutlinedButton(
                                         onClick = {
                                             autoCloseTimerActive = false
+                                            lastNoteInteractionMillis = System.currentTimeMillis()
                                             if (callInfo.phoneNumber.isNotBlank()) {
                                                 if (spamActionConfirmed) {
                                                     onUnblockSpam?.invoke(callInfo.phoneNumber)
@@ -927,6 +1066,7 @@ fun InCallScreen(
                                     OutlinedButton(
                                         onClick = {
                                             autoCloseTimerActive = false
+                                            lastNoteInteractionMillis = System.currentTimeMillis()
                                             showReportSpamDialog = true
                                         },
                                         shape = RoundedCornerShape(10.dp),
@@ -957,6 +1097,7 @@ fun InCallScreen(
                                         postCallNote = it
                                         isUserInteractingWithNote = true
                                         autoCloseTimerActive = false
+                                        lastNoteInteractionMillis = System.currentTimeMillis()
                                     },
                                     placeholder = {
                                         Text(
@@ -983,6 +1124,7 @@ fun InCallScreen(
                                             if (focusState.isFocused) {
                                                 isUserInteractingWithNote = true
                                                 autoCloseTimerActive = false
+                                                lastNoteInteractionMillis = System.currentTimeMillis()
                                             }
                                         }
                                         .testTag("post_call_note_input"),
@@ -1004,6 +1146,7 @@ fun InCallScreen(
                                         postCallReminderMins = mins
                                         isUserInteractingWithNote = true
                                         autoCloseTimerActive = false
+                                        lastNoteInteractionMillis = System.currentTimeMillis()
                                     }
                                 )
 
@@ -1053,7 +1196,7 @@ fun InCallScreen(
                     }
                 } else {
                     // Active or Outgoing Call:
-                    // 1. Controls Row: Mute, Keypad
+                    // 1. Controls Row: Add call / Merge / Swap / Manage (conference) + Mute, Keypad
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1061,6 +1204,50 @@ fun InCallScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Add call — dial a second person (framework holds the current call)
+                        if (canAddCall) {
+                            InCallControlButton(
+                                icon = Icons.Default.PersonAdd,
+                                label = "Add call",
+                                isActive = false,
+                                onClick = { showAddCallDialog = true },
+                                testTag = "incall_add_call_button"
+                            )
+                        }
+
+                        // Merge — combine the held call into this one
+                        if (canMergeCalls) {
+                            InCallControlButton(
+                                icon = Icons.Filled.CallMerge,
+                                label = "Merge",
+                                isActive = false,
+                                onClick = onMergeCalls,
+                                testTag = "incall_merge_button"
+                            )
+                        }
+
+                        // Swap — switch between the active and held call without merging
+                        if (canSwapCalls) {
+                            InCallControlButton(
+                                icon = Icons.Filled.SwapCalls,
+                                label = "Swap",
+                                isActive = false,
+                                onClick = onSwapCalls,
+                                testTag = "incall_swap_button"
+                            )
+                        }
+
+                        // Manage — conference participant list (end / private per person)
+                        if (isConference) {
+                            InCallControlButton(
+                                icon = Icons.Default.People,
+                                label = "Manage",
+                                isActive = false,
+                                onClick = { showManageConferenceDialog = true },
+                                testTag = "incall_manage_conference_button"
+                            )
+                        }
+
                         // Mute
                         InCallControlButton(
                             icon = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
@@ -1171,6 +1358,32 @@ fun InCallScreen(
                 }
             )
         }
+    }
+
+    // --- Conference dialogs ---
+    if (showAddCallDialog) {
+        AddCallDialog(
+            currentCallerName = callInfo.displayName,
+            onDismiss = { showAddCallDialog = false },
+            onAddCall = { number ->
+                showAddCallDialog = false
+                onAddCall(number)
+            },
+            onFetchContacts = onFetchContacts
+        )
+    }
+
+    if (showManageConferenceDialog) {
+        ManageConferenceDialog(
+            participants = conferenceParticipants,
+            canSeparate = true,
+            onEndParticipant = onEndParticipant,
+            onSplitParticipant = { id ->
+                showManageConferenceDialog = false
+                onSplitParticipant(id)
+            },
+            onDismiss = { showManageConferenceDialog = false }
+        )
     }
 }
 
@@ -1384,3 +1597,260 @@ fun ExplicitAudioRoutesBar(
     }
 }
 
+/**
+ * "Add call" chooser: Keypad and Contacts tabs so the user picks the next person either way.
+ * The framework automatically puts the current call on hold when the new call is placed.
+ */
+@Composable
+private fun AddCallDialog(
+    currentCallerName: String,
+    onDismiss: () -> Unit,
+    onAddCall: (String) -> Unit,
+    onFetchContacts: suspend () -> List<DeviceContact>
+) {
+    var tabIndex by remember { mutableStateOf(0) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text = "Add person",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                )
+                if (currentCallerName.isNotBlank() && currentCallerName != "Outgoing Call") {
+                    Text(
+                        text = "Current call with $currentCallerName will be put on hold",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                TabRow(selectedTabIndex = tabIndex) {
+                    Tab(selected = tabIndex == 0, onClick = { tabIndex = 0 }, text = { Text("Contacts") })
+                    Tab(selected = tabIndex == 1, onClick = { tabIndex = 1 }, text = { Text("Keypad") })
+                }
+                if (tabIndex == 0) {
+                    AddCallContactsTab(onAddCall = onAddCall, onFetchContacts = onFetchContacts)
+                } else {
+                    AddCallKeypadTab(onAddCall = onAddCall)
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(end = 8.dp)
+                ) { Text("Cancel") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddCallKeypadTab(onAddCall: (String) -> Unit) {
+    var number by remember { mutableStateOf("") }
+    Column(
+        modifier = Modifier.padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        OutlinedTextField(
+            value = number,
+            onValueChange = { number = it.filter { c -> c.isDigit() || c == '+' || c == '*' || c == '#' } },
+            placeholder = { Text("Enter number") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#")
+        keys.chunked(3).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                row.forEach { key ->
+                    TextButton(onClick = { number += key }) {
+                        Text(text = key, fontSize = 24.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { if (number.isNotBlank()) onAddCall(number) },
+            enabled = number.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(imageVector = Icons.Default.PersonAdd, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Call")
+        }
+    }
+}
+
+@Composable
+private fun AddCallContactsTab(
+    onAddCall: (String) -> Unit,
+    onFetchContacts: suspend () -> List<DeviceContact>
+) {
+    var query by remember { mutableStateOf("") }
+    var contacts by remember { mutableStateOf<List<DeviceContact>?>(null) }
+    LaunchedEffect(Unit) {
+        contacts = try { onFetchContacts() } catch (_: Exception) { emptyList() }
+    }
+    val filtered = remember(query, contacts) {
+        val q = query.trim()
+        val all = contacts ?: emptyList()
+        val matched = if (q.isBlank()) {
+            all
+        } else {
+            all.filter { contact ->
+                contact.name.contains(q, ignoreCase = true) ||
+                    contact.phoneNumber.contains(q) ||
+                    contact.phoneNumbers.any { p -> p.number.contains(q) }
+            }
+        }
+        // One row per phone number so the user picks the exact number to dial.
+        matched.take(200).flatMap { contact ->
+            val numbers = contact.phoneNumbers.ifEmpty {
+                listOf(com.example.util.ContactPhoneNumber(contact.phoneNumber, contact.label))
+            }
+            numbers.map { pn -> contact.name to pn }
+        }.take(60)
+    }
+    Column(modifier = Modifier.padding(16.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("Search contacts") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .heightIn(max = 320.dp)
+                .fillMaxWidth()
+        ) {
+            when {
+                contacts == null -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                filtered.isEmpty() -> Text(
+                    text = if (query.isBlank()) "No contacts found" else "No matches",
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                else -> LazyColumn {
+                    items(filtered, key = { (_, pn) -> "${pn.number}-${pn.label}" }) { (name, pn) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { if (pn.number.isNotBlank()) onAddCall(pn.number) }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = name.ifBlank { pn.number },
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = if (pn.label.isNotBlank()) "${pn.label} • ${pn.number}" else pn.number,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.PersonAdd,
+                                contentDescription = "Add to call",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Conference participant list: end or split (private) individual participants.
+ * Stays open after an action so the user can manage several people; the list refreshes
+ * automatically from the conference call's children.
+ */
+@Composable
+private fun ManageConferenceDialog(
+    participants: List<com.example.telecom.ConferenceParticipant>,
+    canSeparate: Boolean,
+    onEndParticipant: (String) -> Unit,
+    onSplitParticipant: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Conference • ${participants.size} " +
+                    if (participants.size == 1) "person" else "people"
+            )
+        },
+        text = {
+            if (participants.isEmpty()) {
+                Text(
+                    text = "Participant details aren't available on this device.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    items(participants, key = { it.id }) { p ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = p.displayName,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                                if (p.phoneNumber.isNotBlank() && p.phoneNumber != p.displayName) {
+                                    Text(
+                                        text = p.phoneNumber,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                            if (canSeparate || participants.size >= 2) {
+                                TextButton(onClick = { onSplitParticipant(p.id) }) {
+                                    Text("Private")
+                                }
+                            }
+                            IconButton(onClick = { onEndParticipant(p.id) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.PhoneDisabled,
+                                    contentDescription = "Remove ${p.displayName}",
+                                    tint = Color(0xFFDC2626)
+                                )
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+    )
+}

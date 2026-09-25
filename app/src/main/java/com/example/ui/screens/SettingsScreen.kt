@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.SpamNumber
@@ -82,6 +83,10 @@ fun SettingsScreen(
     channelConfigs: List<ChannelConfig> = emptyList(),
     discoveredChannels: List<CallingChannel> = emptyList(),
     onSaveChannelConfigs: ((List<ChannelConfig>) -> Unit)? = null,
+    setupStepStates: List<com.example.ui.components.SetupStepState> = emptyList(),
+    onLaunchSetupStep: (com.example.ui.components.SetupStep) -> Unit = {},
+    onRerunSetupWizard: () -> Unit = {},
+    onOpenAppSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -99,6 +104,21 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (setupStepStates.isNotEmpty()) {
+            Text(
+                text = "App Permissions & Setup",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            PermissionsHubCard(
+                setupStepStates = setupStepStates,
+                onLaunchSetupStep = onLaunchSetupStep,
+                onRerunSetupWizard = onRerunSetupWizard,
+                onOpenAppSettings = onOpenAppSettings
+            )
+        }
+
         Text(
             text = "Manage Channels",
             style = MaterialTheme.typography.titleMedium,
@@ -1056,6 +1076,154 @@ fun SettingsScreen(
             },
             onDismiss = { showChannelConfigDialog = false }
         )
+    }
+}
+
+@Composable
+private fun PermissionsHubCard(
+    setupStepStates: List<com.example.ui.components.SetupStepState>,
+    onLaunchSetupStep: (com.example.ui.components.SetupStep) -> Unit,
+    onRerunSetupWizard: () -> Unit,
+    onOpenAppSettings: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Permissions & System Roles",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "Live status of permissions and system roles needed by OmniDial",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            setupStepStates.forEach { state ->
+                val info = com.example.ui.components.setupStepInfo(state.step)
+                val isDone = state.status == com.example.ui.components.SetupStepStatus.DONE
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isDone) Color(0xFF166534).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = info.icon,
+                                    contentDescription = null,
+                                    tint = if (isDone) Color(0xFF166534) else MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = info.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = info.description,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    if (isDone) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF166534).copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, Color(0xFF166534).copy(alpha = 0.35f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color(0xFF15803D),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = "Active",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { onLaunchSetupStep(state.step) },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text("Enable", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onRerunSetupWizard,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Setup Wizard", fontSize = 12.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onOpenAppSettings,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(imageVector = Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("App Settings", fontSize = 12.sp)
+                }
+            }
+        }
     }
 }
 

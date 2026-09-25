@@ -43,12 +43,6 @@ class OmniCallRedirectionService : CallRedirectionService() {
             ?: legacyPrefs.getString("whatsapp_call_mode", "ask_learn")
             ?: "ask_learn"
 
-        // If user globally disabled WhatsApp calling, let cellular proceed unmodified
-        if (globalMode == "never") {
-            placeCallUnmodified()
-            return
-        }
-
         // Check contact-specific learned calling channel from all preference stores
         val rawLearned = (prefs.getStringSet("whatsapp_learned_choices", emptySet()) ?: emptySet()) +
                          (prefs.getStringSet("learned_call_modes", emptySet()) ?: emptySet()) +
@@ -97,7 +91,21 @@ class OmniCallRedirectionService : CallRedirectionService() {
         }
         val pinnedCellular = isPinnedNumber(prefs.getStringSet("pinned_cellular_numbers", emptySet()) ?: emptySet())
 
+        // 1. Google Voice Redirection
+        if (!pinnedCellular && preferredMode == "google_voice") {
+            Log.i(TAG, "External outgoing call for $cleanNumber redirected to Google Voice")
+            cancelCall()
+            try {
+                ContactHelper.launchGoogleVoiceCall(applicationContext, cleanNumber)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch Google Voice call from redirection service", e)
+            }
+            return
+        }
+
+        // 2. WhatsApp Redirection (Only if WhatsApp is not globally set to "never")
         val shouldRedirectToWhatsApp = when {
+            globalMode == "never" -> false
             pinnedCellular -> false
             preferredMode == "whatsapp" || preferredMode == "whatsapp_business" -> true
             globalMode == "all_international" && isInternational -> true
@@ -122,49 +130,49 @@ class OmniCallRedirectionService : CallRedirectionService() {
             }
             // Always post full-screen call notification to guarantee execution from background / car mode
             showWhatsAppRedirectionNotification(cleanNumber)
-        } else {
-            // Check contact-specific preferred SIM slot. Per-number SIM pins mirrored from the
-            // Room channel preferences are consulted first so they win over the legacy table.
-            val simPrefsSet = (prefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet()) +
-                              (legacyPrefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet())
-            val pinnedSimSet = prefs.getStringSet("pinned_sim_numbers", emptySet()) ?: emptySet()
-            var preferredSimSlot: Int? = null
-            for (entry in pinnedSimSet.toList() + simPrefsSet.toList()) {
-                val parts = entry.split(":")
-                if (parts.size >= 2) {
-                    val numKey = parts[0]
-                    val slot = parts[1].toIntOrNull()
-                    val numKeyDigits = numKey.filter { it.isDigit() }
-                    val numKeySuffix10 = if (numKeyDigits.length >= 10) numKeyDigits.takeLast(10) else numKeyDigits
-                    if (ContactHelper.isSamePhoneNumber(numKey, cleanNumber) ||
-                        numKey == cleanNumber ||
-                        (suffix10.isNotEmpty() && (numKey.endsWith(suffix10) || numKeySuffix10 == suffix10))) {
-                        if (slot != null && slot > 0) {
-                            preferredSimSlot = slot
-                        } else if (slot == -2) {
-                            val activeSims = SimHelper.getActiveSimCards(this)
-                            val intlSim = activeSims.firstOrNull {
-                                it.isRoaming || it.displayName.contains("intl", ignoreCase = true) || it.displayName.contains("international", ignoreCase = true)
-                            }
-                            preferredSimSlot = intlSim?.let { it.slotIndex + 1 } ?: (if (activeSims.size > 1) 2 else null)
-                        }
-                        break
-                    }
-                }
-            }
-
-            if (preferredSimSlot != null) {
-                val targetAccount = SimHelper.getPhoneAccountForSimSlot(this, preferredSimSlot - 1)
-                if (targetAccount != null && targetAccount != initialPhoneAccount) {
-                    Log.i(TAG, "External outgoing call redirected to preferred SIM $preferredSimSlot ($targetAccount)")
-                    redirectCall(handle, targetAccount, false)
-                    return
-                }
-            }
-
-            // Let standard cellular call proceed
-            placeCallUnmodified()
+            return
         }
+
+        // 3. Preferred SIM slot selection (SIM 1 vs SIM 2)
+        val simPrefsSet = (prefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet()) +
+                          (legacyPrefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet())
+        val pinnedSimSet = prefs.getStringSet("pinned_sim_numbers", emptySet()) ?: emptySet()
+        var preferredSimSlot: Int? = null
+        for (entry in pinnedSimSet.toList() + simPrefsSet.toList()) {
+            val parts = entry.split(":")
+            if (parts.size >= 2) {
+                val numKey = parts[0]
+                val slot = parts[1].toIntOrNull()
+                val numKeyDigits = numKey.filter { it.isDigit() }
+                val numKeySuffix10 = if (numKeyDigits.length >= 10) numKeyDigits.takeLast(10) else numKeyDigits
+                if (ContactHelper.isSamePhoneNumber(numKey, cleanNumber) ||
+                    numKey == cleanNumber ||
+                    (suffix10.isNotEmpty() && (numKey.endsWith(suffix10) || numKeySuffix10 == suffix10))) {
+                    if (slot != null && slot > 0) {
+                        preferredSimSlot = slot
+                    } else if (slot == -2) {
+                        val activeSims = SimHelper.getActiveSimCards(this)
+                        val intlSim = activeSims.firstOrNull {
+                            it.isRoaming || it.displayName.contains("intl", ignoreCase = true) || it.displayName.contains("international", ignoreCase = true)
+                        }
+                        preferredSimSlot = intlSim?.let { it.slotIndex + 1 } ?: (if (activeSims.size > 1) 2 else null)
+                    }
+                    break
+                }
+            }
+        }
+
+        if (preferredSimSlot != null) {
+            val targetAccount = SimHelper.getPhoneAccountForSimSlot(this, preferredSimSlot - 1)
+            if (targetAccount != null && targetAccount != initialPhoneAccount) {
+                Log.i(TAG, "External outgoing call redirected to preferred SIM $preferredSimSlot ($targetAccount)")
+                redirectCall(handle, targetAccount, false)
+                return
+            }
+        }
+
+        // Let standard cellular call proceed
+        placeCallUnmodified()
     }
 
     private fun showWhatsAppRedirectionNotification(phoneNumber: String) {
