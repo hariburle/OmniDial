@@ -1086,13 +1086,20 @@ private fun PermissionsHubCard(
     onRerunSetupWizard: () -> Unit,
     onOpenAppSettings: () -> Unit
 ) {
+    val anyAttentionNeeded =
+        setupStepStates.any { it.status != com.example.ui.components.SetupStepStatus.DONE }
+    // Start collapsed when everything is done; expanded when something needs attention.
+    var expanded by remember(setupStepStates) { mutableStateOf(anyAttentionNeeded) }
+
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1108,8 +1115,64 @@ private fun PermissionsHubCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Collapse setup status" else "Expand setup status",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
+            if (!expanded) {
+                // Collapsed: one status pill per setup step, same visual language as the
+                // channel summary chips. Tapping a pending pill jumps straight to that step.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    setupStepStates.forEach { state ->
+                        val info = com.example.ui.components.setupStepInfo(state.step)
+                        val isDone = state.status == com.example.ui.components.SetupStepStatus.DONE
+                        val isSkipped = state.status == com.example.ui.components.SetupStepStatus.SKIPPED
+                        val statusColor = when {
+                            isDone -> Color(0xFF166534)
+                            isSkipped -> Color.Gray
+                            else -> MaterialTheme.colorScheme.error
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = statusColor.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, statusColor.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .padding(vertical = 2.dp)
+                                .clickable(enabled = !isDone) { onLaunchSetupStep(state.step) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isDone) Icons.Default.Check else info.icon,
+                                    contentDescription = null,
+                                    tint = statusColor,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = info.title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (isDone) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isDone) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (expanded) {
             setupStepStates.forEach { state ->
                 val info = com.example.ui.components.setupStepInfo(state.step)
                 val isDone = state.status == com.example.ui.components.SetupStepStatus.DONE
@@ -1223,6 +1286,7 @@ private fun PermissionsHubCard(
                     Text("App Settings", fontSize = 12.sp)
                 }
             }
+            } // if (expanded)
         }
     }
 }

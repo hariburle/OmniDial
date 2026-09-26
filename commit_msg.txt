@@ -1,0 +1,4 @@
+Enhance PermissionsHubCard with collapsible pill strip and refresh release APK
+
+- Made PermissionsHubCard collapsible with compact horizontal status pills when collapsed
+- Rebuilt release APK with R8 optimizations and updated published artifacts
