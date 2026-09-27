@@ -11,13 +11,13 @@
 
 ### Short-Term Polish & Feature Additions
 - [ ] **Task 14.3: Generic Calling-Channel Registry**: Beyond hardcoded WhatsApp/Google Voice checks, add dynamic package detection and adapters for Telegram, Signal, and generic SIP calling accounts.
-- [ ] **Phase 15: New Rule Sets Beyond Incoming Engine**:
-  - Task 15.1: Outgoing Channel Routing Rules
-  - Task 15.2: Natural-Language Rule Creation
-  - Task 15.3: Quiet Hours
-  - Task 15.4: Incoming Screening+
-  - Task 15.5: Post-Call Follow-Up Rules
-  - Task 15.6: Location/Roaming Conditions & Scheduled Toggles
+- [ ] **Phase 15: New Rule Sets Beyond Incoming Engine (See [DYNAMIC_RULE_COMPOSER_PLAN.md](DYNAMIC_RULE_COMPOSER_PLAN.md))**:
+  - Task 15.1: Dual-Profile Channel Preferences (Home vs. Roaming context partitioning in Room DB)
+  - Task 15.2: Natural-Language Free-Text Rule Composer with in-place `@` slot pickers (`@channel`, `@location`, `@numbers`, `@guard`)
+  - Task 15.3: Quiet Hours & Scheduled DND
+  - Task 15.4: Incoming Screening+ with AI reason extraction
+  - Task 15.5: Post-Call Follow-Up Action Rules
+  - Task 15.6: Last-Mile Roaming Tariff Intercept Guard (Pre-call warning dialog before placing cellular calls on roaming SIMs)
 
 - [x] **Zero-Touch Smart Travel & Roaming Engine**: Implemented `TravelRoamingManager` with dynamic, non-mutating runtime resolution overlay. Automatically routes US (+1) calls via WhatsApp VoIP while in India to avoid roaming charges, and domestic (+91) calls via India SIM slot. Saved preferences in Room DB remain 100% preserved and restore automatically upon return to the US.
 - [x] **Annotated-Call-Log-Only Backups**: In `BackupManager.kt`, call logs are already filtered so only calls with notes, reminders, spam flags, custom reasons, or tags are exported (`if (!hasCustomData) continue`). Plain unannotated calls are excluded.
