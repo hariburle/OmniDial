@@ -19,7 +19,7 @@
   - Task 15.5: Post-Call Follow-Up Rules
   - Task 15.6: Location/Roaming Conditions & Scheduled Toggles
 
-### Recently Completed & Verified
+- [x] **Zero-Touch Smart Travel & Roaming Engine**: Implemented `TravelRoamingManager` with dynamic, non-mutating runtime resolution overlay. Automatically routes US (+1) calls via WhatsApp VoIP while in India to avoid roaming charges, and domestic (+91) calls via India SIM slot. Saved preferences in Room DB remain 100% preserved and restore automatically upon return to the US.
 - [x] **Annotated-Call-Log-Only Backups**: In `BackupManager.kt`, call logs are already filtered so only calls with notes, reminders, spam flags, custom reasons, or tags are exported (`if (!hasCustomData) continue`). Plain unannotated calls are excluded.
 - [x] **Conference Calling Collapse & Leg Safety**: Implemented collapse-pending state machine, survivor tracking, pre-merge identity retention on `onCallRemoved`, and multi-leg teardown on End button.
 - [x] **Quiet Throttled Auto-Backups**: 6-hour minimum throttle, dirty-flag change tracking, public MediaStore sync, and distinct Auto vs Manual UI badges.

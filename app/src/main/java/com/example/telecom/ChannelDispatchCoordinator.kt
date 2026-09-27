@@ -24,7 +24,8 @@ sealed interface DispatchResult {
 class ChannelDispatchCoordinator(
     private val context: Context,
     private val discoveryManager: ChannelDiscoveryManager = ChannelDiscoveryManager.getInstance(context),
-    private val preferenceRepository: ChannelPreferenceRepository = ChannelPreferenceRepository.getInstance(context)
+    private val preferenceRepository: ChannelPreferenceRepository = ChannelPreferenceRepository.getInstance(context),
+    private val travelRoamingManager: TravelRoamingManager = TravelRoamingManager.getInstance(context)
 ) {
 
     /**
@@ -51,6 +52,7 @@ class ChannelDispatchCoordinator(
         }
 
         // 2. Pinned Per-Number Preference
+        var pinnedChannel: CallingChannel? = null
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
         if (normalized.isNotBlank()) {
             val pref = preferenceRepository.getPreferenceForNumber(normalized)
@@ -58,11 +60,21 @@ class ChannelDispatchCoordinator(
                 if (pref.preferredChannelId.equals("ask", ignoreCase = true)) {
                     return CallingChannel.AskAlways
                 }
-                val found = discoveryManager.getChannelById(pref.preferredChannelId)
-                if (found != null) {
-                    return found
-                }
+                pinnedChannel = discoveryManager.getChannelById(pref.preferredChannelId)
             }
+        }
+
+        // 3. Dynamic Non-Mutating Travel & Roaming Overlay
+        val travelDecision = travelRoamingManager.evaluateTravelRouting(
+            phoneNumber = phoneNumber,
+            pinnedChannel = pinnedChannel,
+            userExplicitOverride = explicitChannel
+        )
+        if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
+            return travelDecision.recommendedChannel
+        }
+        if (pinnedChannel != null) {
+            return pinnedChannel
         }
 
         // 3. Learned Call Mode Bias

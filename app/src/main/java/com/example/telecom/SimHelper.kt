@@ -21,7 +21,8 @@ data class SimInfo(
     val number: String? = null,
     val isDefault: Boolean = false,
     val isRoaming: Boolean = false,
-    val deviceSimName: String? = null // custom name from device's SIM management (e.g., "US", "IN")
+    val deviceSimName: String? = null, // custom name from device's SIM management (e.g., "US", "IN")
+    val countryIso: String? = null     // 2-letter lowercase ISO (e.g., "us", "in")
 )
 
 object SimHelper {
@@ -95,6 +96,13 @@ object SimHelper {
                         info.number?.takeIf { it.isNotBlank() }
                     }
 
+                    val simCountryIso = try {
+                        info.countryIso?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+                            ?: telephonyManager?.createForSubscriptionId(info.subscriptionId)?.simCountryIso?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+                    } catch (_: Exception) {
+                        null
+                    }
+
                     simList.add(
                         SimInfo(
                             slotIndex = slot,
@@ -104,7 +112,8 @@ object SimHelper {
                             number = simNumber,
                             isDefault = (info.subscriptionId == defaultSubId),
                             isRoaming = isRoaming,
-                            deviceSimName = deviceSimName
+                            deviceSimName = deviceSimName,
+                            countryIso = simCountryIso
                         )
                     )
                 }

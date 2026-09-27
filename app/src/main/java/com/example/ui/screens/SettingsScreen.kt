@@ -326,7 +326,90 @@ fun SettingsScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // Smart Travel & Roaming Card
+        val travelRoamingManager = remember(context) { com.example.telecom.TravelRoamingManager.getInstance(context) }
+        var isSmartRoaming by remember { mutableStateOf(travelRoamingManager.isSmartRoamingEnabled()) }
+        val currentCountryIso = remember { travelRoamingManager.getCurrentCountryIso().uppercase() }
+        val isCurrentlyTraveling = remember { travelRoamingManager.isTraveling() }
+
+        Text(
+            text = "Smart Travel & Roaming",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Flight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Zero-Touch Smart Roaming",
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Auto-detects travel abroad. Routes home (+1) calls via WhatsApp to eliminate roaming fees, and domestic calls via local SIM. Saved preferences remain 100% preserved.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isSmartRoaming,
+                        onCheckedChange = { checked ->
+                            isSmartRoaming = checked
+                            travelRoamingManager.setSmartRoamingEnabled(checked)
+                        },
+                        modifier = Modifier.testTag("smart_roaming_switch")
+                    )
+                }
+
+                // Current location status badge
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isCurrentlyTraveling) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isCurrentlyTraveling) Icons.Default.Public else Icons.Default.Home,
+                            contentDescription = null,
+                            tint = if (isCurrentlyTraveling) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = if (isCurrentlyTraveling) "Status: Traveling abroad ($currentCountryIso) • Roaming Protection Active"
+                                   else "Status: Home Region ($currentCountryIso) • Roaming Protection Ready",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 

@@ -1538,7 +1538,15 @@ class MainViewModel(
         val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
         val digits = clean.filter { it.isDigit() }.takeLast(10)
 
-        // 0. Check unified Room ChannelPreferenceRepository
+        // 0. Dynamic Travel & Roaming overlay (non-mutating)
+        try {
+            val travelDecision = com.example.telecom.TravelRoamingManager.getInstance(appContext).evaluateTravelRouting(clean)
+            if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
+                return travelDecision.recommendedChannel.id
+            }
+        } catch (_: Exception) {}
+
+        // 0b. Check unified Room ChannelPreferenceRepository
         try {
             val channelPref = com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
             if (channelPref != null && channelPref.isNotBlank() && channelPref != "ask") {
@@ -1626,6 +1634,32 @@ class MainViewModel(
             com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(cleanNumber)
                 ?: com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
         } catch (_: Exception) { null }
+
+        // Dynamic Travel & Roaming overlay (non-mutating)
+        try {
+            val pinnedChannel = if (perNumberPref != null && perNumberPref.isNotBlank() && perNumberPref != "ask" && perNumberPref != "ask_always") {
+                com.example.telecom.ChannelDiscoveryManager.getInstance(context).getChannelById(perNumberPref)
+            } else null
+
+            val travelDecision = com.example.telecom.TravelRoamingManager.getInstance(context).evaluateTravelRouting(cleanNumber, pinnedChannel = pinnedChannel)
+            if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
+                when (val chan = travelDecision.recommendedChannel) {
+                    is com.example.domain.model.CallingChannel.WhatsApp -> {
+                        placeWhatsAppCall(context, cleanNumber, isBusiness = chan.isBusiness)
+                        return
+                    }
+                    is com.example.domain.model.CallingChannel.CellularSim -> {
+                        placeCall(context, cleanNumber, reason, overrideSimSlot = chan.slotIndex + 1)
+                        return
+                    }
+                    is com.example.domain.model.CallingChannel.GoogleVoice -> {
+                        placeGoogleVoiceCall(context, cleanNumber)
+                        return
+                    }
+                    else -> {}
+                }
+            }
+        } catch (_: Exception) {}
 
         if (perNumberPref != null && perNumberPref.isNotBlank() && perNumberPref != "ask" && perNumberPref != "ask_always") {
             when (perNumberPref.lowercase()) {

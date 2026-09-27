@@ -196,6 +196,7 @@ fun DialerScreen(
     onUpdateFavoriteNumber: ((FavoriteContact, String, String) -> Unit)? = null,
     channelPreferenceRepository: ChannelPreferenceRepository = remember(context) { ChannelPreferenceRepository.getInstance(context) },
     channelDiscoveryManager: ChannelDiscoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) },
+    travelRoamingManager: com.example.telecom.TravelRoamingManager = remember(context) { com.example.telecom.TravelRoamingManager.getInstance(context) },
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -510,16 +511,29 @@ fun DialerScreen(
                     }
 
                     // 2. Explicit contact preference
+                    var pinnedChan: CallingChannel? = null
                     val pref = channelPreferenceRepository.getPreferenceForNumber(numToCheck)
                     if (pref != null && !pref.preferredChannelId.equals("ask", ignoreCase = true)) {
-                        val matched = availableChannels.firstOrNull { it.id.equals(pref.preferredChannelId, ignoreCase = true) }
-                        if (matched != null) {
-                            activeChannel = matched
-                            return@LaunchedEffect
-                        }
+                        pinnedChan = availableChannels.firstOrNull { it.id.equals(pref.preferredChannelId, ignoreCase = true) }
                     }
 
-                    // 3. International number auto-recommendation: if number starts with +, 011, 00, auto-switch to WhatsApp.
+                    // 3. Smart Travel & Roaming recommendation
+                    val travelDecision = travelRoamingManager.evaluateTravelRouting(
+                        phoneNumber = numToCheck,
+                        pinnedChannel = pinnedChan,
+                        userExplicitOverride = userSelectedChannel,
+                        availableChannels = availableChannels
+                    )
+                    if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
+                        activeChannel = travelDecision.recommendedChannel
+                        return@LaunchedEffect
+                    }
+                    if (pinnedChan != null) {
+                        activeChannel = pinnedChan
+                        return@LaunchedEffect
+                    }
+
+                    // 4. International number auto-recommendation: if number starts with +, 011, 00, auto-switch to WhatsApp.
                     // Skipped when the user globally disabled WhatsApp calling ("never") — the car/
                     // redirection path already honors that setting; the keypad must agree with it.
                     if (whatsAppCallMode != "never" && channelDiscoveryManager.isInternationalNumber(numToCheck)) {
