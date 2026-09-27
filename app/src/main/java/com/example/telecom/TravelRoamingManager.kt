@@ -50,6 +50,61 @@ open class TravelRoamingManager(
         prefs.edit().putBoolean(KEY_SMART_ROAMING_ENABLED, enabled).apply()
     }
 
+    fun getHomeCountryIso(): String {
+        val saved = prefs.getString(KEY_HOME_COUNTRY_ISO, null)
+        if (!saved.isNullOrBlank()) return saved.lowercase()
+        val sims = discoveryManager.availableChannels.value.filterIsInstance<CallingChannel.CellularSim>()
+        val simCountry = sims.firstOrNull { !it.isRoaming }?.countryIso?.lowercase()
+            ?: sims.firstOrNull()?.countryIso?.lowercase()
+        return simCountry ?: "us"
+    }
+
+    fun setHomeCountryIso(countryIso: String) {
+        prefs.edit().putString(KEY_HOME_COUNTRY_ISO, countryIso.trim().lowercase()).apply()
+    }
+
+    fun getPrimaryDomesticSimSlot(): Int {
+        return prefs.getInt(KEY_PRIMARY_DOMESTIC_SIM_SLOT, 1)
+    }
+
+    fun setPrimaryDomesticSimSlot(slot: Int) {
+        prefs.edit().putInt(KEY_PRIMARY_DOMESTIC_SIM_SLOT, slot).apply()
+    }
+
+    fun isUsCallsViaWhatsAppBizEnabled(): Boolean {
+        return prefs.getBoolean(KEY_US_CALLS_WA_BIZ, true)
+    }
+
+    fun setUsCallsViaWhatsAppBizEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_US_CALLS_WA_BIZ, enabled).apply()
+    }
+
+    fun isIndiaCallsViaWhatsAppEnabled(): Boolean {
+        return prefs.getBoolean(KEY_INDIA_CALLS_WA_PERSONAL, true)
+    }
+
+    fun setIndiaCallsViaWhatsAppEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_INDIA_CALLS_WA_PERSONAL, enabled).apply()
+    }
+
+    fun isRoamingGuardEnabled(): Boolean {
+        return prefs.getBoolean(KEY_ROAMING_GUARD_ENABLED, true)
+    }
+
+    fun setRoamingGuardEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_ROAMING_GUARD_ENABLED, enabled).apply()
+    }
+
+    fun getActiveProfileContext(): String {
+        val current = getCurrentCountryIso().uppercase()
+        val home = getHomeCountryIso().uppercase()
+        return if (!isTraveling() && current == home) {
+            "home:$home"
+        } else {
+            "travel:$current"
+        }
+    }
+
     /**
      * Resolves the current connected physical network country ISO in lowercase (e.g. "us", "in").
      */
@@ -173,8 +228,9 @@ open class TravelRoamingManager(
         val channels = availableChannels ?: discoveryManager.availableChannels.value
         val currentCountry = getCurrentCountryIso()
         val targetCountry = getTargetCountryIso(clean)
-        val waChannel = channels.filterIsInstance<CallingChannel.WhatsApp>().firstOrNull { !it.isBusiness && it.isAvailable }
-            ?: channels.filterIsInstance<CallingChannel.WhatsApp>().firstOrNull { it.isAvailable }
+        val waBizChannel = channels.filterIsInstance<CallingChannel.WhatsApp>().firstOrNull { it.isBusiness && it.isAvailable }
+        val waPersonalChannel = channels.filterIsInstance<CallingChannel.WhatsApp>().firstOrNull { !it.isBusiness && it.isAvailable }
+        val fallbackWa = waBizChannel ?: waPersonalChannel
 
         val activeSims = channels.filterIsInstance<CallingChannel.CellularSim>()
         val hasRoamingSim = activeSims.any { it.isRoaming }
@@ -183,22 +239,34 @@ open class TravelRoamingManager(
         // RULE SET A: Device is physically in INDIA ("in")
         // ====================================================================
         if (currentCountry == "in") {
-            // Case A1: Calling USA (+1) from India
+            // Case A1: Calling USA (+1) from India -> WhatsApp Business (US #)
             if (targetCountry == "US") {
-                if (waChannel != null) {
+                val targetWa = if (isUsCallsViaWhatsAppBizEnabled()) {
+                    waBizChannel ?: waPersonalChannel
+                } else {
+                    waPersonalChannel ?: waBizChannel
+                }
+                if (targetWa != null) {
+                    val label = if (targetWa.isBusiness) "WhatsApp Business (US #)" else "WhatsApp"
                     return TravelRoutingDecision(
-                        recommendedChannel = waChannel,
-                        reason = "Travel Mode (India): Calling US (+1) routed to WhatsApp VoIP to prevent international roaming charges",
+                        recommendedChannel = targetWa,
+                        reason = "Travel Mode (India): Calling US (+1) routed to $label to prevent international roaming charges",
                         isTravelOptimized = true
                     )
                 }
             }
 
-            // Case A2: Calling India (+91) while in India
+            // Case A2: Calling India (+91) while in India -> WhatsApp Personal or Domestic India SIM
             if (targetCountry == "IN") {
+                if (isIndiaCallsViaWhatsAppEnabled() && waPersonalChannel != null) {
+                    return TravelRoutingDecision(
+                        recommendedChannel = waPersonalChannel,
+                        reason = "Travel Mode (India): Calling India (+91) routed to WhatsApp Personal VoIP",
+                        isTravelOptimized = true
+                    )
+                }
                 val domesticIndiaSim = findDomesticSim("in", channels)
                 if (domesticIndiaSim != null) {
-                    // Even if pinnedChannel is SIM 1 (US SIM), override dynamically to India SIM
                     return TravelRoutingDecision(
                         recommendedChannel = domesticIndiaSim,
                         reason = "Travel Mode (India): Domestic India call routed to non-roaming India SIM",
@@ -208,9 +276,9 @@ open class TravelRoamingManager(
             }
 
             // Case A3: Calling other international destination while in India
-            if (targetCountry != "IN" && waChannel != null) {
+            if (targetCountry != "IN" && fallbackWa != null) {
                 return TravelRoutingDecision(
-                    recommendedChannel = waChannel,
+                    recommendedChannel = fallbackWa,
                     reason = "Travel Mode (India): International call routed to WhatsApp VoIP",
                     isTravelOptimized = true
                 )
@@ -223,9 +291,9 @@ open class TravelRoamingManager(
         if (currentCountry == "us") {
             // Case B1: Calling India (+91) from USA
             if (targetCountry == "IN") {
-                if (waChannel != null) {
+                if (fallbackWa != null) {
                     return TravelRoutingDecision(
-                        recommendedChannel = waChannel,
+                        recommendedChannel = fallbackWa,
                         reason = "Home Mode (US): Calling India (+91) routed to WhatsApp VoIP to prevent international long-distance rates",
                         isTravelOptimized = true
                     )
@@ -260,9 +328,9 @@ open class TravelRoamingManager(
                 )
             }
             // If calling cross-border and WhatsApp is available: protect with WhatsApp VoIP
-            if (waChannel != null && !targetCountry.equals(currentCountry, ignoreCase = true)) {
+            if (fallbackWa != null && !targetCountry.equals(currentCountry, ignoreCase = true)) {
                 return TravelRoutingDecision(
-                    recommendedChannel = waChannel,
+                    recommendedChannel = fallbackWa,
                     reason = "Roaming Safeguard: Cross-border call on roaming SIM redirected to WhatsApp VoIP",
                     isTravelOptimized = true
                 )
@@ -280,6 +348,11 @@ open class TravelRoamingManager(
     companion object {
         private const val PREFS_NAME = "travel_roaming_prefs"
         private const val KEY_SMART_ROAMING_ENABLED = "smart_roaming_enabled"
+        private const val KEY_HOME_COUNTRY_ISO = "home_country_iso"
+        private const val KEY_PRIMARY_DOMESTIC_SIM_SLOT = "primary_domestic_sim_slot"
+        private const val KEY_US_CALLS_WA_BIZ = "us_calls_wa_biz"
+        private const val KEY_INDIA_CALLS_WA_PERSONAL = "india_calls_wa_personal"
+        private const val KEY_ROAMING_GUARD_ENABLED = "roaming_guard_enabled"
 
         @Volatile
         private var INSTANCE: TravelRoamingManager? = null

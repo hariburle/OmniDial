@@ -408,6 +408,97 @@ fun SettingsScreen(
                         )
                     }
                 }
+
+                if (isSmartRoaming) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    // US (+1) Calls via WhatsApp Business toggle
+                    var useWaBizForUs by remember { mutableStateOf(travelRoamingManager.isUsCallsViaWhatsAppBizEnabled()) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Use WhatsApp Business for US (+1) Calls",
+                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Displays your US Business number to US contacts with zero roaming fees",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = useWaBizForUs,
+                            onCheckedChange = { checked ->
+                                useWaBizForUs = checked
+                                travelRoamingManager.setUsCallsViaWhatsAppBizEnabled(checked)
+                            },
+                            modifier = Modifier.testTag("wa_biz_for_us_switch")
+                        )
+                    }
+
+                    // India (+91) Calls via WhatsApp Personal toggle
+                    var useWaPersonalForIndia by remember { mutableStateOf(travelRoamingManager.isIndiaCallsViaWhatsAppEnabled()) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Use WhatsApp for India (+91) Calls",
+                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Routes India calls via WhatsApp VoIP (turn off to use Domestic India SIM)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = useWaPersonalForIndia,
+                            onCheckedChange = { checked ->
+                                useWaPersonalForIndia = checked
+                                travelRoamingManager.setIndiaCallsViaWhatsAppEnabled(checked)
+                            },
+                            modifier = Modifier.testTag("wa_personal_for_india_switch")
+                        )
+                    }
+
+                    // Roaming Guard Intercept toggle
+                    var roamingGuard by remember { mutableStateOf(travelRoamingManager.isRoamingGuardEnabled()) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Pre-Call Roaming Tariff Warning",
+                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Confirms before placing any cellular call on a roaming carrier SIM",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = roamingGuard,
+                            onCheckedChange = { checked ->
+                                roamingGuard = checked
+                                travelRoamingManager.setRoamingGuardEnabled(checked)
+                            },
+                            modifier = Modifier.testTag("roaming_guard_switch")
+                        )
+                    }
+                }
             }
         }
 

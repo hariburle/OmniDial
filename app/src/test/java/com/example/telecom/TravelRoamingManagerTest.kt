@@ -50,8 +50,13 @@ class TravelRoamingManagerTest {
         isAvailable = true
     )
 
-    private val whatsAppChannel = CallingChannel.WhatsApp(
+    private val whatsAppPersonal = CallingChannel.WhatsApp(
         isBusiness = false,
+        isAvailable = true
+    )
+
+    private val whatsAppBusiness = CallingChannel.WhatsApp(
+        isBusiness = true,
         isAvailable = true
     )
 
@@ -60,15 +65,19 @@ class TravelRoamingManagerTest {
         context = ApplicationProvider.getApplicationContext()
         manager = TravelRoamingManager(context)
         manager.setSmartRoamingEnabled(true)
+        manager.setHomeCountryIso("us")
+        manager.setUsCallsViaWhatsAppBizEnabled(true)
+        manager.setIndiaCallsViaWhatsAppEnabled(true)
     }
 
     @Test
-    fun testWhenInIndia_callingUsNumber_routesToWhatsApp() {
-        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppChannel)
+    fun testWhenInIndia_callingUsNumber_routesToWhatsAppBusiness() {
+        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
 
         val testManager = object : TravelRoamingManager(context) {
             override fun getCurrentCountryIso(): String = "in"
         }
+        testManager.setUsCallsViaWhatsAppBizEnabled(true)
 
         val decision = testManager.evaluateTravelRouting(
             phoneNumber = "+14085551234",
@@ -79,15 +88,40 @@ class TravelRoamingManagerTest {
 
         assertTrue("Should be travel optimized", decision.isTravelOptimized)
         assertTrue("Recommended channel should be WhatsApp", decision.recommendedChannel is CallingChannel.WhatsApp)
+        val wa = decision.recommendedChannel as CallingChannel.WhatsApp
+        assertTrue("US calls while in India should route to WhatsApp Business", wa.isBusiness)
     }
 
     @Test
-    fun testWhenRoaming_callingDomesticHostNumber_routesToDomesticLocalSim() {
-        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppChannel)
+    fun testWhenInIndia_callingIndiaNumber_routesToWhatsAppPersonal() {
+        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
 
         val testManager = object : TravelRoamingManager(context) {
             override fun getCurrentCountryIso(): String = "in"
         }
+        testManager.setIndiaCallsViaWhatsAppEnabled(true)
+
+        val decision = testManager.evaluateTravelRouting(
+            phoneNumber = "+919876543210",
+            pinnedChannel = usSimRoaming,
+            userExplicitOverride = null,
+            availableChannels = testChannels
+        )
+
+        assertTrue("Should be travel optimized", decision.isTravelOptimized)
+        assertTrue("Recommended channel should be WhatsApp Personal", decision.recommendedChannel is CallingChannel.WhatsApp)
+        val wa = decision.recommendedChannel as CallingChannel.WhatsApp
+        assertFalse("India calls should route to WhatsApp Personal", wa.isBusiness)
+    }
+
+    @Test
+    fun testWhenInIndia_callingIndiaNumberWithWhatsAppDisabled_routesToDomesticIndiaSim() {
+        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
+
+        val testManager = object : TravelRoamingManager(context) {
+            override fun getCurrentCountryIso(): String = "in"
+        }
+        testManager.setIndiaCallsViaWhatsAppEnabled(false)
 
         val decision = testManager.evaluateTravelRouting(
             phoneNumber = "+919876543210",
@@ -105,11 +139,11 @@ class TravelRoamingManagerTest {
 
     @Test
     fun testExplicitUserOverrideTakesPrecedenceOverTravelOverlay() {
-        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppChannel)
+        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
 
         val decision = manager.evaluateTravelRouting(
             phoneNumber = "+14085551234",
-            pinnedChannel = whatsAppChannel,
+            pinnedChannel = whatsAppPersonal,
             userExplicitOverride = usSimRoaming,
             availableChannels = testChannels
         )
@@ -120,18 +154,18 @@ class TravelRoamingManagerTest {
 
     @Test
     fun testEmergencyNumberAlwaysRoutesToCellular() {
-        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppChannel)
+        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal)
 
         val decision911 = manager.evaluateTravelRouting(
             phoneNumber = "911",
-            pinnedChannel = whatsAppChannel,
+            pinnedChannel = whatsAppPersonal,
             availableChannels = testChannels
         )
         assertTrue(decision911.recommendedChannel is CallingChannel.CellularSim)
 
         val decision112 = manager.evaluateTravelRouting(
             phoneNumber = "112",
-            pinnedChannel = whatsAppChannel,
+            pinnedChannel = whatsAppPersonal,
             availableChannels = testChannels
         )
         assertTrue(decision112.recommendedChannel is CallingChannel.CellularSim)
@@ -140,7 +174,7 @@ class TravelRoamingManagerTest {
     @Test
     fun testDisabledSmartRoamingHonorsPinnedChannelDirectly() {
         manager.setSmartRoamingEnabled(false)
-        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppChannel)
+        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal)
 
         val decision = manager.evaluateTravelRouting(
             phoneNumber = "+14085551234",
@@ -162,7 +196,7 @@ class TravelRoamingManagerTest {
         val initialPref = prefRepo.getCachedPreference(testNumber)
 
         // Run travel evaluations multiple times
-        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppChannel)
+        val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal)
         manager.evaluateTravelRouting(testNumber, pinnedChannel = usSimRoaming, availableChannels = testChannels)
         manager.evaluateTravelRouting("+919876543210", pinnedChannel = usSimRoaming, availableChannels = testChannels)
 
