@@ -1,9 +1,0 @@
-feat(telecom): implement zero-touch smart travel & roaming engine
-
-- Add TravelRoamingManager for non-mutating runtime channel overlay
-- Auto-route US (+1) calls via WhatsApp VoIP while in India to eliminate roaming fees
-- Auto-route domestic India (+91) calls via non-roaming domestic India SIM slot
-- Retain 100% of saved contact preferences in Room DB with zero restoration needed upon return to US
-- Integrate travel overlay into ChannelDispatchCoordinator, DialerScreen, MainViewModel, and OmniCallRedirectionService
-- Add Smart Travel & Roaming settings toggle and status badge in SettingsScreen
-- Add unit test suite in TravelRoamingManagerTest verifying roaming protection and preference invariance
