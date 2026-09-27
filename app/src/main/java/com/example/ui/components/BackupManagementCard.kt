@@ -256,14 +256,25 @@ fun BackupManagementCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     localBackups.take(6).forEach { file ->
+                        val isAuto = file.name.contains("_auto_") || file.name.startsWith("omnidial_auto")
                         val dateStr = try {
-                            val parts = file.name.substringAfter("omnidial_backup_").substringBefore(".bak").substringBefore(".json").split("_")
-                            if (parts.size == 2) {
+                            val cleanName = file.name
+                                .removePrefix("omnidial_backup_")
+                                .removePrefix("omnidial_auto_")
+                                .substringBefore(".bak")
+                                .substringBefore(".json")
+                            val parts = cleanName.split("_")
+                            if (parts.size >= 2 && parts[0].length == 8 && parts[1].length >= 6) {
                                 val ymd = parts[0]
                                 val hms = parts[1]
                                 "${ymd.take(4)}-${ymd.substring(4, 6)}-${ymd.substring(6, 8)} ${hms.take(2)}:${hms.substring(2, 4)}:${hms.substring(4, 6)}"
                             } else {
-                                file.name
+                                val lastMod = file.lastModified()
+                                if (lastMod > 0L) {
+                                    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date(lastMod))
+                                } else {
+                                    file.name
+                                }
                             }
                         } catch (e: Exception) {
                             file.name
@@ -285,14 +296,15 @@ fun BackupManagementCard(
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                    color = if (isAuto) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                            else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
-                                            imageVector = Icons.Default.SettingsBackupRestore,
+                                            imageVector = if (isAuto) Icons.Default.Schedule else Icons.Default.Save,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
+                                            tint = if (isAuto) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -304,11 +316,32 @@ fun BackupManagementCard(
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Text(
-                                        text = "$sizeStr • Auto-Saved Backup",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = if (isAuto) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
+                                                    else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+                                        ) {
+                                            Text(
+                                                text = if (isAuto) "Auto-Backup" else "Manual Backup",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isAuto) MaterialTheme.colorScheme.onSecondaryContainer
+                                                        else MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = sizeStr,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
 
                                 // Restore Button

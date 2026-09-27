@@ -111,6 +111,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -521,8 +522,12 @@ fun MainAppContent(
     val coroutineScope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = (if (initialTab in 0..4) initialTab else 0)) { 5 }
     val selectedTab = pagerState.currentPage
+    var recentsScrollToTopTrigger by remember { mutableLongStateOf(0L) }
 
     fun navigateToTab(targetPage: Int) {
+        if (targetPage == 1) {
+            recentsScrollToTopTrigger++
+        }
         coroutineScope.launch {
             pagerState.scrollToPage(targetPage.coerceIn(0, 4))
         }
@@ -540,6 +545,7 @@ fun MainAppContent(
         focusManager.clearFocus()
         if (selectedTab == 1) {
             viewModel.refreshRecentCalls()
+            recentsScrollToTopTrigger++
         }
     }
 
@@ -550,6 +556,7 @@ fun MainAppContent(
         (context as? MainActivity)?.updateLockScreenFlags(hasActive)
         if (!hasActive) {
             viewModel.refreshRecentCalls()
+            recentsScrollToTopTrigger++
         }
     }
 
@@ -1303,6 +1310,8 @@ fun MainAppContent(
                         deviceContacts = deviceContacts,
                         activeSims = activeSims,
                         highlightNumber = highlightNumber,
+                        isFocused = (selectedTab == 1),
+                        scrollToTopTrigger = recentsScrollToTopTrigger,
                         isSpamNumber = { num -> viewModel.isSpamNumber(num) },
                         getPreferredCallingMode = { num -> viewModel.getPreferredCallingMode(num) },
                         onSaveLearnedCallMode = { num, mode -> viewModel.saveLearnedCallMode(num, mode) },

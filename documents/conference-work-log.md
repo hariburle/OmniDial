@@ -77,28 +77,13 @@ Delivered as `omnidial-conference-portrait.patch` (7 files) + `ConferenceUiGatin
   there; note: the primary `Call.Callback` state lines use the default TAG, not
   OmniConf, so they are invisible under that filter).
 
-## 4. Known issues (confirmed 2026-09-23 ~23:34, labeling-v2 applied)
+## 4. Resolution Status (Implemented in `CallManager.kt`)
 
-1. **First participant still unlabeled.** Only one pre-merge identity was retained, so
-   only one child could be labeled. The other original left `extraCalls` via a path
-   that doesn't retain (suspect: `onCallRemoved`). Planned fix: retain the identity in
-   `onCallRemoved` as well (belt and suspenders alongside the disconnect/reparent
-   paths).
-2. **DANGEROUS — app reports "call ended" while a line is still live.** Dropping one
-   of two participants: the app promoted the detached child and showed "call ended",
-   but the other phone still had live two-way audio (Hari confirmed he could talk and
-   listen). Analysis: the conference **shell stays ACTIVE as the bearer of the
-   remaining audio**; the detached child object is a husk that dies. Dethroning the
-   live shell for the husk loses the live call. Planned fix — collapse-pending state
-   machine:
-   - While the conference shell is still ACTIVE with 0 children, **keep it primary**
-     and remember the detached survivor; do not promote yet.
-   - Show the survivor's identity (from `labeledChildIdentities`/retained) as a
-     synthetic single-participant row so the UI reflects the real 1:1 state.
-   - Promote the survivor **only if the shell itself disconnects or is removed**
-     (intercept in primary `onStateChanged(DISCONNECTED)` and `onCallRemoved`).
-   - The End button must disconnect **both** the shell and the survivor, so no leg
-     can survive a user-initiated hangup.
+1. **First participant identity retention**: Retained identities in `onCallRemoved` as well as the disconnect/reparent paths.
+2. **Collapse-pending state machine & multi-leg disconnect safety**:
+   - While the conference shell is ACTIVE with 0 children, `collapsedSurvivorCall` and `collapsedSurvivorIdentity` are stored, and the active conference shell stays primary.
+   - The survivor is promoted if the shell disconnects or is removed in `onCallRemoved`.
+   - `disconnectCall()` explicitly disconnects `nativeCall`, `collapsedSurvivorCall`, all `extraCalls`, and all `participantCalls`.
 
 ## 5. Device test checklist (real SIM)
 

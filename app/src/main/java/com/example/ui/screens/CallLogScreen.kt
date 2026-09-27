@@ -164,6 +164,8 @@ fun CallLogScreen(
     isCallLogPermissionGranted: Boolean = true,
     onRequestCallLogPermission: () -> Unit = {},
     dismissModalsTrigger: Long = 0L,
+    isFocused: Boolean = false,
+    scrollToTopTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -444,6 +446,33 @@ fun CallLogScreen(
 
     var activeHighlightedCallId by remember(highlightNumber) { mutableStateOf<Long?>(null) }
     var hasScrolledToHighlight by remember(highlightNumber) { mutableStateOf(false) }
+
+    val latestCallKey = remember(filteredGroupedCalls) {
+        filteredGroupedCalls.firstOrNull()?.let { "${it.primaryCall.id}_${it.primaryCall.timestamp}" }
+    }
+    var previousLatestCallKey by remember { mutableStateOf(latestCallKey) }
+
+    // Always show top of list when focus gets to recents or when scroll-to-top is triggered
+    androidx.compose.runtime.LaunchedEffect(isFocused, scrollToTopTrigger) {
+        if (isFocused && highlightNumber.isNullOrBlank()) {
+            listState.scrollToItem(0, 0)
+        }
+    }
+
+    // When the latest call changes (e.g. after a call ends and recent calls refresh),
+    // ensure the top of the list remains visible rather than anchored down by LazyColumn item keys
+    androidx.compose.runtime.LaunchedEffect(latestCallKey, isFocused) {
+        if (latestCallKey != null && latestCallKey != previousLatestCallKey) {
+            previousLatestCallKey = latestCallKey
+            if (isFocused && highlightNumber.isNullOrBlank()) {
+                if (listState.firstVisibleItemIndex <= 1) {
+                    listState.scrollToItem(0, 0)
+                }
+            }
+        } else if (latestCallKey != null) {
+            previousLatestCallKey = latestCallKey
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(highlightNumber, filteredGroupedCalls) {
         if (!highlightNumber.isNullOrBlank() && filteredGroupedCalls.isNotEmpty() && !hasScrolledToHighlight) {

@@ -7,25 +7,24 @@
 
 ---
 
-## 🚨 Active work — week of Sep 23, 2026 (pending)
+## 🚨 Active Backlog & Next Up
 
-Short-term pending items. Full conference history: [`documents/conference-work-log.md`](conference-work-log.md).
+### Short-Term Polish & Feature Additions
+- [ ] **Task 14.3: Generic Calling-Channel Registry**: Beyond hardcoded WhatsApp/Google Voice checks, add dynamic package detection and adapters for Telegram, Signal, and generic SIP calling accounts.
+- [ ] **Phase 15: New Rule Sets Beyond Incoming Engine**:
+  - Task 15.1: Outgoing Channel Routing Rules
+  - Task 15.2: Natural-Language Rule Creation
+  - Task 15.3: Quiet Hours
+  - Task 15.4: Incoming Screening+
+  - Task 15.5: Post-Call Follow-Up Rules
+  - Task 15.6: Location/Roaming Conditions & Scheduled Toggles
 
-### Conference calling (in progress — 6 patches so far, merge works)
-- [ ] Collapse-pending patch (to write): retain pre-merge identity in `onCallRemoved` (first of two merged participants still unlabeled); keep a still-ACTIVE empty conference shell primary, remember the detached survivor, promote the survivor only if the shell itself dies, End disconnects both legs (dropping one participant falsely showed "call ended" while the other phone had live two-way audio — dangerous).
-- [ ] Build (`.\gradlew.bat installRelease`) + device test: merge → both names in Manage, header names + group icon; drop one participant → survivor continues with their name; End → all legs die (verify on the other phone).
-- [ ] If anything misbehaves: `adb logcat -s OmniConf:D` from before Merge through 15s after the failure.
-
-### Awaiting build / device test
-- [ ] `omnidial-reminder-expiry-fix.patch` — firing a reminder clears only the time, keeps the note.
-- [ ] `omnidial-channel-routing-fixes.patch` — applied cleanly; build/test unconfirmed.
-- [ ] `omnidial-car-bt-receiver-fix.patch`, `omnidial-unspam-menu-fix.patch`, `omnidial-wifi-ssid-fix.patch` — status unconfirmed.
-
-### Not started
-- [ ] Quiet throttled automatic backup (spec approved 2026-09-23; explicit one-tap restore; no silent restore).
-- [ ] Default-number redesign (per-number star = radio for "default number", never touches favorites; persist for non-favorites).
-- [ ] Annotated-call-log-only backups.
-- [ ] Task 14.3 generic calling-channel registry; Phase 15 rule sets (designs delivered, not implemented).
+### Recently Completed & Verified
+- [x] **Annotated-Call-Log-Only Backups**: In `BackupManager.kt`, call logs are already filtered so only calls with notes, reminders, spam flags, custom reasons, or tags are exported (`if (!hasCustomData) continue`). Plain unannotated calls are excluded.
+- [x] **Conference Calling Collapse & Leg Safety**: Implemented collapse-pending state machine, survivor tracking, pre-merge identity retention on `onCallRemoved`, and multi-leg teardown on End button.
+- [x] **Quiet Throttled Auto-Backups**: 6-hour minimum throttle, dirty-flag change tracking, public MediaStore sync, and distinct Auto vs Manual UI badges.
+- [x] **Default-Number Redesign**: Independent checkbox/radio for default calling number separated from favorite contact stars in `ContactDetailsBottomSheet`.
+- [x] **Recents Focus Auto-Scroll**: Immediate scroll-to-top when navigating to Recents and anchor stabilization when new calls finish.
 
 ---
 
@@ -126,29 +125,29 @@ Short-term pending items. Full conference history: [`documents/conference-work-l
 
 ---
 
-### 🌐 Phase 13 (Upcoming Release — v1.6.0): Core Multi-Channel Calling Engine (Cellular & WhatsApp)
+### 🌐 Phase 13 (Release v1.6.0): Core Multi-Channel Calling Engine (Cellular & WhatsApp)
 *Unified dynamic discovery, per-phone-number preferences, and adaptive dock for Cellular SIM 1/2 and WhatsApp (documented in [`documents/MULTI_CHANNEL_CALLING_BLUEPRINT.md`](MULTI_CHANNEL_CALLING_BLUEPRINT.md)).*
-- [ ] **Task 13.1: Granular Per-Number Channel Preference Entity & Repository**
+- [x] **Task 13.1: Granular Per-Number Channel Preference Entity & Repository**
   - *Goal*: Key channel preferences explicitly by E.164 `normalized_number` so each phone number of a contact can independently select Cellular (SIM 1 / SIM 2), WhatsApp, or Always Ask.
   - *Deliverable*: Room entity `number_channel_preferences`, DAO methods, and unified `ChannelPreferenceRepository`.
-- [ ] **Task 13.2: Dynamic Channel Discovery Service (`ChannelDiscoveryManager`)**
+- [x] **Task 13.2: Dynamic Channel Discovery Service (`ChannelDiscoveryManager`)**
   - *Goal*: Replace static boolean toggles with a reactive discovery service tracking active SIM 1, SIM 2, and WhatsApp status, built on a pluggable `CallingChannel` model.
   - *Deliverable*: `CallingChannel` domain models and `ChannelDiscoveryManager` emitting `StateFlow<List<CallingChannel>>`.
-- [ ] **Task 13.3: Per-Phone-Number Channel Selector in Contact Details**
+- [x] **Task 13.3: Per-Phone-Number Channel Selector in Contact Details**
   - *Goal*: In `ContactDetailsBottomSheet`, render independent channel chip selectors for each phone number of a contact rather than a single contact-wide setting.
   - *Deliverable*: Updated phone number rows with reactive per-number channel selection chips.
-- [ ] **Task 13.4: Adaptive Keypad Channel Dock & Dispatch Coordinator**
+- [x] **Task 13.4: Adaptive Keypad Channel Dock & Dispatch Coordinator**
   - *Goal*: Provide a dynamic segmented channel dock above the dial pad (`[ SIM 1 ]`, `[ SIM 2 ]`, `[ WhatsApp ]`) and execution dispatch coordinator.
   - *Deliverable*: `KeypadChannelDock` component on `DialerScreen` and `ChannelDispatchCoordinator`.
 
 ---
 
-### 🚀 Phase 14 (Future Extension): Pluggable Multi-Channel Expansion (WhatsApp Business & Google Voice)
+### 🚀 Phase 14: Pluggable Multi-Channel Expansion (WhatsApp Business & Google Voice)
 *Leverage the MCCE pluggable foundation to easily add WhatsApp Business and Google Voice without architectural changes.*
-- [ ] **Task 14.1: WhatsApp Business Provider Plugin**
+- [x] **Task 14.1: WhatsApp Business Provider Plugin**
   - *Goal*: Enable direct calling via WhatsApp Business (`com.whatsapp.w4b`) alongside personal WhatsApp.
   - *Deliverable*: `ChannelDiscoveryManager` package detection and `ContactHelper` direct call routing for WhatsApp Business.
-- [ ] **Task 14.2: Google Voice Provider Plugin**
+- [x] **Task 14.2: Google Voice Provider Plugin**
   - *Goal*: Detect Google Voice and support routing via Telecom calling account or direct intent.
   - *Deliverable*: Google Voice channel plugin and Keypad dock integration.
 - [ ] **Task 14.3: Generic Calling-Channel Registry (beyond hardcoded providers)**
