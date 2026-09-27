@@ -90,6 +90,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var showSpamDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showChannelConfigDialog by remember { mutableStateOf(false) }
@@ -412,8 +413,10 @@ fun SettingsScreen(
                 if (isSmartRoaming) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-                    // US (+1) Calls via WhatsApp Business toggle
-                    var useWaBizForUs by remember { mutableStateOf(travelRoamingManager.isUsCallsViaWhatsAppBizEnabled()) }
+                    // Home Region & Permanent Relocation Assistant
+                    var showRelocationDialog by remember { mutableStateOf(false) }
+                    var homeCountryIso by remember { mutableStateOf(travelRoamingManager.getHomeCountryIso()) }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -421,54 +424,103 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Use WhatsApp Business for US (+1) Calls",
+                                text = "Home Region & Primary Profile",
                                 fontWeight = FontWeight.Medium,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
-                                text = "Displays your US Business number to US contacts with zero roaming fees",
+                                text = "Current Home: ${if (homeCountryIso == "us") "🇺🇸 United States (US)" else if (homeCountryIso == "in") "🇮🇳 India (IN)" else homeCountryIso.uppercase()}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(
-                            checked = useWaBizForUs,
-                            onCheckedChange = { checked ->
-                                useWaBizForUs = checked
-                                travelRoamingManager.setUsCallsViaWhatsAppBizEnabled(checked)
+                        OutlinedButton(
+                            onClick = { showRelocationDialog = true },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Relocate", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    if (showRelocationDialog) {
+                        var targetIso by remember { mutableStateOf(if (homeCountryIso == "us") "in" else "us") }
+                        var promotePrefs by remember { mutableStateOf(true) }
+
+                        AlertDialog(
+                            onDismissRequest = { showRelocationDialog = false },
+                            icon = {
+                                Icon(Icons.Default.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             },
-                            modifier = Modifier.testTag("wa_biz_for_us_switch")
+                            title = {
+                                Text("Permanent Relocation Assistant", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text(
+                                        "Moving to a new country permanently? Update your Home Region to switch your baseline calling profile.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text("Select New Home Country:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        FilterChip(
+                                            selected = targetIso == "in",
+                                            onClick = { targetIso = "in" },
+                                            label = { Text("🇮🇳 India (+91)") }
+                                        )
+                                        FilterChip(
+                                            selected = targetIso == "us",
+                                            onClick = { targetIso = "us" },
+                                            label = { Text("🇺🇸 United States (+1)") }
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Checkbox(
+                                                checked = promotePrefs,
+                                                onCheckedChange = { promotePrefs = it }
+                                            )
+                                            Column {
+                                                Text("Promote Travel to Home Profile", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                                Text("Promote contacts learned in $targetIso to become your permanent home baseline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            val repo = com.example.data.AppRepository(com.example.data.AppDatabase.getInstance(context).appDao())
+                                            travelRoamingManager.relocateHomeCountry(targetIso, promotePrefs, repo)
+                                            homeCountryIso = targetIso
+                                            showRelocationDialog = false
+                                            Toast.makeText(context, "★ Home region relocated to ${targetIso.uppercase()}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                ) {
+                                    Text("Confirm Relocation")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showRelocationDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
                         )
                     }
 
-                    // India (+91) Calls via WhatsApp Personal toggle
-                    var useWaPersonalForIndia by remember { mutableStateOf(travelRoamingManager.isIndiaCallsViaWhatsAppEnabled()) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Use WhatsApp for India (+91) Calls",
-                                fontWeight = FontWeight.Medium,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "Routes India calls via WhatsApp VoIP (turn off to use Domestic India SIM)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = useWaPersonalForIndia,
-                            onCheckedChange = { checked ->
-                                useWaPersonalForIndia = checked
-                                travelRoamingManager.setIndiaCallsViaWhatsAppEnabled(checked)
-                            },
-                            modifier = Modifier.testTag("wa_personal_for_india_switch")
-                        )
-                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
                     // Roaming Guard Intercept toggle
                     var roamingGuard by remember { mutableStateOf(travelRoamingManager.isRoamingGuardEnabled()) }

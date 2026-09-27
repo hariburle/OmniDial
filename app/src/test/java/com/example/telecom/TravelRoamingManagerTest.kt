@@ -66,68 +66,86 @@ class TravelRoamingManagerTest {
         manager = TravelRoamingManager(context)
         manager.setSmartRoamingEnabled(true)
         manager.setHomeCountryIso("us")
-        manager.setUsCallsViaWhatsAppBizEnabled(true)
-        manager.setIndiaCallsViaWhatsAppEnabled(true)
     }
 
     @Test
-    fun testWhenInIndia_callingUsNumber_routesToWhatsAppBusiness() {
+    fun testDynamicRule_callingUsNumber_routesToWhatsAppBusiness() {
         val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
+        val rule = com.example.data.TelecomRoutingRule(
+            name = "US via WhatsApp Business",
+            ruleExpression = "When @location: India, route @numbers: US (+1) via @channel: WhatsApp Business",
+            targetChannelId = "whatsapp_business",
+            locationPattern = "travel:IN",
+            destinationPrefix = "+1",
+            guardAction = "warn_roaming",
+            isEnabled = true,
+            priority = 100
+        )
 
         val testManager = object : TravelRoamingManager(context) {
             override fun getCurrentCountryIso(): String = "in"
         }
-        testManager.setUsCallsViaWhatsAppBizEnabled(true)
 
         val decision = testManager.evaluateTravelRouting(
             phoneNumber = "+14085551234",
             pinnedChannel = usSimRoaming,
             userExplicitOverride = null,
-            availableChannels = testChannels
+            availableChannels = testChannels,
+            activeRules = listOf(rule)
         )
 
         assertTrue("Should be travel optimized", decision.isTravelOptimized)
         assertTrue("Recommended channel should be WhatsApp", decision.recommendedChannel is CallingChannel.WhatsApp)
         val wa = decision.recommendedChannel as CallingChannel.WhatsApp
-        assertTrue("US calls while in India should route to WhatsApp Business", wa.isBusiness)
+        assertTrue("US calls should route to WhatsApp Business per rule", wa.isBusiness)
     }
 
     @Test
-    fun testWhenInIndia_callingIndiaNumber_routesToWhatsAppPersonal() {
+    fun testDynamicRule_callingIndiaNumber_routesToWhatsAppPersonal() {
         val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
+        val rule = com.example.data.TelecomRoutingRule(
+            name = "India via WhatsApp Personal",
+            ruleExpression = "When @location: India, route @numbers: India (+91) via @channel: WhatsApp",
+            targetChannelId = "whatsapp",
+            locationPattern = "travel:IN",
+            destinationPrefix = "+91",
+            guardAction = "warn_roaming",
+            isEnabled = true,
+            priority = 90
+        )
 
         val testManager = object : TravelRoamingManager(context) {
             override fun getCurrentCountryIso(): String = "in"
         }
-        testManager.setIndiaCallsViaWhatsAppEnabled(true)
 
         val decision = testManager.evaluateTravelRouting(
             phoneNumber = "+919876543210",
             pinnedChannel = usSimRoaming,
             userExplicitOverride = null,
-            availableChannels = testChannels
+            availableChannels = testChannels,
+            activeRules = listOf(rule)
         )
 
         assertTrue("Should be travel optimized", decision.isTravelOptimized)
         assertTrue("Recommended channel should be WhatsApp Personal", decision.recommendedChannel is CallingChannel.WhatsApp)
         val wa = decision.recommendedChannel as CallingChannel.WhatsApp
-        assertFalse("India calls should route to WhatsApp Personal", wa.isBusiness)
+        assertFalse("India calls should route to WhatsApp Personal per rule", wa.isBusiness)
     }
 
     @Test
-    fun testWhenInIndia_callingIndiaNumberWithWhatsAppDisabled_routesToDomesticIndiaSim() {
+    fun testDomesticCallWithoutRule_routesToDomesticNonRoamingSim() {
         val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
 
         val testManager = object : TravelRoamingManager(context) {
             override fun getCurrentCountryIso(): String = "in"
         }
-        testManager.setIndiaCallsViaWhatsAppEnabled(false)
 
         val decision = testManager.evaluateTravelRouting(
             phoneNumber = "+919876543210",
             pinnedChannel = usSimRoaming,
             userExplicitOverride = null,
-            availableChannels = testChannels
+            availableChannels = testChannels,
+            activeRules = emptyList()
         )
 
         assertNotNull(decision.recommendedChannel)

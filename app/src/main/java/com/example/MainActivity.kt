@@ -87,6 +87,7 @@ import com.example.data.ChannelConfigRepository
 import com.example.telecom.CallNotificationReceiver
 import com.example.telecom.ChannelDiscoveryManager
 import com.example.ui.components.ChannelSetupDialog
+import com.example.ui.components.RoamingWarningDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -495,6 +496,8 @@ fun MainAppContent(
     val pendingCloudConfirmation by viewModel.pendingCloudConfirmation.collectAsStateWithLifecycle()
     val pendingCallMethodChoice by viewModel.pendingCallMethodChoice.collectAsStateWithLifecycle()
     val pendingSimChoice by viewModel.pendingSimChoicePrompt.collectAsStateWithLifecycle()
+    val pendingRoamingWarning by viewModel.pendingRoamingWarning.collectAsStateWithLifecycle()
+    val routingRules by viewModel.routingRules.collectAsStateWithLifecycle()
     val dismissModalsTrigger by viewModel.dismissModalsTrigger.collectAsStateWithLifecycle()
 
     val isFlipToShhhEnabled by viewModel.isFlipToShhhEnabled.collectAsStateWithLifecycle()
@@ -1506,6 +1509,10 @@ fun MainAppContent(
                     )
                     4 -> RulesScreen(
                         rules = rules,
+                        routingRules = routingRules,
+                        onSaveRoutingRule = { viewModel.saveRoutingRule(it) },
+                        onToggleRoutingRule = { viewModel.toggleRoutingRuleEnabled(it) },
+                        onDeleteRoutingRule = { viewModel.deleteRoutingRule(it) },
                         automationLogs = automationLogs,
                         favorites = favorites,
                         themeMode = themeMode,
@@ -1727,6 +1734,27 @@ fun MainAppContent(
                         viewModel.confirmSimChoiceAndPlaceCall(context, slot)
                     },
                     onDismiss = { viewModel.cancelSimChoice() }
+                )
+            }
+        }
+
+        // Last-Mile Roaming Safety Intercept Dialog
+        if (!isCallScreenVisible) {
+            pendingRoamingWarning?.let { prompt ->
+                RoamingWarningDialog(
+                    prompt = prompt,
+                    onUseWhatsApp = { isBusiness ->
+                        viewModel.divertRoamingToWhatsApp(context, isBusiness)
+                    },
+                    onUseDomesticSim = { slot ->
+                        viewModel.divertRoamingToLocalSim(context, slot)
+                    },
+                    onProceedRoaming = {
+                        viewModel.proceedWithRoamingCall(context)
+                    },
+                    onDismiss = {
+                        viewModel.dismissRoamingWarning()
+                    }
                 )
             }
         }

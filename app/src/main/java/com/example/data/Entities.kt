@@ -148,24 +148,54 @@ data class ContactSimPreference(
 
 /**
  * Granular Per-Phone-Number Calling Channel Preference.
- * Keyed strictly by E.164 normalized phone number.
+ * Keyed by E.164 normalized phone number AND country profile context (e.g. "home:US", "travel:IN").
  * preferredChannelId: "system", "sim_1", "sim_2", "whatsapp", "whatsapp_business", "google_voice", "ask"
  */
 @Immutable
 @Entity(
     tableName = "number_channel_preferences",
-    indices = [Index(value = ["normalized_number"])]
+    primaryKeys = ["normalized_number", "profile_context"],
+    indices = [
+        Index(value = ["normalized_number"]),
+        Index(value = ["profile_context"])
+    ]
 )
 data class NumberChannelPreference(
-    @PrimaryKey
     @ColumnInfo(name = "normalized_number")
     val normalizedNumber: String,
+    @ColumnInfo(name = "profile_context")
+    val profileContext: String = "home:US",
     @ColumnInfo(name = "preferred_channel_id")
     val preferredChannelId: String,
     @ColumnInfo(name = "custom_label")
     val customLabel: String? = null,
     @ColumnInfo(name = "updated_timestamp")
     val updatedTimestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * Expressive dynamic telecom routing rule composed using @ slot triggers:
+ * e.g., "When @location: India, route @numbers: US (+1) via @channel: WhatsApp Business"
+ */
+@Immutable
+@Entity(
+    tableName = "telecom_routing_rules",
+    indices = [
+        Index(value = ["is_enabled"]),
+        Index(value = ["priority"])
+    ]
+)
+data class TelecomRoutingRule(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "name") val name: String,
+    @ColumnInfo(name = "rule_expression") val ruleExpression: String,
+    @ColumnInfo(name = "target_channel_id") val targetChannelId: String,
+    @ColumnInfo(name = "location_pattern") val locationPattern: String = "any", // "travel:IN", "roaming", "home:US", "any"
+    @ColumnInfo(name = "destination_prefix") val destinationPrefix: String = "any", // "+1", "+91", "all_intl", "any"
+    @ColumnInfo(name = "guard_action") val guardAction: String = "warn_roaming",
+    @ColumnInfo(name = "is_enabled") val isEnabled: Boolean = true,
+    @ColumnInfo(name = "priority") val priority: Int = 0,
+    @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis()
 )
 
 /**

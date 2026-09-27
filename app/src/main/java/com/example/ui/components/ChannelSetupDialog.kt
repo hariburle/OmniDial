@@ -23,12 +23,14 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -69,6 +71,7 @@ fun ChannelSetupDialog(
     onSave: (List<ChannelConfig>) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val configMap = remember(existingConfigs) {
         existingConfigs.associateBy { it.channelId }
     }
@@ -158,6 +161,44 @@ fun ChannelSetupDialog(
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
+                    }
+                }
+
+                if (isOnboarding) {
+                    val currentHomeIso = remember { com.example.telecom.TravelRoamingManager.getInstance(context).getHomeCountryIso() }
+                    var selectedHomeIso by remember { mutableStateOf(currentHomeIso) }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Default.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Text("Confirm Your Home Region", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            }
+                            Text("Prevent roaming errors if installing abroad. Where is your primary domestic residence?", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = selectedHomeIso == "us",
+                                    onClick = {
+                                        selectedHomeIso = "us"
+                                        com.example.telecom.TravelRoamingManager.getInstance(context).setHomeCountryIso("us")
+                                    },
+                                    label = { Text("🇺🇸 United States (+1)") }
+                                )
+                                FilterChip(
+                                    selected = selectedHomeIso == "in",
+                                    onClick = {
+                                        selectedHomeIso = "in"
+                                        com.example.telecom.TravelRoamingManager.getInstance(context).setHomeCountryIso("in")
+                                    },
+                                    label = { Text("🇮🇳 India (+91)") }
+                                )
+                            }
+                        }
                     }
                 }
 

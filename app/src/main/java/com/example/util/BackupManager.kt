@@ -228,6 +228,7 @@ object BackupManager {
         for (cp in channelPrefs) {
             val obj = JSONObject()
             obj.put("normalizedNumber", cp.normalizedNumber)
+            obj.put("profileContext", cp.profileContext)
             obj.put("preferredChannelId", cp.preferredChannelId)
             obj.put("customLabel", cp.customLabel ?: "")
             obj.put("updatedTimestamp", cp.updatedTimestamp)
@@ -248,6 +249,24 @@ object BackupManager {
             channelConfigArray.put(obj)
         }
         root.put("channelConfigurations", channelConfigArray)
+
+        // 10. Telecom Routing Rules (@ Slot Composer)
+        val routingRules = dao.getAllRoutingRulesList()
+        val routingRuleArray = JSONArray()
+        for (rr in routingRules) {
+            val obj = JSONObject()
+            obj.put("name", rr.name)
+            obj.put("ruleExpression", rr.ruleExpression)
+            obj.put("targetChannelId", rr.targetChannelId)
+            obj.put("locationPattern", rr.locationPattern)
+            obj.put("destinationPrefix", rr.destinationPrefix)
+            obj.put("guardAction", rr.guardAction)
+            obj.put("isEnabled", rr.isEnabled)
+            obj.put("priority", rr.priority)
+            obj.put("createdAt", rr.createdAt)
+            routingRuleArray.put(obj)
+        }
+        root.put("telecomRoutingRules", routingRuleArray)
 
         // Generate SHA-256 payload integrity checksum
         val signature = computePayloadSignature(
@@ -689,6 +708,7 @@ object BackupManager {
                                 if (num.isBlank() || channelId.isBlank()) continue
                                 val pref = NumberChannelPreference(
                                     normalizedNumber = PhoneNumberNormalizer.toE164(num),
+                                    profileContext = obj.optString("profileContext", "home:US"),
                                     preferredChannelId = channelId,
                                     customLabel = obj.optString("customLabel").ifBlank { null },
                                     updatedTimestamp = obj.optLong("updatedTimestamp", System.currentTimeMillis())
@@ -701,6 +721,35 @@ object BackupManager {
                 } catch (e: Throwable) {
                     android.util.Log.w("BackupManager", "Error restoring number channel preferences: ${e.message}")
                 }
+            }
+
+            if (root.has("telecomRoutingRules")) {
+                try {
+                    val rrArray = root.optJSONArray("telecomRoutingRules")
+                    if (rrArray != null) {
+                        for (i in 0 until rrArray.length()) {
+                            try {
+                                val obj = rrArray.getJSONObject(i)
+                                val name = obj.optString("name", "").ifBlank { "Routing Rule" }
+                                val expr = obj.optString("ruleExpression", "")
+                                val chanId = obj.optString("targetChannelId", "")
+                                if (expr.isBlank() || chanId.isBlank()) continue
+                                val rule = com.example.data.TelecomRoutingRule(
+                                    name = name,
+                                    ruleExpression = expr,
+                                    targetChannelId = chanId,
+                                    locationPattern = obj.optString("locationPattern", "any"),
+                                    destinationPrefix = obj.optString("destinationPrefix", "any"),
+                                    guardAction = obj.optString("guardAction", "warn_roaming"),
+                                    isEnabled = obj.optBoolean("isEnabled", true),
+                                    priority = obj.optInt("priority", 0),
+                                    createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                                )
+                                dao.insertRoutingRule(rule)
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (_: Throwable) {}
             }
 
             // 8b. Backward Compatibility: Migrate legacy preferences into number_channel_preferences if missing

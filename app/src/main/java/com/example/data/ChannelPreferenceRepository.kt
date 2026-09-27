@@ -16,6 +16,7 @@ class ChannelPreferenceRepository(
         appRepository.allNumberChannelPreferences
 
     private val cachedPreferences = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val profileScopedCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /**
      * Application context, captured in [getInstance]. Used only for the SharedPreferences
@@ -37,9 +38,12 @@ class ChannelPreferenceRepository(
         scope.launch {
             allPreferences.collect { list ->
                 val newMap = list.associate { it.normalizedNumber to it.preferredChannelId }
+                val newScopedMap = list.associate { "${it.profileContext.lowercase()}:${it.normalizedNumber}" to it.preferredChannelId }
                 cachedPreferences.putAll(newMap)
+                profileScopedCache.putAll(newScopedMap)
                 if (cacheReady) {
                     cachedPreferences.keys.retainAll(newMap.keys)
+                    profileScopedCache.keys.retainAll(newScopedMap.keys)
                 }
                 cacheReady = true
                 mirrorAllToSharedPreferences(list)
@@ -93,49 +97,80 @@ class ChannelPreferenceRepository(
         } catch (_: Exception) {}
     }
 
-    fun getCachedPreference(phoneNumber: String): String? {
-        val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        cachedPreferences[normalized]?.let { return it }
+    fun getActiveProfile(): String {
+        val ctx = appContext ?: return "home:us"
+        return try {
+            com.example.telecom.TravelRoamingManager.getInstance(ctx).getActiveProfileContext().lowercase()
+        } catch (_: Exception) {
+            "home:us"
+        }
+    }
 
+    fun getCachedPreference(phoneNumber: String, profileContext: String? = null): String? {
+        val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
+        val activeProfile = (profileContext ?: getActiveProfile()).lowercase()
+
+        // 1. Direct profile match (e.g. travel:in:+15551234567)
+        profileScopedCache["$activeProfile:$normalized"]?.let { return it }
+
+        // 2. Suffix match within active profile
         val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
+        val digits = phoneNumber.filter { it.isDigit() }
+        val suffix10 = if (digits.length >= 10) digits.takeLast(10) else digits
+        if (suffix10.length >= 7) {
+            for ((key, pref) in profileScopedCache) {
+                if (key.startsWith("$activeProfile:")) {
+                    val numPart = key.removePrefix("$activeProfile:")
+                    val keyDigits = numPart.filter { it.isDigit() }
+                    if (keyDigits.endsWith(suffix10) || (keyDigits.length >= 10 && suffix10.endsWith(keyDigits.takeLast(10)))) {
+                        return pref
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback to home profile if currently traveling and no travel-specific pin exists
+        if (activeProfile.startsWith("travel:")) {
+            val homeIso = try {
+                com.example.telecom.TravelRoamingManager.getInstance(appContext ?: return null).getHomeCountryIso().lowercase()
+            } catch (_: Exception) { "us" }
+            val homeProfile = "home:$homeIso"
+            profileScopedCache["$homeProfile:$normalized"]?.let { return it }
+        }
+
+        // 4. Fallback to legacy global cache
+        cachedPreferences[normalized]?.let { return it }
         if (clean.isNotBlank()) {
             cachedPreferences[clean]?.let { return it }
         }
 
-        val digits = phoneNumber.filter { it.isDigit() }
-        val suffix10 = if (digits.length >= 10) digits.takeLast(10) else digits
-        if (suffix10.length >= 7) {
-            for ((key, pref) in cachedPreferences) {
-                val keyDigits = key.filter { it.isDigit() }
-                if (keyDigits.endsWith(suffix10) || (keyDigits.length >= 10 && suffix10.endsWith(keyDigits.takeLast(10)))) {
-                    return pref
-                }
-            }
-        }
         return null
     }
 
-    suspend fun getPreferenceForNumber(phoneNumber: String): NumberChannelPreference? {
+    suspend fun getPreferenceForNumber(phoneNumber: String, profileContext: String? = null): NumberChannelPreference? {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        return appRepository.getNumberChannelPreference(normalized)
+        val profile = profileContext ?: getActiveProfile()
+        return appRepository.getNumberChannelPreference(normalized, profile)
     }
 
-    suspend fun getPreferredChannelId(phoneNumber: String): String? {
+    suspend fun getPreferredChannelId(phoneNumber: String, profileContext: String? = null): String? {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
-        // Once warm the cache mirrors the whole table, so a miss is authoritative and the database
-        // round-trip on the call-routing hot path is unnecessary.
-        if (cacheReady) return cachedPreferences[normalized]
-        return appRepository.getNumberChannelPreference(normalized)?.preferredChannelId
+        if (cacheReady) return getCachedPreference(phoneNumber, profileContext)
+        val profile = profileContext ?: getActiveProfile()
+        return appRepository.getNumberChannelPreference(normalized, profile)?.preferredChannelId
     }
 
     suspend fun setPreferenceForNumber(
         phoneNumber: String,
         channelId: String,
-        customLabel: String? = null
+        customLabel: String? = null,
+        profileContext: String? = null
     ) {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
+        val profile = (profileContext ?: getActiveProfile()).lowercase()
         cachedPreferences[normalized] = channelId
-        appRepository.setNumberChannelPreference(normalized, channelId, customLabel)
+        profileScopedCache["$profile:$normalized"] = channelId
+        appRepository.setNumberChannelPreference(normalized, channelId, customLabel, profileContext = profile)
         mirrorToLearnedPrefs(normalized, channelId)
     }
 
@@ -227,16 +262,19 @@ class ChannelPreferenceRepository(
         setPreferenceForNumber(phoneNumber, channel.id, customLabel)
     }
 
-    suspend fun removePreferenceForNumber(phoneNumber: String) {
+    suspend fun removePreferenceForNumber(phoneNumber: String, profileContext: String? = null) {
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
+        val profile = (profileContext ?: getActiveProfile()).lowercase()
         cachedPreferences.remove(normalized)
-        appRepository.deleteNumberChannelPreference(normalized)
+        profileScopedCache.remove("$profile:$normalized")
+        appRepository.deleteNumberChannelPreference(normalized, profileContext = profile)
         // Clearing the pin ("ask") leaves no mirror behind.
         mirrorToLearnedPrefs(normalized, "ask")
     }
 
     suspend fun clearAllPreferences() {
         cachedPreferences.clear()
+        profileScopedCache.clear()
         appRepository.clearAllNumberChannelPreferences()
     }
 

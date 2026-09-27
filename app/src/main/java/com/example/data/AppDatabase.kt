@@ -11,8 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class, ContactSimPreference::class, NumberChannelPreference::class, ChannelConfig::class, ContactDefaultNumber::class],
-    version = 17,
+    entities = [CallerRule::class, AutomationLog::class, RecentCall::class, FavoriteContact::class, SpamNumber::class, IgnoredContact::class, LocalContact::class, ContactSimPreference::class, NumberChannelPreference::class, ChannelConfig::class, ContactDefaultNumber::class, TelecomRoutingRule::class],
+    version = 18,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +21,57 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    // 1. Migrate number_channel_preferences to composite PK (normalized_number, profile_context)
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS number_channel_preferences_new (
+                            normalized_number TEXT NOT NULL,
+                            profile_context TEXT NOT NULL DEFAULT 'home:US',
+                            preferred_channel_id TEXT NOT NULL,
+                            custom_label TEXT,
+                            updated_timestamp INTEGER NOT NULL,
+                            PRIMARY KEY(normalized_number, profile_context)
+                        )
+                    """.trimIndent())
+
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO number_channel_preferences_new (
+                            normalized_number, profile_context, preferred_channel_id, custom_label, updated_timestamp
+                        )
+                        SELECT normalized_number, 'home:US', preferred_channel_id, custom_label, updated_timestamp
+                        FROM number_channel_preferences
+                    """.trimIndent())
+
+                    db.execSQL("DROP TABLE IF EXISTS number_channel_preferences")
+                    db.execSQL("ALTER TABLE number_channel_preferences_new RENAME TO number_channel_preferences")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_number_channel_preferences_normalized_number ON number_channel_preferences(normalized_number)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_number_channel_preferences_profile_context ON number_channel_preferences(profile_context)")
+
+                    // 2. Create telecom_routing_rules
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS telecom_routing_rules (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            name TEXT NOT NULL,
+                            rule_expression TEXT NOT NULL,
+                            target_channel_id TEXT NOT NULL,
+                            location_pattern TEXT NOT NULL,
+                            destination_prefix TEXT NOT NULL,
+                            guard_action TEXT NOT NULL,
+                            is_enabled INTEGER NOT NULL,
+                            priority INTEGER NOT NULL,
+                            created_at INTEGER NOT NULL
+                        )
+                    """.trimIndent())
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_telecom_routing_rules_is_enabled ON telecom_routing_rules(is_enabled)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_telecom_routing_rules_priority ON telecom_routing_rules(priority)")
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Error migrating DB 17 to 18", e)
+                }
+            }
+        }
 
         private val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -171,7 +222,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "telecom_dialer_db"
                 )
-                .addMigrations(MIGRATION_16_17, MIGRATION_15_16, MIGRATION_14_15, MIGRATION_13_14, MIGRATION_12_13, MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
+                .addMigrations(MIGRATION_17_18, MIGRATION_16_17, MIGRATION_15_16, MIGRATION_14_15, MIGRATION_13_14, MIGRATION_12_13, MIGRATION_11_12, MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11)
                 .fallbackToDestructiveMigration(dropAllTables = false)
                 .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = false)
                 .addCallback(object : Callback() {

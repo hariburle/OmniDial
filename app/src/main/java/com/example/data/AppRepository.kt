@@ -183,25 +183,53 @@ class AppRepository(private val appDao: AppDao, private val context: android.con
     }
 
     val allNumberChannelPreferences: Flow<List<NumberChannelPreference>> = appDao.getAllNumberChannelPreferences()
-    suspend fun getNumberChannelPreference(phoneNumber: String): NumberChannelPreference? =
-        appDao.getNumberChannelPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
-    suspend fun setNumberChannelPreference(phoneNumber: String, channelId: String, customLabel: String? = null) {
+    fun getNumberChannelPreferencesForProfile(profileContext: String): Flow<List<NumberChannelPreference>> =
+        appDao.getNumberChannelPreferencesForProfile(profileContext)
+
+    suspend fun getNumberChannelPreference(phoneNumber: String, profileContext: String? = null): NumberChannelPreference? {
+        val normalized = com.example.util.PhoneNumberNormalizer.toE164(phoneNumber)
+        return if (!profileContext.isNullOrBlank()) {
+            appDao.getNumberChannelPreferenceForProfile(normalized, profileContext)
+        } else {
+            appDao.getNumberChannelPreference(normalized)
+        }
+    }
+
+    suspend fun setNumberChannelPreference(
+        phoneNumber: String,
+        channelId: String,
+        customLabel: String? = null,
+        profileContext: String = "home:US"
+    ) {
         markDirty()
         appDao.setNumberChannelPreference(
             NumberChannelPreference(
                 normalizedNumber = com.example.util.PhoneNumberNormalizer.toE164(phoneNumber),
+                profileContext = profileContext,
                 preferredChannelId = channelId,
                 customLabel = customLabel
             )
         )
     }
-    suspend fun deleteNumberChannelPreference(phoneNumber: String) {
+
+    suspend fun deleteNumberChannelPreference(phoneNumber: String, profileContext: String? = null) {
         markDirty()
-        appDao.deleteNumberChannelPreference(com.example.util.PhoneNumberNormalizer.toE164(phoneNumber))
+        val normalized = com.example.util.PhoneNumberNormalizer.toE164(phoneNumber)
+        if (!profileContext.isNullOrBlank()) {
+            appDao.deleteNumberChannelPreferenceForProfile(normalized, profileContext)
+        } else {
+            appDao.deleteNumberChannelPreference(normalized)
+        }
     }
+
     suspend fun clearAllNumberChannelPreferences() {
         markDirty()
         appDao.clearAllNumberChannelPreferences()
+    }
+
+    suspend fun promoteProfilePreferences(fromContext: String, toContext: String) {
+        markDirty()
+        appDao.promoteProfilePreferences(fromContext, toContext)
     }
 
     val allChannelConfigs: Flow<List<ChannelConfig>> = appDao.getAllChannelConfigs()
@@ -290,6 +318,27 @@ class AppRepository(private val appDao: AppDao, private val context: android.con
     suspend fun clearAllDefaultNumbers() {
         markDirty()
         appDao.clearAllDefaultNumbers()
+    }
+
+    // --- Dynamic Telecom Routing Rules ---
+    val allRoutingRules: Flow<List<TelecomRoutingRule>> = appDao.getAllRoutingRules()
+    suspend fun getAllRoutingRulesList(): List<TelecomRoutingRule> = appDao.getAllRoutingRulesList()
+    suspend fun getEnabledRoutingRules(): List<TelecomRoutingRule> = appDao.getEnabledRoutingRules()
+    suspend fun insertRoutingRule(rule: TelecomRoutingRule): Long {
+        markDirty()
+        return appDao.insertRoutingRule(rule)
+    }
+    suspend fun updateRoutingRule(rule: TelecomRoutingRule) {
+        markDirty()
+        appDao.updateRoutingRule(rule)
+    }
+    suspend fun deleteRoutingRule(rule: TelecomRoutingRule) {
+        markDirty()
+        appDao.deleteRoutingRule(rule)
+    }
+    suspend fun clearAllRoutingRules() {
+        markDirty()
+        appDao.clearAllRoutingRules()
     }
 }
 
