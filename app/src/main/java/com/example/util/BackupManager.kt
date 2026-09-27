@@ -989,7 +989,7 @@ object BackupManager {
             } ?: emptyArray()
 
             if (autoFiles.size > keepCount) {
-                val sorted = autoFiles.sortedByDescending { it.lastModified() }
+                val sorted = autoFiles.sortedByDescending { getBackupTimestamp(it) }
                 for (oldFile in sorted.drop(keepCount)) {
                     val key = getBackupKey(oldFile.name)
                     oldFile.delete()
@@ -1222,7 +1222,20 @@ object BackupManager {
             }
         }
 
-        return result.sortedByDescending { it.lastModified() }
+        return result.sortedByDescending { getBackupTimestamp(it) }
+    }
+
+    fun getBackupTimestamp(file: File): Long {
+        val timestampRegex = Regex("""\d{8}_\d{6}""")
+        val match = timestampRegex.find(file.name)
+        if (match != null) {
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+                val date = sdf.parse(match.value)
+                if (date != null) return date.time
+            } catch (_: Exception) {}
+        }
+        return file.lastModified()
     }
 
     fun getBackupKey(fileName: String): String {

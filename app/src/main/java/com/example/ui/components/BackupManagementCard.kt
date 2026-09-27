@@ -251,11 +251,14 @@ fun BackupManagementCard(
                     }
                 }
             } else {
+                val sortedBackups = remember(localBackups) {
+                    localBackups.sortedByDescending { file -> BackupManager.getBackupTimestamp(file) }
+                }
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    localBackups.take(6).forEach { file ->
+                    sortedBackups.take(6).forEach { file ->
                         val isAuto = file.name.contains("_auto_") || file.name.startsWith("omnidial_auto")
                         val dateStr = try {
                             val cleanName = file.name
