@@ -229,87 +229,80 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val options = listOf(
-                    listOf(
-                        Triple("ask_learn", "Ask & Learn", "Prompts once & memorizes choice") to Icons.Default.Psychology,
-                        Triple("ask_always", "Ask Always", "Prompt channel on every call") to Icons.AutoMirrored.Filled.HelpOutline
-                    ),
-                    listOf(
-                        Triple("all_international", "Avoid Roaming", "Direct foreign numbers to VoIP / WhatsApp") to Icons.Default.Public,
-                        Triple("never", "Cellular Only", "Standard carrier calls only") to Icons.Default.PhoneDisabled
-                    )
+                    Triple("ask_learn", "Smart Routing", "Rules auto-fire. Asks once if no rule matches, then remembers") to Icons.Default.AutoAwesome,
+                    Triple("ask_always", "Always Ask", "Show channel picker on every call") to Icons.AutoMirrored.Filled.HelpOutline,
+                    Triple("never", "Cellular Only", "Standard carrier calls only. Rules ignored") to Icons.Default.PhoneDisabled
                 )
-                options.forEach { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        rowItems.forEach { (info, icon) ->
-                            val (mode, label, desc) = info
-                            val isSelected = whatsAppCallMode == mode
-                            Card(
-                                onClick = { onSetWhatsAppCallMode(mode) },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected)
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                                    else
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                                ),
-                                border = BorderStroke(
-                                    if (isSelected) 2.dp else 1.dp,
-                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                ),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    options.forEach { (info, icon) ->
+                        val (mode, label, desc) = info
+                        val isSelected = whatsAppCallMode == mode || (mode == "ask_learn" && whatsAppCallMode == "all_international")
+                        Card(
+                            onClick = { onSetWhatsAppCallMode(mode) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                            ),
+                            border = BorderStroke(
+                                if (isSelected) 2.dp else 1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("whatsapp_mode_$mode")
+                        ) {
+                            Column(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("whatsapp_mode_$mode")
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.size(24.dp)
                                     ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = icon,
-                                                    contentDescription = null,
-                                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = null,
+                                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(14.dp)
+                                            )
                                         }
-                                        Text(
-                                            text = label,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1
-                                        )
                                     }
                                     Text(
-                                        text = desc,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 9.sp,
-                                        lineHeight = 11.sp,
-                                        maxLines = 2
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
                                     )
                                 }
+                                Text(
+                                    text = desc,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    maxLines = 3
+                                )
                             }
                         }
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                if (whatsAppCallMode == "ask_learn") {
+                if (whatsAppCallMode == "ask_learn" || whatsAppCallMode == "all_international") {
                     Text(
                         text = "$learnedChoicesCount contact choice(s) remembered",
                         style = MaterialTheme.typography.labelMedium,

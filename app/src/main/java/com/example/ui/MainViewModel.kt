@@ -1573,13 +1573,17 @@ class MainViewModel(
      * checking explicitly learned choices, international rules, or recent call history.
      */
     fun getPreferredCallingMode(phoneNumber: String): String {
+        // Backward compat: "all_international" (Avoid Roaming) was retired in favour of Smart Routing rules.
+        // Treat it identically to "ask_learn" (Smart Routing) so existing users aren't broken.
+        val effectiveMode = if (_whatsAppCallMode.value == "all_international") "ask_learn" else _whatsAppCallMode.value
+
         // If mode is set to "never", override all preferred channels to cellular without wiping saved preferences!
-        if (_whatsAppCallMode.value == "never") {
+        if (effectiveMode == "never") {
             return "cellular"
         }
 
         // If mode is set to "ask_always", return "ask_always" so both dialers are always shown
-        if (_whatsAppCallMode.value == "ask_always") {
+        if (effectiveMode == "ask_always") {
             return "ask_always"
         }
 
@@ -1587,12 +1591,19 @@ class MainViewModel(
         val digits = clean.filter { it.isDigit() }.takeLast(10)
 
         // 0. Dynamic Travel & Roaming overlay (non-mutating)
+        // Global mode is passed so policy gates (Cellular Only / Always Ask) are enforced inside the engine.
         try {
-            val travelDecision = com.example.telecom.TravelRoamingManager.getInstance(appContext).evaluateTravelRouting(clean)
+            val travelDecision = com.example.telecom.TravelRoamingManager.getInstance(appContext)
+                .evaluateTravelRouting(clean, globalMode = effectiveMode)
+            if (travelDecision.isPreSelectedSuggestion) {
+                // "Always Ask" with a rule match: surface the picker (caller will pre-highlight rule suggestion)
+                return "ask_always"
+            }
             if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
                 return travelDecision.recommendedChannel.id
             }
         } catch (_: Exception) {}
+
 
         // 0b. Check unified Room ChannelPreferenceRepository
         try {
@@ -1608,10 +1619,7 @@ class MainViewModel(
             ?: _learnedCallModes.value.entries.firstOrNull { ContactHelper.isSamePhoneNumber(it.key, clean) }?.value
         if (learned != null) return learned
 
-        // 2. If user configured all international to WhatsApp, check international based on phone location
-        if (_whatsAppCallMode.value == "all_international" && ContactHelper.isInternationalNumber(appContext, clean)) {
-            return "whatsapp"
-        }
+        // 2. (all_international retired — use Smart Rules for roaming-avoidance behaviour)
 
         // 3. Count past WhatsApp/Google Voice calls vs regular cellular calls in recent calls
         val calls = recentCalls.value.filter { call ->

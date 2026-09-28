@@ -38,7 +38,8 @@ class ChannelDispatchCoordinator(
     suspend fun resolveChannel(
         phoneNumber: String,
         explicitChannel: CallingChannel? = null,
-        learnedMode: String? = null
+        learnedMode: String? = null,
+        globalMode: String = "ask_learn"
     ): CallingChannel {
         // 0. Safety Guardrail: Emergency numbers ALWAYS route to Domestic Cellular SIM
         if (discoveryManager.isEmergencyNumber(phoneNumber)) {
@@ -64,18 +65,24 @@ class ChannelDispatchCoordinator(
             }
         }
 
-        // 3. Dynamic Non-Mutating Travel & Roaming Overlay
+        // 3. Dynamic Non-Mutating Travel & Roaming Overlay (with policy gates)
         val travelDecision = travelRoamingManager.evaluateTravelRouting(
             phoneNumber = phoneNumber,
             pinnedChannel = pinnedChannel,
-            userExplicitOverride = explicitChannel
+            userExplicitOverride = explicitChannel,
+            globalMode = globalMode
         )
+        // isPreSelectedSuggestion: "Always Ask" mode + rule match → open the picker
+        if (travelDecision.isPreSelectedSuggestion) {
+            return CallingChannel.AskAlways
+        }
         if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
             return travelDecision.recommendedChannel
         }
         if (pinnedChannel != null) {
             return pinnedChannel
         }
+
 
         // 3. Learned Call Mode Bias
         if (learnedMode.equals("whatsapp_business", ignoreCase = true)) {

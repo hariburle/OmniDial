@@ -12,7 +12,12 @@ import com.example.util.PhoneNumberNormalizer
 data class TravelRoutingDecision(
     val recommendedChannel: CallingChannel?,
     val reason: String,
-    val isTravelOptimized: Boolean
+    val isTravelOptimized: Boolean,
+    /**
+     * True when the global mode is "ask_always" and a rule matched.
+     * The recommended channel should be pre-selected in the picker but NOT auto-dialed.
+     */
+    val isPreSelectedSuggestion: Boolean = false
 )
 
 /**
@@ -202,7 +207,12 @@ open class TravelRoamingManager(
         pinnedChannel: CallingChannel? = null,
         userExplicitOverride: CallingChannel? = null,
         availableChannels: List<CallingChannel>? = null,
-        activeRules: List<com.example.data.TelecomRoutingRule>? = null
+        activeRules: List<com.example.data.TelecomRoutingRule>? = null,
+        /**
+         * The global Channel Preference mode from MainViewModel (e.g. "never", "ask_always",
+         * "ask_learn", "all_international"). Used to enforce global policy over rule automation.
+         */
+        globalMode: String = "ask_learn"
     ): TravelRoutingDecision {
         // 1. Emergency calls always route to domestic cellular emergency service, never VoIP
         if (discoveryManager.isEmergencyNumber(phoneNumber)) {
@@ -238,6 +248,21 @@ open class TravelRoamingManager(
             return TravelRoutingDecision(pinnedChannel, "Empty phone number", false)
         }
 
+        // Policy Gate P3: "Cellular Only" — skip all VoIP rules, go straight to SIM resolution.
+        if (globalMode == "never") {
+            val channels = availableChannels ?: discoveryManager.availableChannels.value
+            val currentCountry = getCurrentCountryIso()
+            val bestSim = channels.filterIsInstance<CallingChannel.CellularSim>()
+                .firstOrNull { !it.isRoaming && it.countryIso.equals(currentCountry, ignoreCase = true) }
+                ?: findDomesticSim(currentCountry, channels)
+                ?: channels.filterIsInstance<CallingChannel.CellularSim>().firstOrNull()
+            return TravelRoutingDecision(
+                recommendedChannel = bestSim ?: pinnedChannel,
+                reason = "Policy: Cellular Only — VoIP rules bypassed",
+                isTravelOptimized = false
+            )
+        }
+
         val channels = availableChannels ?: discoveryManager.availableChannels.value
         val currentCountry = getCurrentCountryIso()
         val targetCountry = getTargetCountryIso(clean)
@@ -249,15 +274,19 @@ open class TravelRoamingManager(
         val hasRoamingSim = activeSims.any { it.isRoaming }
 
         // Tier 2: Dynamic User Routing Rules (@ Slot Composer)
+        // Policy Gate P5: "Always Ask" — rules still evaluate but result becomes a pre-selected
+        // suggestion in the picker rather than an auto-dialed channel.
         if (!activeRules.isNullOrEmpty()) {
             for (rule in activeRules.filter { it.isEnabled }.sortedByDescending { it.priority }) {
                 if (matchesRule(rule, currentCountry, targetCountry, clean, hasRoamingSim)) {
                     val resolvedChan = resolveRuleChannel(rule.targetChannelId, channels, waBizChannel, waPersonalChannel)
                     if (resolvedChan != null) {
+                        val isAskAlways = globalMode == "ask_always"
                         return TravelRoutingDecision(
                             recommendedChannel = resolvedChan,
                             reason = "Matched Dynamic Rule: ${rule.name}",
-                            isTravelOptimized = true
+                            isTravelOptimized = !isAskAlways,
+                            isPreSelectedSuggestion = isAskAlways
                         )
                     }
                 }
