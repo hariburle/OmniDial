@@ -59,6 +59,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -261,6 +262,8 @@ fun RulesScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var rulesFilterIndex by rememberSaveable { mutableIntStateOf(0) } // 0: All, 1: Smart Routing, 2: Call Automation
+    var showCreateRuleChoiceDialog by rememberSaveable { mutableStateOf(false) }
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
     var showRecipesModal by rememberSaveable { mutableStateOf(false) }
@@ -271,6 +274,7 @@ fun RulesScreen(
 
     LaunchedEffect(dismissModalsTrigger) {
         if (dismissModalsTrigger > 0L) {
+            showCreateRuleChoiceDialog = false
             showDialog = false
             showHistoryDialog = false
             showRecipesModal = false
@@ -281,8 +285,10 @@ fun RulesScreen(
         }
     }
 
-    BackHandler(enabled = showDialog || showHistoryDialog || showRecipesModal || showRoutingDialog || showRoutingRecipesModal || editingRule != null || editingRoutingRule != null) {
-        if (showDialog) {
+    BackHandler(enabled = showCreateRuleChoiceDialog || showDialog || showHistoryDialog || showRecipesModal || showRoutingDialog || showRoutingRecipesModal || editingRule != null || editingRoutingRule != null) {
+        if (showCreateRuleChoiceDialog) {
+            showCreateRuleChoiceDialog = false
+        } else if (showDialog) {
             showDialog = false
         } else if (showHistoryDialog) {
             showHistoryDialog = false
@@ -300,12 +306,13 @@ fun RulesScreen(
     }
 
     val coroutineScope = rememberCoroutineScope()
-    val subPagerState = rememberPagerState(initialPage = 0) { 3 }
+    val subPagerState = rememberPagerState(initialPage = 0) { 2 }
 
     LaunchedEffect(initiallyShowAddRuleWithNumber) {
         if (!initiallyShowAddRuleWithNumber.isNullOrBlank()) {
-            selectedTab = 1
-            subPagerState.scrollToPage(1)
+            selectedTab = 0
+            rulesFilterIndex = 2
+            subPagerState.scrollToPage(0)
             editingRule = CallerRule(
                 name = "Custom Rule",
                 phoneNumberPattern = initiallyShowAddRuleWithNumber,
@@ -342,7 +349,7 @@ fun RulesScreen(
                         selectedTab = 0
                         coroutineScope.launch { subPagerState.animateScrollToPage(0) }
                     },
-                    text = { Text("Smart Routing (${routingRules.size})") },
+                    text = { Text("Rules (${routingRules.size + rules.size})") },
                     icon = { Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null) }
                 )
                 Tab(
@@ -350,15 +357,6 @@ fun RulesScreen(
                     onClick = {
                         selectedTab = 1
                         coroutineScope.launch { subPagerState.animateScrollToPage(1) }
-                    },
-                    text = { Text("Automation (${rules.size})") },
-                    icon = { Icon(Icons.Default.SmartToy, contentDescription = null) }
-                )
-                Tab(
-                    selected = selectedTab == 2,
-                    onClick = {
-                        selectedTab = 2
-                        coroutineScope.launch { subPagerState.animateScrollToPage(2) }
                     },
                     text = { Text("Settings") },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) }
@@ -370,419 +368,450 @@ fun RulesScreen(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 if (page == 0) {
-                    // Smart Routing Tab (@ Slot Composer)
+                    // Unified Rules Panel (Smart Telecom Routing & Call Automation)
                     Column(modifier = Modifier.fillMaxSize()) {
+                        // Top Category Filter Chips
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Smart Telecom Routing",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Dynamic @ category slot rules (Travel & Roaming)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                OutlinedButton(
-                                    onClick = { showRoutingRecipesModal = true },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(34.dp)
-                                ) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Recipes", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            FilterChip(
+                                selected = rulesFilterIndex == 0,
+                                onClick = { rulesFilterIndex = 0 },
+                                label = { Text("All (${routingRules.size + rules.size})", fontWeight = if (rulesFilterIndex == 0) FontWeight.Bold else FontWeight.Normal) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.AltRoute,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
-                            }
+                            )
+                            FilterChip(
+                                selected = rulesFilterIndex == 1,
+                                onClick = { rulesFilterIndex = 1 },
+                                label = { Text("Smart Routing (${routingRules.size})", fontWeight = if (rulesFilterIndex == 1) FontWeight.Bold else FontWeight.Normal) }
+                            )
+                            FilterChip(
+                                selected = rulesFilterIndex == 2,
+                                onClick = { rulesFilterIndex = 2 },
+                                label = { Text("Call Automation (${rules.size})", fontWeight = if (rulesFilterIndex == 2) FontWeight.Bold else FontWeight.Normal) }
+                            )
                         }
 
-                        if (routingRules.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Text("No Custom Routing Rules Configured", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "Compose rules using @location, @numbers, @channel, and @guard slots to auto-route calls seamlessly while traveling.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Button(onClick = { editingRoutingRule = null; showRoutingDialog = true }) {
-                                        Icon(Icons.Default.Add, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Create First @ Rule")
+                        // Unified Scrollable List
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 84.dp)
+                        ) {
+                            // ==========================================
+                            // SECTION 1: SMART TELECOM ROUTING
+                            // ==========================================
+                            if (rulesFilterIndex == 0 || rulesFilterIndex == 1) {
+                                item(key = "section_header_routing") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 6.dp, bottom = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Smart Telecom Routing",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "Dynamic @ category slot rules (Travel & Roaming)",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            OutlinedButton(
+                                                onClick = { showRoutingRecipesModal = true },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Recipes", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                            }
+                                            Button(
+                                                onClick = { editingRoutingRule = null; showRoutingDialog = true },
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Add", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(horizontal = 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
-                            ) {
-                                items(routingRules, key = { it.id }) { rRule ->
-                                    val waColor = Color(0xFF25D366)
-                                    Card(
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
+
+                                if (routingRules.isEmpty()) {
+                                    item(key = "empty_routing_rules") {
+                                        Card(
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(text = rRule.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                                    Text(text = rRule.ruleExpression, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                                Switch(
-                                                    checked = rRule.isEnabled,
-                                                    onCheckedChange = { onToggleRoutingRule(rRule) }
+                                                Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                                                Text("No Custom Routing Rules Configured", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    "Compose rules using @location, @numbers, @channel, and @guard slots to auto-route calls seamlessly while traveling.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    textAlign = TextAlign.Center
                                                 )
-                                            }
-
-                                            // Visual Category Slot Badges
-                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+                                                Button(
+                                                    onClick = { editingRoutingRule = null; showRoutingDialog = true },
+                                                    shape = RoundedCornerShape(8.dp)
                                                 ) {
-                                                    Text(
-                                                        text = "📍 ${rRule.locationPattern}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                                                ) {
-                                                    Text(
-                                                        text = "📞 ${rRule.destinationPrefix}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = waColor.copy(alpha = 0.15f)
-                                                ) {
-                                                    Text(
-                                                        text = "📱 ${rRule.targetChannelId}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurface,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
+                                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text("Create Routing Rule", fontSize = 12.sp)
                                                 }
                                             }
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.End,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                TextButton(
-                                                    onClick = {
-                                                        editingRoutingRule = rRule
-                                                        showRoutingDialog = true
+                                        }
+                                    }
+                                } else {
+                                    items(routingRules, key = { "routing_${it.id}" }) { rRule ->
+                                        val waColor = Color(0xFF25D366)
+                                        Card(
+                                            shape = RoundedCornerShape(14.dp),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(text = rRule.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                                        Text(text = rRule.ruleExpression, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                     }
-                                                ) {
-                                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("Edit", fontSize = 12.sp)
+                                                    Switch(
+                                                        checked = rRule.isEnabled,
+                                                        onCheckedChange = { onToggleRoutingRule(rRule) }
+                                                    )
                                                 }
-                                                TextButton(
-                                                    onClick = { onDeleteRoutingRule(rRule) },
-                                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+
+                                                // Visual Category Slot Badges
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+                                                    ) {
+                                                        Text(
+                                                            text = "📍 ${rRule.locationPattern}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                                    ) {
+                                                        Text(
+                                                            text = "📞 ${rRule.destinationPrefix}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = waColor.copy(alpha = 0.15f)
+                                                    ) {
+                                                        Text(
+                                                            text = "📱 ${rRule.targetChannelId}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurface,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.End,
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("Delete", fontSize = 12.sp)
+                                                    TextButton(
+                                                        onClick = {
+                                                            editingRoutingRule = rRule
+                                                            showRoutingDialog = true
+                                                        }
+                                                    ) {
+                                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Edit", fontSize = 12.sp)
+                                                    }
+                                                    TextButton(
+                                                        onClick = { onDeleteRoutingRule(rRule) },
+                                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                                    ) {
+                                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Delete", fontSize = 12.sp)
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                    }
-                } else if (page == 1) {
-                    // Rules Tab Content
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                    ) {
-                        // Top Action Header
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Call Automation",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "In-band DTMF buzzer & auto-actions",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                OutlinedButton(
-                                    onClick = { showRecipesModal = true },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier
-                                        .height(34.dp)
-                                        .testTag("rules_recipes_btn")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp)
+
+                            // Visual divider between sections when viewing "All"
+                            if (rulesFilterIndex == 0) {
+                                item(key = "section_divider") {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        thickness = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Recipes",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                OutlinedButton(
-                                    onClick = { showHistoryDialog = true },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier
-                                        .height(34.dp)
-                                        .testTag("rules_history_btn")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.History,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "History (${automationLogs.size})",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
                                 }
                             }
-                        }
 
-                        // JIT Call Redirection Warning Banner
-                        if (!isCallRedirectionRoleHeld) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.AltRoute,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Call Redirection Not Active",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                                        )
-                                        Text(
-                                            text = "Outgoing rules & car routing require Call Redirection to intercept calls.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Button(
-                                        onClick = onRequestCallRedirectionRole,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.tertiary,
-                                            contentColor = MaterialTheme.colorScheme.onTertiary
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(34.dp)
-                                    ) {
-                                        Text("Enable", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        if (rules.isEmpty()) {
-                            // Zero-state: Display Quick-Start Recipe Templates Gallery
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SmartToy,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(48.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "Quick-Start Automation Recipes",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-                                Text(
-                                    text = "Select a pre-configured template below to set up in 1-tap, or create a custom recipe.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                standardAutomationTemplates.forEach { template ->
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                editingRule = template.defaultRule.copy()
-                                                showDialog = true
-                                            },
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                        ),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
+                            // ==========================================
+                            // SECTION 2: CALL AUTOMATION
+                            // ==========================================
+                            if (rulesFilterIndex == 0 || rulesFilterIndex == 2) {
+                                item(key = "section_header_automation") {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        // Top Action Header
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(14.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(
-                                                imageVector = template.icon,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(24.dp),
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
-                                                    text = template.title,
-                                                    style = MaterialTheme.typography.titleSmall,
+                                                    text = "Call Automation",
+                                                    style = MaterialTheme.typography.titleMedium,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                                 Text(
-                                                    text = template.description,
+                                                    text = "In-band DTMF buzzer & auto-actions",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
-                                            Text(
-                                                text = "+ Use",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                OutlinedButton(
+                                                    onClick = { showRecipesModal = true },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier
+                                                        .height(34.dp)
+                                                        .testTag("rules_recipes_btn")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.AutoAwesome,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Recipes",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { showHistoryDialog = true },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier
+                                                        .height(34.dp)
+                                                        .testTag("rules_history_btn")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.History,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "History (${automationLogs.size})",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                                Button(
+                                                    onClick = {
+                                                        editingRule = CallerRule(
+                                                            name = "New Automation Rule",
+                                                            phoneNumberPattern = "",
+                                                            isEnabled = true,
+                                                            autoAnswer = true,
+                                                            answerDelaySec = 1,
+                                                            dtmfSequence = "9#",
+                                                            dtmfDelayMs = 800,
+                                                            sendSms = false,
+                                                            smsMessage = "Automated reply sent.",
+                                                            autoHangup = true,
+                                                            hangupDelaySec = 2
+                                                        )
+                                                        showDialog = true
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier.height(34.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Add", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+
+                                        // JIT Call Redirection Warning Banner
+                                        if (!isCallRedirectionRoleHeld) {
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.AltRoute,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.tertiary,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = "Call Redirection Not Active",
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                                        )
+                                                        Text(
+                                                            text = "Outgoing rules & car routing require Call Redirection to intercept calls.",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Button(
+                                                        onClick = onRequestCallRedirectionRole,
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = MaterialTheme.colorScheme.tertiary,
+                                                            contentColor = MaterialTheme.colorScheme.onTertiary
+                                                        ),
+                                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                        modifier = Modifier.height(34.dp)
+                                                    ) {
+                                                        Text("Enable", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Button(
-                                    onClick = {
-                                        editingRule = CallerRule(
-                                            name = "New Automation Rule",
-                                            phoneNumberPattern = "",
-                                            isEnabled = true,
-                                            autoAnswer = true,
-                                            answerDelaySec = 1,
-                                            dtmfSequence = "9#",
-                                            dtmfDelayMs = 800,
-                                            sendSms = false,
-                                            smsMessage = "Automated reply sent.",
-                                            autoHangup = true,
-                                            hangupDelaySec = 2
+                                if (rules.isEmpty()) {
+                                    item(key = "empty_automation_rules") {
+                                        Card(
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                                                Text("No Call Automation Rules Configured", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    "Set up automated answering, in-band DTMF gate codes, or automated SMS responses for specific callers.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    OutlinedButton(
+                                                        onClick = { showRecipesModal = true },
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Recipes", fontSize = 12.sp)
+                                                    }
+                                                    Button(
+                                                        onClick = {
+                                                            editingRule = CallerRule(
+                                                                name = "New Automation Rule",
+                                                                phoneNumberPattern = "",
+                                                                isEnabled = true,
+                                                                autoAnswer = true,
+                                                                answerDelaySec = 1,
+                                                                dtmfSequence = "9#",
+                                                                dtmfDelayMs = 800,
+                                                                sendSms = false,
+                                                                smsMessage = "Automated reply sent.",
+                                                                autoHangup = true,
+                                                                hangupDelaySec = 2
+                                                            )
+                                                            showDialog = true
+                                                        },
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Create Automation Rule", fontSize = 12.sp)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(rules, key = { "caller_${it.id}" }) { rule ->
+                                        RuleCard(
+                                            rule = rule,
+                                            automationLogs = automationLogs,
+                                            onToggle = { onToggleRule(rule) },
+                                            onEdit = {
+                                                editingRule = rule
+                                                showDialog = true
+                                            },
+                                            onDelete = { onDeleteRule(rule) },
+                                            onTest = { onTestRule(rule) },
+                                            onDuplicate = { onDuplicateRule(rule) }
                                         )
-                                        showDialog = true
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Create Custom Rule", fontWeight = FontWeight.Bold)
-                                }
-
-                                Spacer(modifier = Modifier.height(72.dp))
-                            }
-                        } else {
-                            // Rules List with enhanced visual cards
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(rules, key = { it.id }) { rule ->
-                                    RuleCard(
-                                        rule = rule,
-                                        automationLogs = automationLogs,
-                                        onToggle = { onToggleRule(rule) },
-                                        onEdit = {
-                                            editingRule = rule
-                                            showDialog = true
-                                        },
-                                        onDelete = { onDeleteRule(rule) },
-                                        onTest = { onTestRule(rule) },
-                                        onDuplicate = { onDuplicateRule(rule) }
-                                    )
-                                }
-                                item {
-                                    Spacer(modifier = Modifier.height(84.dp))
+                                    }
                                 }
                             }
                         }
@@ -838,7 +867,7 @@ fun RulesScreen(
             }
         }
 
-        // FAB on Smart Routing Page (page 0)
+        // Single Unified Floating Action Button on Rules Tab (page 0)
         if (subPagerState.currentPage == 0) {
             Box(
                 modifier = Modifier
@@ -848,42 +877,7 @@ fun RulesScreen(
             ) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        editingRoutingRule = null
-                        showRoutingDialog = true
-                    },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("New @ Rule", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.testTag("add_routing_rule_fab"),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-        }
-
-        // FAB on Automation Page (page 1)
-        if (subPagerState.currentPage == 1) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 20.dp, end = 20.dp),
-                contentAlignment = Alignment.BottomEnd
-            ) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        editingRule = CallerRule(
-                            name = "New Automation Rule",
-                            phoneNumberPattern = "",
-                            isEnabled = true,
-                            autoAnswer = true,
-                            answerDelaySec = 1,
-                            dtmfSequence = "9#",
-                            dtmfDelayMs = 800,
-                            sendSms = false,
-                            smsMessage = "Automated reply sent.",
-                            autoHangup = true,
-                            hangupDelaySec = 2
-                        )
-                        showDialog = true
+                        showCreateRuleChoiceDialog = true
                     },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text("New Rule", fontWeight = FontWeight.Bold) },
@@ -892,6 +886,154 @@ fun RulesScreen(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             }
+        }
+
+        // Create Rule Choice Modal Dialog (Choosing rule type instead of auto-picking)
+        if (showCreateRuleChoiceDialog) {
+            AlertDialog(
+                onDismissRequest = { showCreateRuleChoiceDialog = false },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text("Create New Rule")
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "What type of rule would you like to create?",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        // Option 1: Smart Telecom Routing Rule
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showCreateRuleChoiceDialog = false
+                                    editingRoutingRule = null
+                                    showRoutingDialog = true
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.AltRoute,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Smart Telecom Routing Rule",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Route calls by roaming status, destination prefix, or calling app channel",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        // Option 2: Call Automation Rule
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showCreateRuleChoiceDialog = false
+                                    editingRule = CallerRule(
+                                        name = "New Automation Rule",
+                                        phoneNumberPattern = "",
+                                        isEnabled = true,
+                                        autoAnswer = true,
+                                        answerDelaySec = 1,
+                                        dtmfSequence = "9#",
+                                        dtmfDelayMs = 800,
+                                        sendSms = false,
+                                        smsMessage = "Automated reply sent.",
+                                        autoHangup = true,
+                                        hangupDelaySec = 2
+                                    )
+                                    showDialog = true
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SmartToy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp),
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Call Automation Rule",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Auto-answer, play DTMF gate tones, send SMS, or hang up on specific callers",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        // Option 3: Explore Recipes
+                        OutlinedButton(
+                            onClick = {
+                                showCreateRuleChoiceDialog = false
+                                showRoutingRecipesModal = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Browse Recipe Templates")
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showCreateRuleChoiceDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
 
         // Recipe Templates Modal Dialog
@@ -1162,32 +1304,53 @@ fun DynamicRuleComposerDialog(
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(initialRule?.name ?: "") }
-    var locationPattern by remember { mutableStateOf(initialRule?.locationPattern ?: "travel:IN") }
-    var destinationPrefix by remember { mutableStateOf(initialRule?.destinationPrefix ?: "+1") }
-    var targetChannelId by remember { mutableStateOf(initialRule?.targetChannelId ?: "whatsapp_business") }
+    var locationPattern by remember { mutableStateOf(initialRule?.locationPattern ?: "any") }
+    var customIsoText by remember {
+        mutableStateOf(
+            if (initialRule?.locationPattern?.startsWith("travel:") == true) initialRule.locationPattern.removePrefix("travel:")
+            else if (initialRule?.locationPattern?.startsWith("home:") == true) initialRule.locationPattern.removePrefix("home:")
+            else ""
+        )
+    }
+    var destinationPrefix by remember { mutableStateOf(initialRule?.destinationPrefix ?: "all_intl") }
+    var customPrefixText by remember {
+        mutableStateOf(
+            if (initialRule != null && initialRule.destinationPrefix != "all_intl" && initialRule.destinationPrefix != "domestic") {
+                initialRule.destinationPrefix
+            } else ""
+        )
+    }
+    var targetChannelId by remember {
+        mutableStateOf(
+            initialRule?.targetChannelId
+                ?: availableChannels.firstOrNull()?.id
+                ?: "whatsapp"
+        )
+    }
     var guardAction by remember { mutableStateOf(initialRule?.guardAction ?: "warn_roaming") }
     var priority by remember { mutableIntStateOf(initialRule?.priority ?: 100) }
     var activePickerSlot by remember { mutableStateOf<String?>(null) } // "location", "numbers", "channel", "guard"
 
     val locationLabel = when {
-        locationPattern == "travel:IN" -> "India (Travel)"
-        locationPattern == "home:US" -> "US (Home)"
+        locationPattern == "any" -> "Any Location"
         locationPattern == "roaming" -> "Roaming Abroad"
+        locationPattern.startsWith("travel:") -> "Traveling in ${locationPattern.removePrefix("travel:").uppercase()}"
+        locationPattern.startsWith("home:") -> "Home in ${locationPattern.removePrefix("home:").uppercase()}"
         else -> locationPattern
     }
     val numbersLabel = when {
-        destinationPrefix == "+1" -> "US (+1)"
-        destinationPrefix == "+91" -> "India (+91)"
-        destinationPrefix == "all_intl" -> "International"
+        destinationPrefix == "all_intl" -> "International Numbers"
+        destinationPrefix == "domestic" -> "Domestic Numbers"
+        destinationPrefix.startsWith("+") -> destinationPrefix
         else -> destinationPrefix
     }
     val channelLabel = when {
-        targetChannelId == "whatsapp_business" -> "WhatsApp Business"
         targetChannelId == "whatsapp" -> "WhatsApp Personal"
+        targetChannelId == "whatsapp_business" -> "WhatsApp Business"
         targetChannelId == "sim_1" -> "SIM 1"
         targetChannelId == "sim_2" -> "SIM 2"
         targetChannelId == "google_voice" -> "Google Voice"
-        else -> targetChannelId
+        else -> availableChannels.find { it.id == targetChannelId }?.displayName ?: targetChannelId
     }
 
     val ruleExpressionPreview = "When @location: $locationLabel, route @numbers: $numbersLabel via @channel: $channelLabel"
@@ -1198,7 +1361,7 @@ fun DynamicRuleComposerDialog(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
-                    text = if (initialRule == null) "New @ Slot Routing Rule" else "Edit Routing Rule",
+                    text = if (initialRule == null) "New Smart Routing Rule" else "Edit Routing Rule",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -1214,8 +1377,8 @@ fun DynamicRuleComposerDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Rule Name") },
-                    placeholder = { Text("e.g. US Calls via WhatsApp Business") },
+                    label = { Text("Rule Name (Optional)") },
+                    placeholder = { Text("Auto-generated if left blank") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1232,7 +1395,7 @@ fun DynamicRuleComposerDialog(
                     }
                 }
 
-                Text("Configure Category Slots (@):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text("Configure Rule Parameters (@):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
@@ -1255,59 +1418,149 @@ fun DynamicRuleComposerDialog(
                     FilterChip(
                         selected = activePickerSlot == "guard",
                         onClick = { activePickerSlot = if (activePickerSlot == "guard") null else "guard" },
-                        label = { Text("@guard", fontSize = 11.sp) }
+                        label = { Text("@guard: ${if (guardAction == "silent") "Auto" else "Warn"}", fontSize = 11.sp) }
                     )
                 }
 
                 when (activePickerSlot) {
                     "location" -> {
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Select @location condition:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("When calling from location:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    FilterChip(selected = locationPattern == "travel:IN", onClick = { locationPattern = "travel:IN"; activePickerSlot = null }, label = { Text("🇮🇳 India") })
-                                    FilterChip(selected = locationPattern == "home:US", onClick = { locationPattern = "home:US"; activePickerSlot = null }, label = { Text("🇺🇸 US Home") })
-                                    FilterChip(selected = locationPattern == "roaming", onClick = { locationPattern = "roaming"; activePickerSlot = null }, label = { Text("✈️ Roaming") })
-                                    FilterChip(selected = locationPattern == "any", onClick = { locationPattern = "any"; activePickerSlot = null }, label = { Text("🌐 Any") })
+                                    FilterChip(
+                                        selected = locationPattern == "any",
+                                        onClick = { locationPattern = "any" },
+                                        label = { Text("🌐 Any") }
+                                    )
+                                    FilterChip(
+                                        selected = locationPattern == "roaming",
+                                        onClick = { locationPattern = "roaming" },
+                                        label = { Text("✈️ Roaming Abroad") }
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    FilterChip(
+                                        selected = locationPattern.startsWith("travel:"),
+                                        onClick = {
+                                            val iso = customIsoText.trim().uppercase().ifBlank { "IN" }
+                                            customIsoText = iso
+                                            locationPattern = "travel:$iso"
+                                        },
+                                        label = { Text("🧳 Traveling in Country") }
+                                    )
+                                    FilterChip(
+                                        selected = locationPattern.startsWith("home:"),
+                                        onClick = {
+                                            val iso = customIsoText.trim().uppercase().ifBlank { "US" }
+                                            customIsoText = iso
+                                            locationPattern = "home:$iso"
+                                        },
+                                        label = { Text("🏠 Home Country") }
+                                    )
+                                }
+                                if (locationPattern.startsWith("travel:") || locationPattern.startsWith("home:")) {
+                                    OutlinedTextField(
+                                        value = customIsoText,
+                                        onValueChange = {
+                                            customIsoText = it
+                                            val prefix = if (locationPattern.startsWith("home:")) "home:" else "travel:"
+                                            locationPattern = prefix + it.trim().uppercase()
+                                        },
+                                        label = { Text("2-Letter Country ISO Code (e.g. IN, US, GB, FR, CA)") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }
                     }
                     "numbers" -> {
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Select @numbers destination:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("For destination numbers:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    FilterChip(selected = destinationPrefix == "+1", onClick = { destinationPrefix = "+1"; activePickerSlot = null }, label = { Text("🇺🇸 US (+1)") })
-                                    FilterChip(selected = destinationPrefix == "+91", onClick = { destinationPrefix = "+91"; activePickerSlot = null }, label = { Text("🇮🇳 India (+91)") })
-                                    FilterChip(selected = destinationPrefix == "all_intl", onClick = { destinationPrefix = "all_intl"; activePickerSlot = null }, label = { Text("🌐 International") })
+                                    FilterChip(
+                                        selected = destinationPrefix == "all_intl",
+                                        onClick = { destinationPrefix = "all_intl" },
+                                        label = { Text("🌐 International") }
+                                    )
+                                    FilterChip(
+                                        selected = destinationPrefix == "domestic",
+                                        onClick = { destinationPrefix = "domestic" },
+                                        label = { Text("🏠 Domestic") }
+                                    )
+                                    FilterChip(
+                                        selected = destinationPrefix.startsWith("+"),
+                                        onClick = {
+                                            val prefix = customPrefixText.trim().ifBlank { "+1" }
+                                            customPrefixText = prefix
+                                            destinationPrefix = prefix
+                                        },
+                                        label = { Text("📞 Specific Prefix") }
+                                    )
+                                }
+                                if (destinationPrefix.startsWith("+") || destinationPrefix !in listOf("all_intl", "domestic")) {
+                                    OutlinedTextField(
+                                        value = customPrefixText,
+                                        onValueChange = {
+                                            customPrefixText = it
+                                            destinationPrefix = it.trim()
+                                        },
+                                        label = { Text("Country Dial Code / Prefix (e.g. +1, +91, +44, +33)") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }
                     }
                     "channel" -> {
                         Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF25D366).copy(alpha = 0.12f), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Select target @channel:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    FilterChip(selected = targetChannelId == "whatsapp_business", onClick = { targetChannelId = "whatsapp_business"; activePickerSlot = null }, label = { Text("🟢 WA Business (US #)") })
-                                    FilterChip(selected = targetChannelId == "whatsapp", onClick = { targetChannelId = "whatsapp"; activePickerSlot = null }, label = { Text("🟢 WA Personal") })
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Route call through channel:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+
+                                val channelsToDisplay = if (availableChannels.isNotEmpty()) {
+                                    availableChannels.map { it.id to it.displayName }
+                                } else {
+                                    listOf(
+                                        "whatsapp" to "WhatsApp Personal",
+                                        "whatsapp_business" to "WhatsApp Business",
+                                        "sim_1" to "Cellular SIM 1",
+                                        "sim_2" to "Cellular SIM 2",
+                                        "google_voice" to "Google Voice"
+                                    )
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    FilterChip(selected = targetChannelId == "sim_1", onClick = { targetChannelId = "sim_1"; activePickerSlot = null }, label = { Text("📶 SIM 1") })
-                                    FilterChip(selected = targetChannelId == "sim_2", onClick = { targetChannelId = "sim_2"; activePickerSlot = null }, label = { Text("📶 SIM 2") })
-                                    FilterChip(selected = targetChannelId == "google_voice", onClick = { targetChannelId = "google_voice"; activePickerSlot = null }, label = { Text("🔵 Google Voice") })
+
+                                channelsToDisplay.chunked(2).forEach { rowPair ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        rowPair.forEach { (cId, cName) ->
+                                            FilterChip(
+                                                selected = targetChannelId == cId,
+                                                onClick = { targetChannelId = cId; activePickerSlot = null },
+                                                label = { Text(cName) }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                     "guard" -> {
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Select @guard policy:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Roaming guard policy:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    FilterChip(selected = guardAction == "warn_roaming", onClick = { guardAction = "warn_roaming"; activePickerSlot = null }, label = { Text("⚠️ Warn on Roaming") })
-                                    FilterChip(selected = guardAction == "silent", onClick = { guardAction = "silent"; activePickerSlot = null }, label = { Text("⚡ Auto-Dispatch") })
+                                    FilterChip(
+                                        selected = guardAction == "warn_roaming",
+                                        onClick = { guardAction = "warn_roaming"; activePickerSlot = null },
+                                        label = { Text("⚠️ Warn Before Calling") }
+                                    )
+                                    FilterChip(
+                                        selected = guardAction == "silent",
+                                        onClick = { guardAction = "silent"; activePickerSlot = null },
+                                        label = { Text("⚡ Auto-Dispatch Silently") }
+                                    )
                                 }
                             }
                         }
