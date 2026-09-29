@@ -1,6 +1,0 @@
-chore(release): bump version to v2.1.1 (Build 23) and publish release APK
-
-- Bump versionCode to 23 and versionName to 2.1.1 in app/build.gradle.kts.
-- Build minified release APK with R8 and publish apks/OmniDial-v2.1.1.apk and apks/OmniDial.apk.
-- Synchronize release cards and download links across index.html, README.md, documents/RELEASE.md, and documents/CHANGELOG.md.
-- Update headers in documents/ARCHITECTURE.md, documents/DESIGN.md, and documents/ToTest.md.
