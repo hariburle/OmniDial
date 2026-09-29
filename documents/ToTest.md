@@ -6,7 +6,7 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
-### 0. Task 16.2 (Release 2.1.0): Smart Telecom Routing, Context FAB, and Detailed Backup Reporting
+### 0. Task 16.2 (Release 2.1.1): Smart Telecom Routing, Context FAB, and Detailed Backup Reporting
 - [ ] **To Test**
 - **Test Scenarios**:
   1. **Rules Panel Filter Chips & Non-Wrapping Typography**:

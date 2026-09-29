@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.1.1` | `23` | Sep 2026 | Smart Telecom Routing with zero-mutation overlay, Dynamic Rule Composer UX fixes, context-sensitive FAB, and itemized backup reporting. |
 | `2.1.0` | `22` | Sep 2026 | In-call Bento Card UI overhaul, dynamic audio route picker, split conference participants view, fresh-install auto-restore, and dialer avatar/name contact details card. |
 | `2.0.2` | `21` | Sep 2026 | Multi-call & conference calling, floating call pill auto-dismiss, just-in-time permission reminders, and settings permissions hub. |
 | `2.0.1` | `20` | Sep 2026 | Caller ID & spam default app, honest spam badges, setup wizard, and call redirection recovery. |
@@ -33,7 +34,22 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 2.1.0 (Latest) — In-Call Bento Grid Overhaul, Audio Routing Picker & Dialer Contact Cards</h3></summary>
+<summary><h3>🚀 Release 2.1.1 (Latest) — Smart Telecom Routing, Dynamic Rule Composer & Detailed Backup Reporting</h3></summary>
+
+### What's New & Improvements:
+- **Enterprise Smart Telecom Routing Engine**: Intelligent location-aware calling policies that automatically route international and travel calls through WhatsApp VoIP or secondary local SIMs, eliminating expensive roaming charges. Employs a Zero-Mutation Runtime Overlay that leaves saved home contact preferences completely untouched.
+- **Dynamic Rule Composer & Single-Line Chips**: A streamlined rule creation experience using 4 modular parameter slots (`@location`, `@numbers`, `@channel`, `@guard`). Fixed pill chip wrapping across all dialogs with single-line chip constraints and expanded 95% dialog width on mobile screens.
+- **Context-Sensitive Rules FAB**: Floating action button on the Rules tab dynamically adapts its label and behavior to the active view (`New Routing Rule` in Smart Routing mode, `New Automation Rule` in Call Automation mode, `New Rule` when viewing All).
+- **Detailed Backup & Restore Breakdown**: Tapping "Backup Now" displays an itemized save completion summary matching the restore UX, showing exact counts for smart routing rules, call automation recipes, speed dials, favorites, and settings.
+- **Chronological Backups by Timestamp**: Backup snapshots are now sorted chronologically by actual embedded backup timestamp rather than alphabetical filename, ensuring the newest snapshot always appears first.
+- **Illustrated How-To Guides**: Added comprehensive user guides including a dedicated step-by-step Smart Telecom Routing guide (`docs/guides/smart-routing.html`).
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 2.1.0 — In-Call Bento Grid Overhaul, Audio Routing Picker & Dialer Contact Cards</h3></summary>
 
 ### What's New & Improvements:
 - **Redesigned In-Call Bento Card Experience**: A gorgeous, ergonomic in-call screen featuring a prominent caller hero card with crisp caller badges, call duration counter, and a tactile 2x3 Bento control grid. Critical actions like Mute, Keypad, Add Call, and Hold are immediately accessible without clutter.
@@ -312,8 +328,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v2.1.0.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.1.1.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v2.1.0.apk`, `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

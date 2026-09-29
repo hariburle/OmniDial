@@ -1,6 +1,6 @@
 # OmniDial — Architecture & System Design Document
 
-> **Current Version**: v2.1.0 (Build 22) — September 2026
+> **Current Version**: v2.1.1 (Build 23) — September 2026
 
 This document serves as the primary technical specification and maintenance guide for **OmniDial**. It documents the system architecture, component contracts, data persistence models, telephony integrations, build pipelines, and maintenance runbooks.
 

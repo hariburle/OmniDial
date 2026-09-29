@@ -2,6 +2,25 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [v2.1.1] — Build 23 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Enterprise Smart Telecom Routing Engine**: Location-aware calling policies that automatically route international and travel calls through WhatsApp VoIP or secondary local SIMs, eliminating expensive roaming charges. Built on a Zero-Mutation Runtime Overlay that leaves saved home contact preferences completely untouched.
+- **Dynamic Rule Composer & Single-Line Chips**: A streamlined rule creation experience using 4 modular parameter slots (`@location`, `@numbers`, `@channel`, `@guard`). Fixed chip text wrapping across all dialogs with single-line chip constraints and expanded 95% dialog width on mobile screens.
+- **Context-Sensitive Rules FAB**: Floating action button on the Rules tab dynamically adapts its label and target (`New Routing Rule` in Smart Routing mode, `New Automation Rule` in Call Automation mode, `New Rule` when viewing All).
+- **Detailed Backup & Restore Breakdown**: Tapping "Backup Now" displays an itemized save completion summary matching the restore UX, showing exact counts for smart routing rules, call automation recipes, speed dials, favorites, and settings.
+- **Chronological Backups by Timestamp**: Backup snapshots are now sorted chronologically by actual embedded backup timestamp rather than alphabetical filename, ensuring the newest snapshot always appears first.
+- **Illustrated How-To Guides**: Authored comprehensive user guides including a dedicated step-by-step Smart Telecom Routing guide (`docs/guides/smart-routing.html`).
+
+### 🔧 Technical / Architecture Notes
+- **TelecomRoutingRule Architecture**: Room entity `TelecomRoutingRule` integrated with `AppDao` (`getAllRoutingRules()`, `clearAllRoutingRules()`, `insertRoutingRule()`) and backed by transactional backup/restore in `BackupManager.kt`.
+- **Detailed Backup Reporting Engine**: Added `saveLocalBackupDetailed()` returning `BackupRestoreResult` with `routingRulesCount` to power immediate breakdown dialogs across `MainViewModel.kt` and `BackupManagementCard.kt`.
+- **Master Guard Policy Model**: Added `evaluateTravelRouting()` policy gating in `TravelRoamingManager.kt` and `ChannelDispatchCoordinator.kt` to short-circuit carrier calls under "Cellular Only" and emit pre-selected suggestions under "Always Ask".
+- **Dynamic Rule Composer Dialog Layout**: Refactored `DynamicRuleComposerDialog` in `RulesScreen.kt` using `FlowRow`, `usePlatformDefaultWidth = false`, and `maxLines = 1` typography constraints.
+- Incremented `versionCode` to 23 and `versionName` to `"2.1.1"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.1.0] — Build 22 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
