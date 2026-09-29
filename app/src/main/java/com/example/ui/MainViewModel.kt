@@ -2774,12 +2774,16 @@ class MainViewModel(
     }
 
     fun createLocalBackup(onComplete: (Boolean) -> Unit) {
+        createLocalBackupDetailed { result -> onComplete(result.success) }
+    }
+
+    fun createLocalBackupDetailed(onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
         viewModelScope.launch {
-            val success = com.example.util.BackupManager.saveLocalBackup(appContext)
-            if (success) {
+            val result = com.example.util.BackupManager.saveLocalBackupDetailed(appContext)
+            if (result.success) {
                 refreshLocalBackups()
             }
-            onComplete(success)
+            onComplete(result)
         }
     }
 

@@ -225,7 +225,7 @@ fun RuleEditDialog(
                                     autoHangup = true
                                     hangupDelaySec = "2"
                                 },
-                                label = { Text("Gate DTMF (9#)") },
+                                label = { Text("Gate DTMF (9#)", maxLines = 1, softWrap = false) },
                                 icon = {
                                     Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(15.dp))
                                 }
@@ -238,7 +238,7 @@ fun RuleEditDialog(
                                     dtmfSequence = "104#"
                                     autoHangup = false
                                 },
-                                label = { Text("Extension DTMF") },
+                                label = { Text("Extension DTMF", maxLines = 1, softWrap = false) },
                                 icon = {
                                     Icon(Icons.Default.Business, contentDescription = null, modifier = Modifier.size(15.dp))
                                 }
@@ -252,7 +252,7 @@ fun RuleEditDialog(
                                     autoHangup = true
                                     hangupDelaySec = "1"
                                 },
-                                label = { Text("SMS Auto-Reply") },
+                                label = { Text("SMS Auto-Reply", maxLines = 1, softWrap = false) },
                                 icon = {
                                     Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(15.dp))
                                 }
@@ -270,7 +270,7 @@ fun RuleEditDialog(
                                     autoSpeakerphone = true
                                     autoMuteMic = true
                                 },
-                                label = { Text("Delivery Gate (4#)") },
+                                label = { Text("Delivery Gate (4#)", maxLines = 1, softWrap = false) },
                                 icon = {
                                     Icon(Icons.Default.Home, contentDescription = null, modifier = Modifier.size(15.dp))
                                 }
@@ -284,7 +284,7 @@ fun RuleEditDialog(
                                     sendSms = false
                                     autoHangup = false
                                 },
-                                label = { Text("Voicemail PIN") },
+                                label = { Text("Voicemail PIN", maxLines = 1, softWrap = false) },
                                 icon = {
                                     Icon(Icons.Default.Voicemail, contentDescription = null, modifier = Modifier.size(15.dp))
                                 }
@@ -759,7 +759,9 @@ private fun PipelineStepChip(
                 text = label,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = color
+                color = color,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

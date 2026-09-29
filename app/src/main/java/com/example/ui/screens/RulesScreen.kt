@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -243,7 +246,7 @@ fun RulesScreen(
     onExportBackup: ((android.net.Uri, (Boolean) -> Unit) -> Unit)? = null,
     onImportBackup: ((android.net.Uri, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     localBackups: List<java.io.File> = emptyList(),
-    onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)? = null,
+    onCreateLocalBackup: (((BackupRestoreResult) -> Unit) -> Unit)? = null,
     onRestoreLocalBackup: ((java.io.File, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
@@ -374,6 +377,7 @@ fun RulesScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -381,24 +385,38 @@ fun RulesScreen(
                             FilterChip(
                                 selected = rulesFilterIndex == 0,
                                 onClick = { rulesFilterIndex = 0 },
-                                label = { Text("All (${routingRules.size + rules.size})", fontWeight = if (rulesFilterIndex == 0) FontWeight.Bold else FontWeight.Normal) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.AltRoute,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
+                                label = {
+                                    Text(
+                                        "All (${routingRules.size + rules.size})",
+                                        fontWeight = if (rulesFilterIndex == 0) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             )
                             FilterChip(
                                 selected = rulesFilterIndex == 1,
                                 onClick = { rulesFilterIndex = 1 },
-                                label = { Text("Smart Routing (${routingRules.size})", fontWeight = if (rulesFilterIndex == 1) FontWeight.Bold else FontWeight.Normal) }
+                                label = {
+                                    Text(
+                                        "Smart Routing (${routingRules.size})",
+                                        fontWeight = if (rulesFilterIndex == 1) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             )
                             FilterChip(
                                 selected = rulesFilterIndex == 2,
                                 onClick = { rulesFilterIndex = 2 },
-                                label = { Text("Call Automation (${rules.size})", fontWeight = if (rulesFilterIndex == 2) FontWeight.Bold else FontWeight.Normal) }
+                                label = {
+                                    Text(
+                                        "Call Automation (${rules.size})",
+                                        fontWeight = if (rulesFilterIndex == 2) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             )
                         }
 
@@ -877,10 +895,52 @@ fun RulesScreen(
             ) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        showCreateRuleChoiceDialog = true
+                        when (rulesFilterIndex) {
+                            1 -> {
+                                editingRoutingRule = null
+                                showRoutingDialog = true
+                            }
+                            2 -> {
+                                editingRule = CallerRule(
+                                    name = "New Automation Rule",
+                                    phoneNumberPattern = "",
+                                    isEnabled = true,
+                                    autoAnswer = true,
+                                    answerDelaySec = 1,
+                                    dtmfSequence = "9#",
+                                    dtmfDelayMs = 800,
+                                    sendSms = false,
+                                    smsMessage = "Automated reply sent.",
+                                    autoHangup = true,
+                                    hangupDelaySec = 2
+                                )
+                                showDialog = true
+                            }
+                            else -> {
+                                showCreateRuleChoiceDialog = true
+                            }
+                        }
                     },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("New Rule", fontWeight = FontWeight.Bold) },
+                    icon = {
+                        Icon(
+                            imageVector = when (rulesFilterIndex) {
+                                1 -> Icons.AutoMirrored.Filled.AltRoute
+                                2 -> Icons.Default.SmartToy
+                                else -> Icons.Default.Add
+                            },
+                            contentDescription = null
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = when (rulesFilterIndex) {
+                                1 -> "New Routing Rule"
+                                2 -> "New Automation Rule"
+                                else -> "New Rule"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
                     modifier = Modifier.testTag("add_rule_fab"),
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -1296,6 +1356,7 @@ fun RulesScreen(
  * Interactive Dynamic @ Category Slot Composer Dialog:
  * Allows user to compose rules naturally by selecting @location, @numbers, @channel, and @guard slots.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DynamicRuleComposerDialog(
     initialRule: TelecomRoutingRule?,
@@ -1357,6 +1418,8 @@ fun DynamicRuleComposerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.fillMaxWidth(0.95f),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -1397,28 +1460,30 @@ fun DynamicRuleComposerDialog(
 
                 Text("Configure Rule Parameters (@):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     FilterChip(
                         selected = activePickerSlot == "location",
                         onClick = { activePickerSlot = if (activePickerSlot == "location") null else "location" },
-                        label = { Text("@location: $locationLabel", fontSize = 11.sp) }
+                        label = { Text("@location: $locationLabel", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                     )
                     FilterChip(
                         selected = activePickerSlot == "numbers",
                         onClick = { activePickerSlot = if (activePickerSlot == "numbers") null else "numbers" },
-                        label = { Text("@numbers: $numbersLabel", fontSize = 11.sp) }
+                        label = { Text("@numbers: $numbersLabel", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                     )
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
                         selected = activePickerSlot == "channel",
                         onClick = { activePickerSlot = if (activePickerSlot == "channel") null else "channel" },
-                        label = { Text("@channel: $channelLabel", fontSize = 11.sp) }
+                        label = { Text("@channel: $channelLabel", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                     )
                     FilterChip(
                         selected = activePickerSlot == "guard",
                         onClick = { activePickerSlot = if (activePickerSlot == "guard") null else "guard" },
-                        label = { Text("@guard: ${if (guardAction == "silent") "Auto" else "Warn"}", fontSize = 11.sp) }
+                        label = { Text("@guard: ${if (guardAction == "silent") "Auto" else "Warn"}", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                     )
                 }
 
@@ -1427,19 +1492,21 @@ fun DynamicRuleComposerDialog(
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("When calling from location:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
                                     FilterChip(
                                         selected = locationPattern == "any",
                                         onClick = { locationPattern = "any" },
-                                        label = { Text("🌐 Any") }
+                                        label = { Text("🌐 Any", maxLines = 1, softWrap = false) }
                                     )
                                     FilterChip(
                                         selected = locationPattern == "roaming",
                                         onClick = { locationPattern = "roaming" },
-                                        label = { Text("✈️ Roaming Abroad") }
+                                        label = { Text("✈️ Roaming Abroad", maxLines = 1, softWrap = false) }
                                     )
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     FilterChip(
                                         selected = locationPattern.startsWith("travel:"),
                                         onClick = {
@@ -1447,7 +1514,7 @@ fun DynamicRuleComposerDialog(
                                             customIsoText = iso
                                             locationPattern = "travel:$iso"
                                         },
-                                        label = { Text("🧳 Traveling in Country") }
+                                        label = { Text("🧳 Traveling in Country", maxLines = 1, softWrap = false) }
                                     )
                                     FilterChip(
                                         selected = locationPattern.startsWith("home:"),
@@ -1456,7 +1523,7 @@ fun DynamicRuleComposerDialog(
                                             customIsoText = iso
                                             locationPattern = "home:$iso"
                                         },
-                                        label = { Text("🏠 Home Country") }
+                                        label = { Text("🏠 Home Country", maxLines = 1, softWrap = false) }
                                     )
                                 }
                                 if (locationPattern.startsWith("travel:") || locationPattern.startsWith("home:")) {
@@ -1479,16 +1546,20 @@ fun DynamicRuleComposerDialog(
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("For destination numbers:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
                                     FilterChip(
                                         selected = destinationPrefix == "all_intl",
                                         onClick = { destinationPrefix = "all_intl" },
-                                        label = { Text("🌐 International") }
+                                        label = { Text("🌐 International", maxLines = 1, softWrap = false) }
                                     )
                                     FilterChip(
                                         selected = destinationPrefix == "domestic",
                                         onClick = { destinationPrefix = "domestic" },
-                                        label = { Text("🏠 Domestic") }
+                                        label = { Text("🏠 Domestic", maxLines = 1, softWrap = false) }
                                     )
                                     FilterChip(
                                         selected = destinationPrefix.startsWith("+"),
@@ -1497,7 +1568,7 @@ fun DynamicRuleComposerDialog(
                                             customPrefixText = prefix
                                             destinationPrefix = prefix
                                         },
-                                        label = { Text("📞 Specific Prefix") }
+                                        label = { Text("📞 Specific Prefix", maxLines = 1, softWrap = false) }
                                     )
                                 }
                                 if (destinationPrefix.startsWith("+") || destinationPrefix !in listOf("all_intl", "domestic")) {
@@ -1532,15 +1603,17 @@ fun DynamicRuleComposerDialog(
                                     )
                                 }
 
-                                channelsToDisplay.chunked(2).forEach { rowPair ->
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        rowPair.forEach { (cId, cName) ->
-                                            FilterChip(
-                                                selected = targetChannelId == cId,
-                                                onClick = { targetChannelId = cId; activePickerSlot = null },
-                                                label = { Text(cName) }
-                                            )
-                                        }
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    channelsToDisplay.forEach { (cId, cName) ->
+                                        FilterChip(
+                                            selected = targetChannelId == cId,
+                                            onClick = { targetChannelId = cId; activePickerSlot = null },
+                                            label = { Text(cName, maxLines = 1, softWrap = false) }
+                                        )
                                     }
                                 }
                             }
@@ -1550,16 +1623,20 @@ fun DynamicRuleComposerDialog(
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Roaming guard policy:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
                                     FilterChip(
                                         selected = guardAction == "warn_roaming",
                                         onClick = { guardAction = "warn_roaming"; activePickerSlot = null },
-                                        label = { Text("⚠️ Warn Before Calling") }
+                                        label = { Text("⚠️ Warn Before Calling", maxLines = 1, softWrap = false) }
                                     )
                                     FilterChip(
                                         selected = guardAction == "silent",
                                         onClick = { guardAction = "silent"; activePickerSlot = null },
-                                        label = { Text("⚡ Auto-Dispatch Silently") }
+                                        label = { Text("⚡ Auto-Dispatch Silently", maxLines = 1, softWrap = false) }
                                     )
                                 }
                             }

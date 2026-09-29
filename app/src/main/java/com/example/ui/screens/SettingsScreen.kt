@@ -74,7 +74,7 @@ fun SettingsScreen(
     onExportBackup: ((android.net.Uri, (Boolean) -> Unit) -> Unit)? = null,
     onImportBackup: ((android.net.Uri, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     localBackups: List<java.io.File> = emptyList(),
-    onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)? = null,
+    onCreateLocalBackup: (((BackupRestoreResult) -> Unit) -> Unit)? = null,
     onRestoreLocalBackup: ((java.io.File, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",
@@ -301,8 +301,8 @@ fun SettingsScreen(
                         }
                     }
                 }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 if (whatsAppCallMode == "ask_learn" || whatsAppCallMode == "all_international") {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     Text(
                         text = "$learnedChoicesCount contact choice(s) remembered",
                         style = MaterialTheme.typography.labelMedium,
@@ -310,12 +310,12 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
-                }
-                OutlinedButton(
-                    onClick = { showResetConfirmDialog = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Reset Choices and Learn Memory", fontSize = 12.sp)
+                    OutlinedButton(
+                        onClick = { showResetConfirmDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Reset Choices and Learn Memory", fontSize = 12.sp)
+                    }
                 }
             }
         }

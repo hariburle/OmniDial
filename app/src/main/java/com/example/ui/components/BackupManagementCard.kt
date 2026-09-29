@@ -33,14 +33,15 @@ sealed interface RestoreDialogState {
     ) : RestoreDialogState
 
     data class Complete(
-        val result: BackupRestoreResult
+        val result: BackupRestoreResult,
+        val title: String = "Restore Completed"
     ) : RestoreDialogState
 }
 
 @Composable
 fun BackupManagementCard(
     localBackups: List<File>,
-    onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)?,
+    onCreateLocalBackup: (((BackupRestoreResult) -> Unit) -> Unit)?,
     onRestoreLocalBackup: ((File, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)?,
     onDeleteLocalBackup: ((File) -> Unit)?,
     onExportBackup: ((Uri, (Boolean) -> Unit) -> Unit)?,
@@ -178,14 +179,18 @@ fun BackupManagementCard(
             Button(
                 onClick = {
                     onLoadingChanged(true)
+                    restoreDialogState = RestoreDialogState.Progress(
+                        title = "Creating Backup",
+                        step = "Saving database & preferences to storage…",
+                        progress = 0.5f
+                    )
                     if (onCreateLocalBackup != null) {
-                        onCreateLocalBackup { success ->
+                        onCreateLocalBackup { result ->
                             onLoadingChanged(false)
-                            android.widget.Toast.makeText(
-                                context,
-                                if (success) "Backup saved to device storage" else "Failed to create backup",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
+                            restoreDialogState = RestoreDialogState.Complete(
+                                title = "Backup Completed",
+                                result = result
+                            )
                         }
                     }
                 },
@@ -495,7 +500,7 @@ fun BackupManagementCard(
                 Text(
                     text = when (currentState) {
                         is RestoreDialogState.Progress -> currentState.title
-                        is RestoreDialogState.Complete -> if (currentState.result.success) "Restore Completed" else "Restore Failed"
+                        is RestoreDialogState.Complete -> if (currentState.result.success) currentState.title else "Operation Failed"
                     },
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium,
@@ -565,12 +570,16 @@ fun BackupManagementCard(
                                         modifier = Modifier.padding(10.dp),
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        if (result.rulesCount > 0) Text("• ${result.rulesCount} call routing rules", style = MaterialTheme.typography.bodySmall)
+                                        if (result.routingRulesCount > 0) Text("• ${result.routingRulesCount} smart routing rules", style = MaterialTheme.typography.bodySmall)
+                                        if (result.rulesCount > 0) Text("• ${result.rulesCount} call automation rules", style = MaterialTheme.typography.bodySmall)
                                         if (result.favoritesCount > 0) Text("• ${result.favoritesCount} favorite contacts", style = MaterialTheme.typography.bodySmall)
                                         if (result.contactsCount > 0) Text("• ${result.contactsCount} local contacts", style = MaterialTheme.typography.bodySmall)
                                         if (result.recentCallsCount > 0) Text("• ${result.recentCallsCount} call logs", style = MaterialTheme.typography.bodySmall)
                                         if (result.spamCount > 0) Text("• ${result.spamCount} blocked spam numbers", style = MaterialTheme.typography.bodySmall)
                                         if (result.channelPreferencesCount > 0) Text("• ${result.channelPreferencesCount} SIM / channel preferences", style = MaterialTheme.typography.bodySmall)
+                                        if (result.routingRulesCount == 0 && result.rulesCount == 0 && result.favoritesCount == 0 && result.contactsCount == 0) {
+                                            Text("• Settings and preferences backed up", style = MaterialTheme.typography.bodySmall)
+                                        }
                                     }
                                 }
                             }

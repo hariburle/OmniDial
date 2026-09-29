@@ -1562,7 +1562,7 @@ fun MainAppContent(
                         onExportBackup = { uri, onDone -> viewModel.exportBackup(uri, onDone) },
                         onImportBackup = { uri, onProgress, onDone -> viewModel.importBackup(uri, onProgress, onDone) },
                         localBackups = localBackups,
-                        onCreateLocalBackup = { onDone -> viewModel.createLocalBackup(onDone) },
+                        onCreateLocalBackup = { onDone -> viewModel.createLocalBackupDetailed(onDone) },
                         onRestoreLocalBackup = { file, onProgress, onDone -> viewModel.restoreLocalBackup(file, onProgress, onDone) },
                         onDeleteLocalBackup = { file -> viewModel.deleteLocalBackup(file) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
