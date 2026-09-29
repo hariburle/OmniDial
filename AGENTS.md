@@ -12,6 +12,8 @@
 - **Internal Change Log** (`documents/CHANGELOG.md`): Can contain technical details, architecture notes, method names, and developer-level specifications alongside user-facing notes.
 
 ## Release & Versioning Workflow
+- **GitHub Pages Branch Configuration**: Whenever merging a feature branch into main, ensure GitHub Pages settings (**Repository Settings > Pages > Build and deployment > Branch**) are set to deploy from the main branch (/ root).
+
 - **Semantic Versioning**: Increment `versionCode` (integer) and `versionName` (`MAJOR.MINOR.PATCH`) in `app/build.gradle.kts` on new releases.
 - **APK Artifact Distribution**: Always build published APKs using `assembleRelease` (R8 minification + resource shrinking enabled). **Never publish debug builds** — debug APKs are ~19 MB vs ~5 MB for release. Use `installDebug` only for local device testing during development.
   ```bash
