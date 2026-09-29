@@ -25,7 +25,7 @@
           <a href="../faq.html" class="nav-link">FAQ</a>
           <a href="../releases.html" class="nav-link">All Releases</a>
         </div>
-        <span class="version-tag">v2.0.2</span>
+        <span class="version-tag">v2.1.0</span>
       </div>
     </header>
 
@@ -69,12 +69,14 @@
       <div class="step-num">2</div>
       <h2>What's inside a backup</h2>
       <ul>
-        <li><strong>Automation rules</strong> — every caller rule, exactly as configured.</li>
+        <li><strong>Smart Telecom Routing rules</strong> — location-based roaming, international prefix, and channel-dispatch policies.</li>
+        <li><strong>Call Automation rules</strong> — gate buzzers, auto-dial IVR extensions, and automated SMS responders.</li>
         <li><strong>Favorites grid</strong> — your VIPs, their numbers, and your custom card order.</li>
         <li><strong>Speed dials</strong> — your 2–9 key assignments.</li>
-        <li><strong>Settings</strong> — SIM modes and per-number SIM choices, spam filters, channel preferences, appearance.</li>
+        <li><strong>Settings &amp; Channels</strong> — SIM preferences, channel configurations, spam filters, and appearance themes.</li>
         <li><strong>Annotated calls</strong> — call history entries that have your notes, callback reminders, or spam markings. Plain call records are skipped to keep backups small (your phone's system call log already keeps those).</li>
       </ul>
+      <p>Whenever you tap <strong>Backup Now</strong>, OmniDial presents an immediate itemized summary dialog displaying the exact counts of smart routing rules, automation rules, contacts, and preferences stored into your backup file.</p>
       <div class="tip"><strong>Integrity:</strong> every backup carries a SHA-256 checksum, so a corrupted file is caught before it can overwrite your good data. Restores run transactionally with <strong>live progress</strong>, so you always know what's happening and never end up half-restored.</div>
     </section>
 

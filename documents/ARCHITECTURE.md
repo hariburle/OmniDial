@@ -30,6 +30,7 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
                 |       ├── FavoriteContact
                 |       ├── RecentCall
                 |       ├── CallerRule  (+ ambient geofence + automation fields)
+                |       ├── TelecomRoutingRule  (smart travel/roaming rule expressions)
                 |       ├── ContactSimPreference  (per-number preferred SIM slot)
                 |       ├── NumberChannelPreference  (per-normalized-number VoIP/channel binding)
                 |       ├── ChannelConfig  (dynamic channel labels, enabled state, ordering)
@@ -41,6 +42,7 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
                 |
                 +---> Multi-Channel Calling Engine (MCCE)
                 |       ├── ChannelDiscoveryManager (active SIM detection, installed VoIP packages, emergency cell tower checks)
+                |       ├── TravelRoamingManager (zero-mutation travel overlay, roaming avoidance, home vs abroad routing)
                 |       ├── ChannelDispatchCoordinator (domestic cellular emergency lock, Telecom/WhatsApp VoIP intent dispatch)
                 |       └── ChannelPreferenceRepository (Room-backed per-number channel preferences)
                 |
@@ -179,6 +181,10 @@ After call termination, `CallManager` emits a post-call state to `MainViewModel`
 
 Backup JSON payload includes: `CallerRule` list, `FavoriteContact` list, `SpeedDial` map, all SharedPreferences keys (SIM mode, spam presets, screening auto-block, WhatsApp mode, learned choices).
 
+Backup creation via saveLocalBackupDetailed() produces a structured BackupRestoreResult capturing separate itemized counts for 
+outingRulesCount (Smart Telecom Routing) and 
+ulesCount (Call Automation), displaying a comprehensive save completion breakdown dialog mirroring the restore completion experience.
+
 SHA-256 checksum and schema version are embedded in the JSON header for tamper detection on restore.
 
 ---
@@ -205,7 +211,7 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 
 ---
 
-## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.0.2)
+## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.1.0)
 
 1. **Multi-Channel Calling Engine (MCCE)**: Introduced `ChannelDiscoveryManager`, `CallingChannel`, `ChannelConfigRepository`, `ChannelPreferenceRepository`, and `ChannelDispatchCoordinator`.
 2. **Dynamic Keypad Channel Dock**: Added `KeypadChannelDock` above dial pad for 1-tap channel switching between SIM 1, SIM 2, and WhatsApp with live roaming and carrier labels.

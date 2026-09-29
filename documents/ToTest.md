@@ -6,6 +6,38 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
+### 0. Task 16.2 (Release 2.1.0): Smart Telecom Routing, Context FAB, and Detailed Backup Reporting
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **Rules Panel Filter Chips & Non-Wrapping Typography**:
+     - Open the Rules tab. Verify the top category chips ("All", "Smart Routing", "Call Automation") are in a single scrollable row without text wrapping inside pills.
+     - Test font scaling / smaller device widths. Verify smooth horizontal scroll without overflow.
+  2. **Context-Sensitive Floating Action Button**:
+     - Tap **Smart Routing** filter chip. Verify the FAB changes icon and displays "New Routing Rule", and tapping it directly opens the Smart Telecom Routing dialog.
+     - Tap **Call Automation** filter chip. Verify the FAB changes icon and displays "New Automation Rule", and tapping it directly opens the Call Automation dialog.
+     - Tap **All** filter chip. Verify the FAB displays "New Rule", and tapping it opens the choice dialog to select between Smart Telecom Routing, Call Automation, or Recipe Templates.
+  3. **Dynamic Rule Composer Dialog Layout**:
+     - Open the Smart Routing rule editor.
+     - Verify the dialog expands comfortably to 95% screen width.
+     - Verify `@location`, `@numbers`, `@channel`, and `@guard` parameter slots use fluid FlowRow layouts with unwrapped chip text.
+     - Tap each slot and verify option pickers wrap cleanly without multi-line broken labels.
+  4. **Channel Preferences "Reset Choices" Visibility**:
+     - Open Settings → Channel Preferences.
+     - Select **Cellular Only**: Verify the divider and "Reset Choices and Learn Memory" button are completely hidden.
+     - Select **Always Ask**: Verify the "Reset Choices..." button remains hidden.
+     - Select **Smart Routing**: Verify the divider, remembered contact choices count, and "Reset Choices and Learn Memory" button appear.
+  5. **Detailed Backup Creation Breakdown**:
+     - Go to Settings → Backups and tap **Backup Now**.
+     - Verify an immediate completion dialog appears showing:
+       - Exact count of Smart Routing rules (`• X smart routing rules`)
+       - Exact count of Call Automation rules (`• Y call automation rules`)
+       - Counts for favorites, contacts, call logs, spam numbers, and channel preferences
+       - The generated `.bak` filename.
+  6. **Backup Restoration Verification**:
+     - Tap any saved backup or use **Browse Files** to restore.
+     - Verify stale routing rules are cleanly cleared before restore without duplication.
+     - Verify the restoration complete dialog reports both smart routing rules and call automation rules accurately.
+
 ### 0. Task 16.1 (Release 2.0.3): In-Call Screen Redesign & Audio-Adaptive Bento Layout
 - [ ] **To Test**
 - **Test Scenarios**:

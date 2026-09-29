@@ -5,6 +5,10 @@
 ## 🚀 [v2.1.0] — Build 22 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
+- **Smart Telecom Routing & Roaming Intelligence**: Modular dynamic rule engine supporting location-based matching (roaming abroad, specific country ISOs), destination prefix matching (+1, +91, domestic, international), and automatic channel routing (WhatsApp, SIMs, Google Voice) with customizable safety guard prompts.
+- **Context-Sensitive Rule Creation & Fluid Flow Layouts**: The Rules tab floating action button dynamically switches its creation target (`New Routing Rule` vs `New Automation Rule` vs `New Rule`) based on the active category filter chip. Expanded rule dialogs with responsive `FlowRow` wrapping so chips never cramp or wrap text.
+- **Detailed Backup Breakdown & Explicit Routing Coverage**: Tapping **Backup Now** immediately presents an itemized dialog matching the restore experience, detailing exact counts of smart routing rules, automation rules, favorites, contacts, and preferences. During restore, stale routing rules are cleanly flushed to prevent duplicate policies.
+- **Home Region Onboarding Assistant**: First-run channel setup now auto-detects the home country ISO from the device SIM with dynamic flag emoji preview and inline 2-letter ISO editing.
 - **Redesigned Bento Card In-Call UI**: Replaced legacy button layouts with an ergonomic caller hero card and a tactile 2x3 Bento control grid with Mute, Keypad, Add Call, Hold, and dynamic Audio routing.
 - **Smart Audio Routing & Route Picker**: In standard 2-route mode (earpiece + speaker), the audio card acts as an instant "Speaker" toggle with active status tint. In multi-route mode (Bluetooth headset, car audio, hearing aids), it becomes an "Audio ▾" selector opening a clean 1-tap route picker popup.
 - **Split Conference Participant View**: In conference calls, `ConferenceSplitView` displays separated caller cards with active/on-hold status badges and individual disconnect buttons.
@@ -13,6 +17,10 @@
 - **Fresh Install Auto-Restore & Clean Default Checkbox**: Restoring backups is now prompted via a convenient banner immediately following a fresh install. Default contact numbers in contact cards now use a compact Material 3 checkbox instead of an oversized circular icon button.
 
 ### 🔧 Technical / Architecture Notes
+- **TelecomRoutingRule Architecture**: Room entity `TelecomRoutingRule` integrated with `AppDao` (`getAllRoutingRules()`, `clearAllRoutingRules()`, `insertRoutingRule()`) and backed by transactional backup/restore in `BackupManager.kt`.
+- **Detailed Backup Reporting Engine**: Added `saveLocalBackupDetailed()` returning `BackupRestoreResult` with `routingRulesCount` to power immediate breakdown dialogs across `MainViewModel.kt` and `BackupManagementCard.kt`.
+- **Master Guard Policy Model**: Added `evaluateTravelRouting()` policy gating in `TravelRoamingManager.kt` and `ChannelDispatchCoordinator.kt` to short-circuit carrier calls under "Cellular Only" and emit pre-selected suggestions under "Always Ask".
+- **Dynamic Rule Composer Dialog Layout**: Refactored `DynamicRuleComposerDialog` in `RulesScreen.kt` using `FlowRow`, `usePlatformDefaultWidth = false`, and `maxLines = 1` typography constraints.
 - **Bento Grid Architecture**: Created `CallerHeroCard.kt`, `BentoCallControlGrid.kt`, and `ConferenceSplitView.kt` in `com.example.ui.components` with fluid Material 3 layout bounds and animated active states.
 - **Audio Route Detection**: Enhanced `CallManager.kt` and `InCallScreen.kt` audio state observation to distinguish 2-way toggle vs multi-route picker based on `CallAudioState.supportedRouteMask`.
 - **Dialer Suggestions Integration**: Added `onOpenContactDetails` callback cascade across `DialerSuggestionsList.kt`, `DialerRecentSuggestionCard`, `DialerMatchSuggestionCard`, and `DialerScreen.kt`, wiring into `ContactDetailsBottomSheet`.

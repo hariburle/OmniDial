@@ -28,6 +28,7 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 15. **Floating Call Pill & PiP Auto-Dismiss**: Lifecycle synchronization ensuring floating ongoing call pills and Picture-in-Picture windows automatically teardown cleanly upon call disconnect.
 16. **Just-In-Time Reminders & Permissions Hub**: Contextual inline banners and cards across Contacts, Recents, and Rules alongside a dedicated real-time Permissions Hub card in Settings for all 6 setup wizard options.
 17. **Bento Card In-Call UI & Dynamic Audio Routing**: Modern 2x3 Bento control grid with caller hero card, dynamic 2-way Speaker toggle vs multi-route Bluetooth picker, split conference view, and dialer avatar/name tap-to-open contact sheet.
+18. **Smart Telecom & Travel Roaming Engine**: Location-aware routing with Zero-Mutation Runtime Overlay. Automatically adjusts outgoing call channels (Home cellular, Host destination SIM, or WhatsApp VoIP) when traveling abroad while preserving saved contact preferences intact.
 
 ---
 
@@ -88,6 +89,7 @@ app/src/main/java/com/example/
 │   ├── ChannelDiscoveryManager.kt       # Dynamic multi-channel SIM & VoIP package discovery
 │   ├── ChannelDispatchCoordinator.kt    # Unified intent dispatch (Cellular, WhatsApp, VoIP)
 │   ├── SimHelper.kt                     # Multi-SIM subscription resolution, roaming detection
+│   ├── TravelRoamingManager.kt          # Enterprise travel roaming intelligence & zero-mutation overlay
 │   ├── ReminderScheduler.kt             # AlarmManager-backed post-call reminder scheduling
 │   ├── ReminderReceiver.kt              # BroadcastReceiver for reminder alarm firing
 │   ├── TelecomVoipHelper.kt             # Android 14+ TelecomManager.addCall() VoIP continuity
@@ -190,6 +192,12 @@ Both checks are passive (no GPS, no geofence API) — zero additional battery dr
 ### 4.6 Search Bar Architecture (`CompactSearchBar.kt`)
 - All main tabs use `CompactSearchBar` constrained to **42dp** height.
 - Live filtering performed in-memory on loaded dataset, preventing unnecessary DB re-queries per keystroke.
+
+### 4.7 Smart Telecom Routing Subsystem (TravelRoamingManager.kt)
+- **Zero-Mutation Runtime Overlay**: Never mutates or overwrites saved user preferences in Room DB while abroad. Dynamic interceptors evaluate current cellular network country vs home country and route automatically.
+- **4-Parameter Rule Grammar**: Structured as @location (Where are you?), @numbers (Who are you calling?), @channel (How should it connect?), and @guard (Roaming protection action).
+- **Global Modes**: smart (auto-routes or prompts per rule), sk_always (pre-selects recommended channel in modal picker), and off (pure direct dial).
+- **Permanent Relocation Assistant**: Promotes learned travel preferences (	ravel:<ISO>) to new home profile (home:<ISO>) with one tap when permanently moving.
 
 ---
 

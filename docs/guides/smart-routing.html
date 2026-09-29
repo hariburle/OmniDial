@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How to Set Up Smart Telecom Routing – OmniDial</title>
+  <meta name="description" content="Step-by-step: configure intelligent international and travel calling rules to route via WhatsApp or local SIM and eliminate roaming fees." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="nav">
+        <a class="logo" href="../../index.html" style="text-decoration:none;color:var(--text)"><div class="logo-icon">📞</div><span>OmniDial</span></a>
+        <div class="nav-links">
+          <a href="../../index.html#comparison" class="nav-link">Comparison</a>
+          <a href="../../index.html#capabilities" class="nav-link">Unique Features</a>
+          <a href="../../index.html#releases" class="nav-link">Releases</a>
+          <a href="../../index.html#setup" class="nav-link">Setup</a>
+          <a href="../getting-started.html" class="nav-link">Getting Started</a>
+          <a href="../guides.html" class="nav-link">How-To Guides</a>
+          <a href="../faq.html" class="nav-link">FAQ</a>
+          <a href="../releases.html" class="nav-link">All Releases</a>
+        </div>
+        <span class="version-tag">v2.1.0</span>
+      </div>
+    </header>
+
+    <div class="crumb"><a href="../../index.html">Home</a> / <a href="../guides.html">How-To Guides</a> / Smart Telecom Routing</div>
+
+    <div class="doc-hero">
+      <h1>Master <span>Smart Telecom Routing</span></h1>
+      <p>Zero-touch calling policies that route international and travel calls through WhatsApp, Google Voice, or secondary SIMs automatically to eliminate roaming charges.</p>
+    </div>
+
+    <div class="toc">
+      <h3>Steps</h3>
+      <ol>
+        <li><a href="#concept">How Smart Routing works</a></li>
+        <li><a href="#modes">Global channel preference modes</a></li>
+        <li><a href="#create">Create a routing rule in 30 seconds</a></li>
+        <li><a href="#parameters">Understanding the 4 rule parameters</a></li>
+        <li><a href="#recipes">One-tap recipe templates</a></li>
+      </ol>
+    </div>
+
+    <section class="guide" id="concept">
+      <div class="step-num">1</div>
+      <h2>How Smart Routing works</h2>
+      <div class="snippet-row">
+        <div class="snippet">
+          <div class="snippet-frame"><div class="snippet-screen">
+            <div class="mock-topbar"><span class="mock-title">Rules</span></div>
+            <div class="mock-row hl"><span class="mock-chip">All (3)</span> <span class="mock-chip hl">Smart Routing (2)</span> <span class="mock-chip">Call Automation (1)</span></div>
+            <div class="mock-row hl">✈️ Roaming Home Calling<div class="mr-sub">Roaming Abroad → +1 via WhatsApp</div><span class="callout">1</span></div>
+            <div class="mock-row">🧳 Local India Calling<div class="mr-sub">Traveling in IN → Domestic via SIM 2</div></div>
+          </div></div>
+          <div class="snippet-caption">Filter between <strong>Smart Routing</strong> and <strong>Call Automation</strong>.</div>
+        </div>
+        <div class="snippet-text">
+          <p>Instead of manually picking apps or SIMs every time you place a call, OmniDial evaluates your real-time network environment whenever you tap Call:</p>
+          <ul>
+            <li><strong>Where you are:</strong> Are you at home, traveling in a specific country, or roaming on a foreign cellular network?</li>
+            <li><strong>Who you are calling:</strong> Is it a domestic number, an international number, or a specific country code (+1, +91, +44)?</li>
+            <li><strong>The best route:</strong> Automatically launches the call over WhatsApp, Google Voice, or your chosen SIM without extra taps.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="guide" id="modes">
+      <div class="step-num">2</div>
+      <h2>Global channel preference modes</h2>
+      <p>Under <strong>Settings → Channel Preferences</strong>, you can set the master policy for how OmniDial treats calling channels:</p>
+      <ul>
+        <li><strong>Smart Routing (Recommended):</strong> Rules auto-fire. If no rule matches a contact, OmniDial asks once and remembers your preference for that contact.</li>
+        <li><strong>Always Ask:</strong> Shows the channel picker dialog on every call. Smart routing rules still evaluate in the background to highlight a <span class="mock-chip" style="background:#2563eb;color:#fff">⚡ Suggested by rule</span> recommendation.</li>
+        <li><strong>Cellular Only:</strong> Standard carrier calls only. All VoIP rules are bypassed for traditional cellular dialing.</li>
+      </ul>
+      <div class="tip"><strong>Clean Settings:</strong> The <em>Reset Choices and Learn Memory</em> button is automatically hidden when in Cellular Only or Always Ask mode so your settings stay uncluttered.</div>
+    </section>
+
+    <section class="guide" id="create">
+      <div class="step-num">3</div>
+      <h2>Create a routing rule in 30 seconds</h2>
+      <div class="snippet-row">
+        <div class="snippet">
+          <div class="snippet-frame"><div class="snippet-screen">
+            <div class="mock-topbar"><span class="mock-title">New Routing Rule</span></div>
+            <div class="mock-row hl">Active Expression Preview:<div class="mr-sub">When @location: Roaming Abroad, route @numbers: +1 via @channel: WhatsApp</div></div>
+            <div class="mock-row"><span class="mock-chip">@location: Roaming</span> <span class="mock-chip">@numbers: +1</span><span class="callout">3</span></div>
+            <div class="mock-row"><span class="mock-chip">@channel: WhatsApp</span> <span class="mock-chip">@guard: Auto</span></div>
+          </div></div>
+          <div class="snippet-caption">Tap any parameter chip to edit its criteria.</div>
+        </div>
+        <div class="snippet-text">
+          <p>1. Open the <strong>Rules</strong> tab and tap the <strong>Smart Routing</strong> filter chip.</p>
+          <p>2. Tap the floating <strong>New Routing Rule</strong> button. Notice the button is context-sensitive and immediately opens the routing rule builder.</p>
+          <p>3. Tap any of the four parameter chips to adjust your criteria, then tap <strong>Save Rule</strong>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="guide" id="parameters">
+      <div class="step-num">4</div>
+      <h2>Understanding the 4 rule parameters</h2>
+      <p>Every routing rule is configured using four modular parameter slots:</p>
+      <ul>
+        <li><strong>@location:</strong>
+          <ul>
+            <li><em>Any Location</em> — matches everywhere in the world.</li>
+            <li><em>Roaming Abroad</em> — matches whenever your SIM connects to a foreign carrier.</li>
+            <li><em>Traveling in Country</em> — matches when you are physically in a specific ISO country (e.g. <code>IN</code> for India, <code>GB</code> for UK).</li>
+            <li><em>Home Country</em> — matches only when connected to your home carrier network.</li>
+          </ul>
+        </li>
+        <li><strong>@numbers:</strong>
+          <ul>
+            <li><em>International</em> — all numbers with a foreign country code.</li>
+            <li><em>Domestic</em> — local numbers within the country you are calling from.</li>
+            <li><em>Specific Prefix</em> — matches target dial codes like <code>+1</code>, <code>+91</code>, <code>+44</code>.</li>
+          </ul>
+        </li>
+        <li><strong>@channel:</strong> Choose which app or line places the call: WhatsApp Personal, WhatsApp Business, SIM 1, SIM 2, or Google Voice.</li>
+        <li><strong>@guard:</strong> Choose <em>Auto-Dispatch Silently</em> for instant background routing, or <em>Warn Before Calling</em> to show a quick roaming safety prompt.</li>
+      </ul>
+    </section>
+
+    <section class="guide" id="recipes">
+      <div class="step-num">5</div>
+      <h2>One-tap recipe templates</h2>
+      <p>Don't want to build a rule from scratch? Tap <strong>Recipes</strong> at the top of the Rules screen to load pre-tested community templates:</p>
+      <ul>
+        <li><strong>Avoid Roaming Back Home:</strong> When traveling abroad, route all calls to your home country (+1) over WhatsApp data.</li>
+        <li><strong>Dual-SIM Travel Setup:</strong> When in a specific destination country, route all local calls to your local travel SIM.</li>
+        <li><strong>International Friends &amp; Family:</strong> Always route foreign calls through WhatsApp to avoid accidental long-distance carrier rates.</li>
+      </ul>
+      <div class="tip"><strong>Backed Up Safely:</strong> All your Smart Routing rules are automatically preserved when you tap <em>Backup Now</em> in Settings, complete with live checksum verification.</div>
+    </section>
+
+    <div class="doc-footer-nav">
+      <a href="dual-sim.html" class="btn btn-secondary">← Prev: Dual SIM</a>
+      <a href="backup-restore.html" class="btn btn-secondary">Next: Backup &amp; Restore →</a>
+    </div>
+
+    <footer>
+      <p>OmniDial • Built with Kotlin &amp; Jetpack Compose • Send feedback to <a href="mailto:hariburle@gmail.com">hariburle@gmail.com</a></p>
+    </footer>
+  </div>
+</body>
+</html>
