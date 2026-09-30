@@ -91,8 +91,15 @@ class OmniCallRedirectionService : CallRedirectionService() {
         }
         val pinnedCellular = isPinnedNumber(prefs.getStringSet("pinned_cellular_numbers", emptySet()) ?: emptySet())
 
+        val travelDecision = try {
+            TravelRoamingManager.getInstance(applicationContext).evaluateTravelRouting(cleanNumber, globalMode = globalMode)
+        } catch (_: Exception) { null }
+
+        val isTravelGoogleVoice = travelDecision?.isTravelOptimized == true &&
+                travelDecision.recommendedChannel is com.example.domain.model.CallingChannel.GoogleVoice
+
         // 1. Google Voice Redirection
-        if (!pinnedCellular && preferredMode == "google_voice") {
+        if (!pinnedCellular && (preferredMode == "google_voice" || isTravelGoogleVoice)) {
             Log.i(TAG, "External outgoing call for $cleanNumber redirected to Google Voice")
             cancelCall()
             try {
@@ -102,10 +109,6 @@ class OmniCallRedirectionService : CallRedirectionService() {
             }
             return
         }
-
-        val travelDecision = try {
-            TravelRoamingManager.getInstance(applicationContext).evaluateTravelRouting(cleanNumber)
-        } catch (_: Exception) { null }
 
         val isTravelWhatsApp = travelDecision?.isTravelOptimized == true &&
                 travelDecision.recommendedChannel is com.example.domain.model.CallingChannel.WhatsApp
@@ -121,8 +124,9 @@ class OmniCallRedirectionService : CallRedirectionService() {
         }
 
         if (shouldRedirectToWhatsApp) {
-            val useBusiness = preferredMode == "whatsapp_business"
-            Log.i(TAG, "External outgoing call for $cleanNumber redirected to WhatsApp (preferredMode=$preferredMode)")
+            val useBusiness = preferredMode == "whatsapp_business" ||
+                (travelDecision?.recommendedChannel as? com.example.domain.model.CallingChannel.WhatsApp)?.isBusiness == true
+            Log.i(TAG, "External outgoing call for $cleanNumber redirected to WhatsApp (preferredMode=$preferredMode, reason=${travelDecision?.reason})")
             // Abort cellular network call
             cancelCall()
 

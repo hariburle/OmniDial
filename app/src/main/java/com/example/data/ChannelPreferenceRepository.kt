@@ -10,19 +10,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 class ChannelPreferenceRepository(
-    private val appRepository: AppRepository
+    private val appRepository: AppRepository,
+    private var appContext: Context? = null
 ) {
     val allPreferences: Flow<List<NumberChannelPreference>> =
         appRepository.allNumberChannelPreferences
 
     private val cachedPreferences = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val profileScopedCache = java.util.concurrent.ConcurrentHashMap<String, String>()
-
-    /**
-     * Application context, captured in [getInstance]. Used only for the SharedPreferences
-     * mirror below — never for UI.
-     */
-    private var appContext: Context? = null
 
     /**
      * False until the Room observer has delivered its first emission. Before that the cache is
@@ -47,6 +42,13 @@ class ChannelPreferenceRepository(
                 }
                 cacheReady = true
                 mirrorAllToSharedPreferences(list)
+            }
+        }
+        scope.launch {
+            appRepository.allRoutingRules.collect { rules ->
+                appContext?.let { ctx ->
+                    com.example.telecom.TravelRoamingManager.getInstance(ctx).updateCachedRules(rules)
+                }
             }
         }
     }
@@ -288,9 +290,12 @@ class ChannelPreferenceRepository(
                     val appCtx = context.applicationContext
                     val db = AppDatabase.getInstance(appCtx)
                     val repo = AppRepository(db.appDao())
-                    ChannelPreferenceRepository(repo).also {
-                        it.appContext = appCtx
+                    ChannelPreferenceRepository(repo, appCtx).also {
                         INSTANCE = it
+                        it.scope.launch {
+                            val rules = repo.getAllRoutingRulesList()
+                            com.example.telecom.TravelRoamingManager.getInstance(appCtx).updateCachedRules(rules)
+                        }
                     }
                 }
             }

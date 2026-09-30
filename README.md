@@ -3,7 +3,7 @@
 [![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/Version-2.1.1%20(Build%2023)-brightgreen.svg)](documents/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-2.1.2%20(Build%2024)-brightgreen.svg)](documents/CHANGELOG.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](documents/CHANGELOG.md)
 [![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](documents/DESIGN.md)
 
@@ -19,7 +19,7 @@
 - **Unified Call Choice Dialogs**: Streamlined channel selection modal with "Remember choice for this contact" preference toggle.
 - **Adaptive Preference Highlighting**: Dynamically highlights preferred communication channels using high-contrast borders and subtle background tints based on learned caller intelligence.
 - **Enhanced Dark Mode WhatsApp Icon**: Rendered with a high-contrast white outer contour ring for perfect AMOLED visibility.
-- **Bluetooth & Car Head Unit Call Redirection**: `OmniCallRedirectionService` automatically routes outgoing calls from vehicle infotainment, smartwatches, or third-party dialers to WhatsApp VoIP when preferred.
+- **Bluetooth & Car Head Unit Call Redirection**: `OmniCallRedirectionService` automatically routes outgoing calls from vehicle infotainment (Tesla, Android Auto), smartwatches, or third-party dialers to WhatsApp VoIP when preferred.
 - **Instant T9 Search**: Sub-millisecond indexed digit matching (<16ms) searching contact names, **nicknames**, and phone numbers as you type.
 - **Pause (`,`) & Wait (`;`) Support**: Long-press `*` for Pause, long-press `#` for Wait, or insert via the overflow menu (`⋮`).
 - **Quick Recents Bar**: Most recent caller avatars above the keypad for instant redialing.
@@ -131,7 +131,8 @@
 
 The latest release and prior versions are available in the `apks/` directory and on the [OmniDial Website](index.html):
 
-- **[OmniDial-v2.1.1.apk](apks/OmniDial-v2.1.1.apk)** *(Latest — Build 23)*: Smart Telecom Routing with Zero-Mutation Runtime Overlay, Dynamic Rule Composer with 4-parameter slot pills and single-line chip wrapping prevention, context-sensitive FAB in Rules panel, chronological backup sorting by embedded timestamp, itemized save and restore completion breakdown dialogs, and comprehensive user guides.
+- **[OmniDial-v2.1.2.apk](apks/OmniDial-v2.1.2.apk)** *(Latest — Build 24)*: Seamless Bluetooth & car infotainment smart call redirection (auto-routing international dials to WhatsApp VoIP from vehicle head units such as Tesla), streamlined 6-section Settings screen, and unified Spam & Call Protection card.
+- **[OmniDial-v2.1.1.apk](apks/OmniDial-v2.1.1.apk)** *(Build 23)*: Smart Telecom Routing with Zero-Mutation Runtime Overlay, Dynamic Rule Composer with 4-parameter slot pills and single-line chip wrapping prevention, context-sensitive FAB in Rules panel, chronological backup sorting by embedded timestamp, itemized save and restore completion breakdown dialogs, and comprehensive user guides.
 - **[OmniDial-v2.1.0.apk](apks/OmniDial-v2.1.0.apk)** *(Build 22)*: In-call Bento Card UI overhaul with dynamic audio routing (Speaker toggle & multi-route Bluetooth picker), split conference participant view, fresh-install auto-restore banner, dial-pad avatar & contact name tap-to-open contact details, favorites in-row direct calling, and clean default number checkbox.
 - **[OmniDial-v2.0.2.apk](apks/OmniDial-v2.0.2.apk)** *(Build 21)*: Multi-call & conference calling subsystem (Swap, Merge, individual participant hangup & conference hold/resume), floating call pill auto-dismiss on call termination, Just-in-Time contextual permission reminders, and Settings Permissions Hub.
 - **[OmniDial-v2.0.1.apk](apks/OmniDial-v2.0.1.apk)** *(Build 20)*: Caller ID & spam default app (silence-and-log spam handling), honest spam badges, guided setup wizard, and call redirection recovery banner.

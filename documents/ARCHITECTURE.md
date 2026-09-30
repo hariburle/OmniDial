@@ -1,6 +1,6 @@
 # OmniDial — System Architecture & Technical Documentation
 
-> **Current Version**: v2.1.1 (Build 23) — September 2026
+> **Current Version**: v2.1.2 (Build 24) — September 2026
 
 ## 1. Executive Summary
 
@@ -42,15 +42,18 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
                 |
                 +---> Multi-Channel Calling Engine (MCCE)
                 |       ├── ChannelDiscoveryManager (active SIM detection, installed VoIP packages, emergency cell tower checks)
-                |       ├── TravelRoamingManager (zero-mutation travel overlay, roaming avoidance, home vs abroad routing)
+                |       ├── TravelRoamingManager (zero-mutation travel overlay, roaming avoidance, home vs abroad routing, thread-safe rule caching)
                 |       ├── ChannelDispatchCoordinator (domestic cellular emergency lock, Telecom/WhatsApp VoIP intent dispatch)
-                |       └── ChannelPreferenceRepository (Room-backed per-number channel preferences)
+                |       └── ChannelPreferenceRepository (Room-backed per-number channel preferences & rules sync)
                 |
                 +---> ContactHelper (System Contacts Provider & CallLog Merging)
                 |
                 +---> CallManager (InCallService, Automation Pipeline, Trust Badges,
                 |                  callLoggedEvent SharedFlow, SIM roaming resolution;
                 |                  defers spam-list auto-decline while screening role held)
+                |
+                +---> OmniCallRedirectionService (CallRedirectionService: intercepts external / Bluetooth / car calls,
+                |       evaluates cached TelecomRoutingRules, reroutes international/roaming calls to WhatsApp VoIP)
                 |
                 +---> OmniCallScreeningService (CallScreeningService: silences+logs or
                 |       rejects spam-list numbers per spam_auto_block; honors not-spam
@@ -75,6 +78,7 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 - **`ContactsScreen.kt`**: Unified directory with Nicknames filter tab (`SmartContactSort.NICKNAMES`), default number prioritization, per-number SIM routing, and partitioned search outside active filters (`otherFilteredOutMatches`).
 - **`InCallScreen.kt`**: Active call UI with SIM display name chip, amber `ROAMING` alert badge, DTMF keypad, audio output selector, post-call notes, manual `[ 🔕 Silence ]` ringer chip, touch-to-silence gestures, and isolated `CallDurationStatusChip` to prevent 1Hz recomposition cascades.
 - **`RulesScreen.kt`**: Automation rule manager with visual pipeline chips, Quick-Start Recipe Gallery bottom sheet, rule dry-run simulator, execution history log, and rule duplication.
+- **`SettingsScreen.kt`**: 6 streamlined settings sections: System Health & Roles, Calling Channels & Policies, Keypad & Speed Dial, Spam & Call Protection (unified card), Appearance & Navigation, and Backup & Maintenance.
 - **`MainActivity.kt`**: Hosts `FloatingCallPill`, observes `callLoggedEvent` for reactive Recents updates, handles `dismissAllModals()` when external calls arrive, and processes missed call deep-link intents.
 
 ---
@@ -181,20 +185,19 @@ After call termination, `CallManager` emits a post-call state to `MainViewModel`
 
 Backup JSON payload includes: `CallerRule` list, `FavoriteContact` list, `SpeedDial` map, all SharedPreferences keys (SIM mode, spam presets, screening auto-block, WhatsApp mode, learned choices).
 
-Backup creation via saveLocalBackupDetailed() produces a structured BackupRestoreResult capturing separate itemized counts for 
-outingRulesCount (Smart Telecom Routing) and 
-ulesCount (Call Automation), displaying a comprehensive save completion breakdown dialog mirroring the restore completion experience.
+Backup creation via `saveLocalBackupDetailed()` produces a structured `BackupRestoreResult` capturing separate itemized counts for `routingRulesCount` (Smart Telecom Routing) and `rulesCount` (Call Automation), displaying a comprehensive save completion breakdown dialog mirroring the restore completion experience.
 
 SHA-256 checksum and schema version are embedded in the JSON header for tamper detection on restore.
 
 ---
 
-## 9. Unit Test Coverage (Build 20)
+## 9. Unit Test Coverage (Build 24)
 
 All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk = [36])`):
 
 | Test File | Coverage |
 |---|---|
+| `TravelRoamingManagerTest` | Zero-mutation travel overlay, roaming avoidance, home vs abroad routing, and cached dynamic rules evaluated during Telecom redirection |
 | `ConferenceUiGatingTest` | Gating logic for Swap, Merge, Add Call, and participant controls across call states and capabilities |
 | `Phase13MultiChannelCoreTest` | Dynamic channel discovery, SIM slot labeling, WhatsApp channel dispatch, `ChannelPreferenceRepository`, `ChannelDispatchCoordinator` |
 | `Task10Test` | Multi-channel dock interactions, modal dismissal, transactional backup & restore verification, deduplication |
@@ -211,7 +214,7 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 
 ---
 
-## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.1.0)
+## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.1.2)
 
 1. **Multi-Channel Calling Engine (MCCE)**: Introduced `ChannelDiscoveryManager`, `CallingChannel`, `ChannelConfigRepository`, `ChannelPreferenceRepository`, and `ChannelDispatchCoordinator`.
 2. **Dynamic Keypad Channel Dock**: Added `KeypadChannelDock` above dial pad for 1-tap channel switching between SIM 1, SIM 2, and WhatsApp with live roaming and carrier labels.
@@ -230,6 +233,8 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 15. **Floating Call Pill & PiP Auto-Dismiss (v2.0.2)**: Fixed lingering call pill and Picture-in-Picture window by tying teardown directly to `DISCONNECTED`/`DISCONNECTING` call state transitions.
 16. **Just-In-Time Contextual Reminders (v2.0.2)**: Added warning banners and empty-state action cards in Contacts, Recents, and Rules for missing permissions or roles with 1-tap grant actions.
 17. **Settings Permissions Hub (v2.0.2)**: Added dedicated `PermissionsHubCard` in Settings displaying real-time status of all 6 wizard setup steps, individual launchers, and full wizard rerun.
+18. **Bluetooth / Car Head Unit Smart Call Redirection & Cached Dynamic Rules**: Fixed carrier cellular fallback when dialing from Bluetooth/Tesla car head units by introducing thread-safe in-memory and SharedPreferences caching (`CopyOnWriteArrayList` + `KEY_CACHED_ROUTING_RULES`) in `TravelRoamingManager.kt`. When Telecom's `OmniCallRedirectionService` fires on its binder thread, it evaluates active `TelecomRoutingRule`s without blocking SQLite queries or risking Telecom ANRs. Correctly matches international calls placed from home (handling US exit codes `011...` and standard E.164) and redirects to WhatsApp/VoIP seamlessly with cold-start channel synthesis fallback.
+19. **Streamlined Settings Screen Architecture**: Reorganized `SettingsScreen.kt` into 6 clear functional groups (System Health & Roles, Calling Channels & Policies, Keypad & Speed Dial, Spam & Call Protection, Appearance & Navigation, Backup & Maintenance). Removed redundant `CallRedirectionCard` and consolidated spam blocking toggles with the blocked numbers management dialog into a unified `SpamProtectionCard`.
 
 ---
 

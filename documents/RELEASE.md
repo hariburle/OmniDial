@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.1.2` | `24` | Sep 2026 | Reliable car & Bluetooth smart call redirection to WhatsApp VoIP, and restructured 6-section Settings screen. |
 | `2.1.1` | `23` | Sep 2026 | Smart Telecom Routing with zero-mutation overlay, Dynamic Rule Composer UX fixes, context-sensitive FAB, and itemized backup reporting. |
 | `2.1.0` | `22` | Sep 2026 | In-call Bento Card UI overhaul, dynamic audio route picker, split conference participants view, fresh-install auto-restore, and dialer avatar/name contact details card. |
 | `2.0.2` | `21` | Sep 2026 | Multi-call & conference calling, floating call pill auto-dismiss, just-in-time permission reminders, and settings permissions hub. |
@@ -34,7 +35,20 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 2.1.1 (Latest) — Smart Telecom Routing, Dynamic Rule Composer & Detailed Backup Reporting</h3></summary>
+<summary><h3>🚀 Release 2.1.2 (Latest) — Car Infotainment Smart Redirection & Streamlined Settings</h3></summary>
+
+### What's New & Improvements:
+- **Seamless Car & Bluetooth Smart Redirection**: Calling from your vehicle infotainment system (such as Tesla, Android Auto, or Bluetooth hands-free car kits) now fully honors your Smart Routing rules. Calling an international number while at home automatically routes over WhatsApp VoIP, protecting you from accidental cellular carrier roaming fees.
+- **Restructured & Logical Settings Screen**: The Settings tab is reorganized into 6 clear, functional categories: System Health & Roles, Calling Channels & Policies, Keypad & Speed Dial, Spam & Call Protection, Appearance & Navigation, and Backup & Maintenance.
+- **Unified Spam & Call Protection**: Combined spam call screening, auto-blocking toggles, and the blocked numbers management dialog into a single convenient card.
+- **Removed Redundant Setting Cards**: Eliminated duplicate standalone permission chips to keep your settings clean, fast, and clutter-free.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>📦 Release 2.1.1 — Smart Telecom Routing, Dynamic Rule Composer & Detailed Backup Reporting</h3></summary>
 
 ### What's New & Improvements:
 - **Enterprise Smart Telecom Routing Engine**: Intelligent location-aware calling policies that automatically route international and travel calls through WhatsApp VoIP or secondary local SIMs, eliminating expensive roaming charges. Employs a Zero-Mutation Runtime Overlay that leaves saved home contact preferences completely untouched.
@@ -328,8 +342,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v2.1.1.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v2.1.0.apk`, `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.1.2.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v2.1.1.apk`, `OmniDial-v2.1.0.apk`, `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---
@@ -352,7 +366,7 @@ Hosted directly on GitHub Pages under the `/apks` directory.
    ```
 4. Copy the output APK to versioned files in `/apks`:
    ```bash
-   cp app/build/outputs/apk/release/app-release-unsigned.apk apks/OmniDial-v<version>.apk
+   cp app/build/outputs/apk/release/app-release.apk apks/OmniDial-v<version>.apk
    cp apks/OmniDial-v<version>.apk apks/OmniDial.apk
    ```
 5. Move `[Unreleased]` in `CHANGELOG.md` to the new version header, update `index.html` release notes, and push to GitHub.

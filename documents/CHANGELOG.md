@@ -2,6 +2,27 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [Unreleased]
+
+---
+
+## 🚀 [v2.1.2] — Build 24 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Seamless Car & Bluetooth Smart Routing**: Vehicle infotainment systems (such as Tesla, Android Auto, and Bluetooth head units) now reliably honor your Smart Routing rules. Calling international contacts while at home automatically routes via WhatsApp VoIP, eliminating costly accidental cellular carrier roaming fees.
+- **Streamlined Settings Organization**: Reordered and decluttered the Settings screen into 6 clear, logical groups (Permissions, Channels & Policies, Keypad & Speed Dial, Spam & Call Protection, Appearance & Navigation, and Backups).
+- **Unified Spam & Call Protection**: Merged Caller ID screening and blocked numbers into a single card with an instant toggle for auto-blocking suspected spam calls.
+- **Removed Duplicate Settings**: Eliminated redundant standalone role cards that cluttered the screen, consolidating system permission status into the top Permissions Hub.
+
+### 🔧 Technical / Architecture Notes
+- **Synchronous Rule Caching & Redirection Sync**: Added in-memory `CopyOnWriteArrayList` caching and persistent SharedPreferences serialization in `TravelRoamingManager.kt` (`KEY_CACHED_ROUTING_RULES`). `ChannelPreferenceRepository.kt` now observes `AppRepository.allRoutingRules` to keep cached rules synchronised across app launches.
+- **Telecom Redirection Service Rule Gating**: In `OmniCallRedirectionService.kt`, `evaluateTravelRouting` now receives and resolves dynamic active rules, allowing WhatsApp, WhatsApp Business, Google Voice, and secondary SIM redirection from background Telecom binder threads.
+- **E.164 & Prefix Normalization**: `TravelRoamingManager.matchesRule` now parses E.164 and international exit code variations using `PhoneNumberNormalizer.toE164`, guaranteeing accurate matching for numbers dialed with or without exit codes.
+- **Settings Screen Refactoring**: Removed redundant `CallRedirectionCard.kt` and `CallScreeningCard.kt` inclusions in `SettingsScreen.kt`, moved panel swipe gestures into Appearance & Navigation, and re-anchored keypad display options under Keypad & Speed Dial.
+- Incremented `versionCode` to 24 and `versionName` to `"2.1.2"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.1.1] — Build 23 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
@@ -321,7 +342,7 @@
 ### 🔧 Technical / Architecture Notes
 - **Domain Use-Case Extraction**: Modularized business logic into dedicated domain use cases (`EvaluateSimRuleUseCase`, `ResolveCallerIdentityUseCase`, `SearchT9ContactsUseCase`, `ManageFavoritesUseCase`).
 - **State Isolation**: Extracted `CallDurationStatusChip` to handle high-frequency timer recompositions independently of parent UI.
-- **Haptic Helper**: Created `HapticFeedbackHelper` managing API 33+ predefined `VibrationEffect` primitives with backwards compatibility to API 24.
+- **Haptic Feedback Helper**: Created `HapticFeedbackHelper` managing API 33+ predefined `VibrationEffect` primitives with backwards compatibility to API 24.
 - Incremented `versionCode` to 5 and `versionName` to `"1.1.3"` in `app/build.gradle.kts`.
 
 ---

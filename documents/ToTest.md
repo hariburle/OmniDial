@@ -6,6 +6,29 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
+### 0. Task 16.3: Bluetooth / External Car Redirection & Restructured Settings Screen
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **Tesla / Bluetooth Car Unit Smart Call Redirection**:
+     - Configure a Smart Routing rule: Dialing an international number (e.g. India +91) from Home country (US +1) routes to WhatsApp VoIP.
+     - Place an outgoing call to an international number (+91... or US exit code 01191...) via a Bluetooth car hands-free system (Tesla head unit or Bluetooth HFP dialer).
+     - Verify `OmniCallRedirectionService` intercepts the outgoing call on the Telecom binder thread using thread-safe cached dynamic rules (`TravelRoamingManager.evaluateTravelRouting()`).
+     - Verify the carrier cellular call is cancelled and the call seamlessly launches over WhatsApp VoIP.
+  2. **Thread-Safe Cached Smart Rules & Cold Start**:
+     - Force stop OmniDial and place an outgoing international call from car Bluetooth immediately.
+     - Verify rules load reliably from SharedPreferences cache and synthesize the WhatsApp channel without ANR or binder timeout.
+  3. **Restructured Settings Screen Layout**:
+     - Open Settings tab.
+     - Verify the 6 streamlined sections appear in order:
+       1. **System Health & Roles** (`PermissionsHubCard`)
+       2. **Calling Channels & Policies** (`ChannelPreferencesCard`)
+       3. **Keypad & Speed Dial** (`T9KeypadSettingsCard`, `QuickDialPreferencesCard`)
+       4. **Spam & Call Protection** (`SpamProtectionCard` unifying auto-block switch and spam manager dialog)
+       5. **Appearance & Navigation** (`ThemeSelectorCard`, `SwipeNavigationCard`, `InCallUiSettingsCard`, `DialerDisplaySettingsCard`, `ContactSortingCard`)
+       6. **Backup & Maintenance** (`BackupCard`, `ResetPreferencesCard`, `AppInfoCard`)
+     - Verify the redundant `CallRedirectionCard` is removed (already covered in `PermissionsHubCard`).
+     - Verify the spam management dialog opens smoothly from the unified Spam & Call Protection card.
+
 ### 0. Task 16.2 (Release 2.1.1): Smart Telecom Routing, Context FAB, and Detailed Backup Reporting
 - [ ] **To Test**
 - **Test Scenarios**:

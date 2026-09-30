@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -27,18 +28,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.SpamNumber
-import com.example.ui.components.BackupManagementCard
-import com.example.ui.components.CallRedirectionCard
-import com.example.ui.components.CallScreeningCard
-import com.example.ui.components.SpamManagementDialog
-import com.example.ui.components.WhatsAppIcon
-import androidx.compose.foundation.horizontalScroll
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.data.ChannelConfig
+import com.example.data.SpamNumber
 import com.example.domain.model.CallingChannel
 import com.example.telecom.ChannelDiscoveryManager
+import com.example.telecom.OmniCallScreeningService
+import com.example.telecom.RoleHelper
+import com.example.ui.components.BackupManagementCard
 import com.example.ui.components.ChannelSetupDialog
-import com.example.util.BackupManager
+import com.example.ui.components.SpamManagementDialog
 import com.example.util.BackupRestoreResult
 import kotlinx.coroutines.launch
 
@@ -90,13 +91,44 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+
     var showSpamDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showChannelConfigDialog by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
+
     val discoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) }
     val effectiveDiscoveredChannels = if (discoveredChannels.isNotEmpty()) discoveredChannels else discoveryManager.allDiscoveredChannels.collectAsState().value
+
+    // Caller ID & Spam screening role status and auto-block preference
+    var screeningRoleHeld by remember {
+        mutableStateOf(RoleHelper.isCallScreeningRoleHeld(context))
+    }
+    val screeningPrefs = remember {
+        context.getSharedPreferences(OmniCallScreeningService.PREFS, android.content.Context.MODE_PRIVATE)
+    }
+    var autoBlockSpam by remember {
+        mutableStateOf(screeningPrefs.getBoolean(OmniCallScreeningService.KEY_SPAM_AUTO_BLOCK, false))
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                screeningRoleHeld = RoleHelper.isCallScreeningRoleHeld(context)
+                autoBlockSpam = screeningPrefs.getBoolean(OmniCallScreeningService.KEY_SPAM_AUTO_BLOCK, false)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val screeningLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        screeningRoleHeld = RoleHelper.isCallScreeningRoleHeld(context)
+    }
 
     Column(
         modifier = modifier
@@ -105,6 +137,9 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ---------------------------------------------------------------------------------
+        // 1. SYSTEM HEALTH & ROLES (TOP)
+        // ---------------------------------------------------------------------------------
         if (setupStepStates.isNotEmpty()) {
             Text(
                 text = "App Permissions & Setup",
@@ -120,6 +155,9 @@ fun SettingsScreen(
             )
         }
 
+        // ---------------------------------------------------------------------------------
+        // 2. CALLING CHANNELS & DISPATCH POLICIES
+        // ---------------------------------------------------------------------------------
         Text(
             text = "Manage Channels",
             style = MaterialTheme.typography.titleMedium,
@@ -215,7 +253,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Text(
             text = "Channel Preferences",
@@ -320,7 +358,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         // Smart Travel & Roaming Card
         val travelRoamingManager = remember(context) { com.example.telecom.TravelRoamingManager.getInstance(context) }
@@ -547,10 +585,13 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
+        // ---------------------------------------------------------------------------------
+        // 3. KEYPAD & SPEED DIAL
+        // ---------------------------------------------------------------------------------
         Text(
-            text = "Dialer & Gestures",
+            text = "Keypad & Speed Dial",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -694,7 +735,6 @@ fun SettingsScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    // Mini keypad button mockup (rectangular with number on left, fav/T9 on right)
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
                                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
@@ -794,36 +834,188 @@ fun SettingsScreen(
                         modifier = Modifier.testTag("show_dialer_quick_actions_switch")
                     )
                 }
+            }
+        }
 
-                HorizontalDivider()
+        Spacer(modifier = Modifier.height(4.dp))
 
+        // ---------------------------------------------------------------------------------
+        // 4. SPAM & CALL PROTECTION (UNIFIED)
+        // ---------------------------------------------------------------------------------
+        Text(
+            text = "Spam & Call Protection",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Screening status header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
                         Text(
-                            text = "Swipe to switch panels",
+                            text = "Caller ID & Spam Filtering",
                             fontWeight = FontWeight.SemiBold,
                             style = MaterialTheme.typography.bodyMedium
                         )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (screeningRoleHeld) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (screeningRoleHeld) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
+                                contentDescription = null,
+                                tint = if (screeningRoleHeld) Color(0xFF15803D) else Color(0xFFB45309),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = if (screeningRoleHeld) "Active" else "Action Needed",
+                                color = if (screeningRoleHeld) Color(0xFF15803D) else Color(0xFFB45309),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
+                if (!screeningRoleHeld) {
+                    Text(
+                        text = "Android requires granting the Caller ID & Spam app role so OmniDial can screen incoming calls and detect suspected spam.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = {
+                            val intent = RoleHelper.createCallScreeningRoleIntent(context)
+                            if (intent != null) {
+                                try {
+                                    screeningLauncher.launch(intent)
+                                } catch (_: Exception) {
+                                    screeningLauncher.launch(RoleHelper.createDefaultAppsSettingsIntent(context))
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Enable Spam Screening", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Text(
+                        text = "OmniDial screens incoming calls: suspected spam is silenced and logged as a missed call so you can always check back.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // Auto-block toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Swipe horizontally across main screens (Favorites <-> Recents <-> Keypad <-> Contacts <-> Settings)",
+                            text = "Auto-Block Suspected Spam",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (autoBlockSpam) "On: reject outright (caller never rings)" else "Off: silence and log as missed call",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
-                        checked = swipeToSwitchPanels,
-                        onCheckedChange = onSetSwipeToSwitchPanels,
-                        modifier = Modifier.testTag("swipe_to_switch_panels_switch")
+                        checked = autoBlockSpam,
+                        onCheckedChange = { checked ->
+                            autoBlockSpam = checked
+                            screeningPrefs.edit().putBoolean(OmniCallScreeningService.KEY_SPAM_AUTO_BLOCK, checked).apply()
+                        },
+                        modifier = Modifier.testTag("auto_block_spam_switch")
                     )
-                }            }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // Blocked numbers list entry
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showSpamDialog = true }
+                        .testTag("entry_spam_management")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Manage Blocked Numbers & Rules",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = "${spamNumbers.size} blocked",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Open Spam Manager",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
+        // ---------------------------------------------------------------------------------
+        // 5. APPEARANCE & NAVIGATION
+        // ---------------------------------------------------------------------------------
         Text(
             text = "Appearance & Navigation",
             style = MaterialTheme.typography.titleMedium,
@@ -898,66 +1090,7 @@ fun SettingsScreen(
 
                 HorizontalDivider()
 
-                // 2. Navigation Bar Style
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Navigation Bar Style",
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val navOptions = listOf(
-                            Triple("full", "Standard", "Icons & text"),
-                            Triple("compact", "Compact", "Icons only"),
-                            Triple("indicator", "Minimal", "Gesture bar")
-                        )
-                        navOptions.forEach { (styleKey, title, subtitle) ->
-                            val isSelected = navBarStyle == styleKey
-                            Card(
-                                onClick = { onSetNavBarStyle(styleKey) },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                                ),
-                                border = BorderStroke(
-                                    if (isSelected) 2.dp else 1.dp,
-                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("nav_bar_style_$styleKey")
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp, horizontal = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    Text(
-                                        text = title,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = subtitle,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 9.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                HorizontalDivider()
-
-                // 3. Incoming Call Answering Style
+                // 2. Incoming Call Answering Style
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = "Incoming Call Answering Style",
@@ -1011,6 +1144,65 @@ fun SettingsScreen(
                                     )
                                     Text(
                                         text = desc,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 9.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                // 3. Navigation Bar Style
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Navigation Bar Style",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val navOptions = listOf(
+                            Triple("full", "Standard", "Icons & text"),
+                            Triple("compact", "Compact", "Icons only"),
+                            Triple("indicator", "Minimal", "Gesture bar")
+                        )
+                        navOptions.forEach { (styleKey, title, subtitle) ->
+                            val isSelected = navBarStyle == styleKey
+                            Card(
+                                onClick = { onSetNavBarStyle(styleKey) },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                ),
+                                border = BorderStroke(
+                                    if (isSelected) 2.dp else 1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("nav_bar_style_$styleKey")
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = subtitle,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 9.sp
@@ -1082,103 +1274,41 @@ fun SettingsScreen(
                         }
                     }
                 }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider()
 
-        Text(
-            text = "Bluetooth & Car Redirection",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        CallRedirectionCard()
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        CallScreeningCard()
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { showSpamDialog = true }
-                .testTag("entry_spam_management")
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+                // 5. Swipe to switch panels
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Spam & Blocked Calls",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Text(
-                                    text = "${spamNumbers.size} blocked",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Manage blocked numbers, community spam rules & auto-rejection",
+                            text = "Swipe to switch panels",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Swipe horizontally across main screens (Favorites <-> Recents <-> Keypad <-> Contacts <-> Rules)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Switch(
+                        checked = swipeToSwitchPanels,
+                        onCheckedChange = onSetSwipeToSwitchPanels,
+                        modifier = Modifier.testTag("swipe_to_switch_panels_switch")
+                    )
                 }
-
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = "Open Spam Manager",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp)
-                )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
+        // ---------------------------------------------------------------------------------
+        // 6. BACKUP & MAINTENANCE
+        // ---------------------------------------------------------------------------------
         BackupManagementCard(
             localBackups = localBackups,
             onCreateLocalBackup = onCreateLocalBackup,
@@ -1189,7 +1319,6 @@ fun SettingsScreen(
             onStatusMessage = { msg -> backupStatusMessage = msg },
             onLoadingChanged = { /* handled */ }
         )
-
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -1342,8 +1471,6 @@ private fun PermissionsHubCard(
             }
 
             if (!expanded) {
-                // Collapsed: one status pill per setup step, same visual language as the
-                // channel summary chips. Tapping a pending pill jumps straight to that step.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1392,121 +1519,120 @@ private fun PermissionsHubCard(
             }
 
             if (expanded) {
-            setupStepStates.forEach { state ->
-                val info = com.example.ui.components.setupStepInfo(state.step)
-                val isDone = state.status == com.example.ui.components.SetupStepStatus.DONE
+                setupStepStates.forEach { state ->
+                    val info = com.example.ui.components.setupStepInfo(state.step)
+                    val isDone = state.status == com.example.ui.components.SetupStepStatus.DONE
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isDone) Color(0xFF166534).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = info.icon,
+                                        contentDescription = null,
+                                        tint = if (isDone) Color(0xFF166534) else MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = info.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = info.description,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        if (isDone) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF166534).copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, Color(0xFF166534).copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color(0xFF15803D),
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "Active",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF15803D)
+                                    )
+                                }
+                            }
+                        } else {
+                            Button(
+                                onClick = { onLaunchSetupStep(state.step) },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Text("Enable", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    OutlinedButton(
+                        onClick = onRerunSetupWizard,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isDone) Color(0xFF166534).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = info.icon,
-                                    contentDescription = null,
-                                    tint = if (isDone) Color(0xFF166534) else MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = info.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = info.description,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Setup Wizard", fontSize = 12.sp)
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    if (isDone) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF166534).copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, Color(0xFF166534).copy(alpha = 0.35f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = Color(0xFF15803D),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Text(
-                                    text = "Active",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF15803D)
-                                )
-                            }
-                        }
-                    } else {
-                        Button(
-                            onClick = { onLaunchSetupStep(state.step) },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            modifier = Modifier.height(30.dp)
-                        ) {
-                            Text("Enable", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                    OutlinedButton(
+                        onClick = onOpenAppSettings,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(imageVector = Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("App Settings", fontSize = 12.sp)
                     }
                 }
             }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = onRerunSetupWizard,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Setup Wizard", fontSize = 12.sp)
-                }
-
-                OutlinedButton(
-                    onClick = onOpenAppSettings,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(imageVector = Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("App Settings", fontSize = 12.sp)
-                }
-            }
-            } // if (expanded)
         }
     }
 }
-

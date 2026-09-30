@@ -1,6 +1,6 @@
 # OmniDial — Architecture & System Design Document
 
-> **Current Version**: v2.1.1 (Build 23) — September 2026
+> **Current Version**: v2.1.2 (Build 24) — September 2026
 
 This document serves as the primary technical specification and maintenance guide for **OmniDial**. It documents the system architecture, component contracts, data persistence models, telephony integrations, build pipelines, and maintenance runbooks.
 
@@ -28,7 +28,7 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 15. **Floating Call Pill & PiP Auto-Dismiss**: Lifecycle synchronization ensuring floating ongoing call pills and Picture-in-Picture windows automatically teardown cleanly upon call disconnect.
 16. **Just-In-Time Reminders & Permissions Hub**: Contextual inline banners and cards across Contacts, Recents, and Rules alongside a dedicated real-time Permissions Hub card in Settings for all 6 setup wizard options.
 17. **Bento Card In-Call UI & Dynamic Audio Routing**: Modern 2x3 Bento control grid with caller hero card, dynamic 2-way Speaker toggle vs multi-route Bluetooth picker, split conference view, and dialer avatar/name tap-to-open contact sheet.
-18. **Smart Telecom & Travel Roaming Engine**: Location-aware routing with Zero-Mutation Runtime Overlay. Automatically adjusts outgoing call channels (Home cellular, Host destination SIM, or WhatsApp VoIP) when traveling abroad while preserving saved contact preferences intact.
+18. **Smart Telecom & Travel Roaming Engine**: Location-aware routing with Zero-Mutation Runtime Overlay. Automatically adjusts outgoing call channels (Home cellular, Host destination SIM, or WhatsApp VoIP) when traveling abroad while preserving saved contact preferences intact. Intercepts external car/Bluetooth dials with zero-ANR cached dynamic rule evaluation.
 
 ---
 
@@ -120,7 +120,7 @@ app/src/main/java/com/example/
 │   │   ├── ContactsScreen.kt            # Directory, Nicknames filter, default number prioritization
 │   │   ├── InCallScreen.kt              # Active call UI, roaming badge, DTMF, touch/lift ring silencing
 │   │   ├── RulesScreen.kt               # Automation pipeline, recipes gallery, simulator, history
-│   │   └── SettingsScreen.kt            # Compact Appearance & Navigation, backup/restore, spam
+│   │   └── SettingsScreen.kt            # 6 streamlined sections: System Health, Calling Channels, Keypad, Spam, Appearance, Backup
 │   └── components/
 │       ├── CompactSearchBar.kt          # Unified 42dp pill search input
 │       ├── Keypad.kt                    # 12-key dial pad with haptics
@@ -134,7 +134,6 @@ app/src/main/java/com/example/
 │       ├── DialerSuggestionsList.kt     # T9 predictive suggestions (contactsByDigits + contactsByName)
 │       ├── SpeedDialDialogs.kt          # Speed dial assignment and confirmation dialogs
 │       ├── BackupManagementCard.kt      # Transactional Backup Now, restore with progress, safe delete
-│       ├── CallRedirectionCard.kt       # WhatsApp call mode selector
 │       ├── MultiNumberCallDialog.kt     # SIM/channel picker for multi-number contacts
 │       ├── AudioOutputSelectorDialog.kt # Audio routing picker
 │       ├── SpamManagementDialog.kt      # Blocked numbers list, search, auto-block presets
@@ -163,7 +162,7 @@ app/src/main/java/com/example/
 ### 4.1 Dual-Channel Dispatch (Cellular vs WhatsApp)
 - **Cellular**: `TelecomManager.placeCall()` (default dialer) or `Intent.ACTION_CALL` fallback.
 - **WhatsApp**: Number normalized via `PhoneNumberNormalizer.toE164()`, then dispatched via `https://api.whatsapp.com/send?phone=<e164>` with package constraint to `com.whatsapp`.
-- **External call interception**: `OmniCallRedirectionService.onPlaceCall()` queries `ContactNumberPreference` for `preferredSimSlot` — binds the target `PhoneAccountHandle` or routes to WhatsApp and calls `cancelCall()`.
+- **External call interception**: `OmniCallRedirectionService.onPlaceCall()` evaluates cached Smart Telecom Routing rules (rerouting international calls to WhatsApp) or queries `ContactNumberPreference` for `preferredSimSlot` — binds the target `PhoneAccountHandle` or cancels and routes to WhatsApp VoIP.
 
 ### 4.2 T9 Smart Search Engine (`T9Helper.kt`)
 - Maps digits `2–9` to Latin letter clusters.
@@ -193,11 +192,12 @@ Both checks are passive (no GPS, no geofence API) — zero additional battery dr
 - All main tabs use `CompactSearchBar` constrained to **42dp** height.
 - Live filtering performed in-memory on loaded dataset, preventing unnecessary DB re-queries per keystroke.
 
-### 4.7 Smart Telecom Routing Subsystem (TravelRoamingManager.kt)
+### 4.7 Smart Telecom Routing Subsystem (`TravelRoamingManager.kt`)
 - **Zero-Mutation Runtime Overlay**: Never mutates or overwrites saved user preferences in Room DB while abroad. Dynamic interceptors evaluate current cellular network country vs home country and route automatically.
-- **4-Parameter Rule Grammar**: Structured as @location (Where are you?), @numbers (Who are you calling?), @channel (How should it connect?), and @guard (Roaming protection action).
-- **Global Modes**: smart (auto-routes or prompts per rule), sk_always (pre-selects recommended channel in modal picker), and off (pure direct dial).
-- **Permanent Relocation Assistant**: Promotes learned travel preferences (	ravel:<ISO>) to new home profile (home:<ISO>) with one tap when permanently moving.
+- **4-Parameter Rule Grammar**: Structured as `@location` (Where are you?), `@numbers` (Who are you calling?), `@channel` (How should it connect?), and `@guard` (Roaming protection action).
+- **Global Modes**: `smart` (auto-routes or prompts per rule), `ask_always` (pre-selects recommended channel in modal picker), and `off` (pure direct dial).
+- **Permanent Relocation Assistant**: Promotes learned travel preferences (`travel:<ISO>`) to new home profile (`home:<ISO>`) with one tap when permanently moving.
+- **Thread-Safe Rule Cache**: Replicated in `CopyOnWriteArrayList` and SharedPreferences to serve Telecom's `OmniCallRedirectionService` binder thread instantly without blocking Room SQLite queries.
 
 ---
 
@@ -333,13 +333,22 @@ When a call is initiated from a vehicle head unit (Bluetooth HFP `ATD` command),
 
 ### 8.2 `OmniCallRedirectionService` Solution
 1. Registered with `BIND_CALL_REDIRECTION_SERVICE` permission and `RoleManager.ROLE_CALL_REDIRECTION`.
-2. **`onPlaceCall(handle, initialPhoneAccount, allowInteractiveResponse)`**:
-   - Resolves E.164 destination via `PhoneNumberNormalizer.toE164()`.
-   - Queries `ContactNumberPreference` for `preferredSimSlot` → binds `PhoneAccountHandle`.
-   - Queries `learned_call_modes` SharedPreferences for WhatsApp preference.
-   - If cellular: `placeCallUnmodified()`.
-   - If WhatsApp preferred: `cancelCall()` + dispatches WhatsApp VoIP intent.
-   - If `"never"` mode: `placeCallUnmodified()` immediately, bypassing all redirections.
+2. **Dynamic Smart Telecom Rule Caching**:
+   - Outgoing calls intercepted on Android Telecom's binder thread must not trigger synchronous SQLite queries to avoid binder thread starvation or ANR timeouts.
+   - `ChannelPreferenceRepository` observes Room `allRoutingRules` and updates `TravelRoamingManager.updateCachedRules(rules)`, storing active rules in a thread-safe `CopyOnWriteArrayList` and backing them in `SharedPreferences` (`KEY_CACHED_ROUTING_RULES`).
+3. **`onPlaceCall(handle, initialPhoneAccount, allowInteractiveResponse)` Workflow**:
+   - Resolves clean number and E.164 destination using `PhoneNumberNormalizer.toE164(cleanNumber, currentCountry)`, correctly parsing both standard E.164 (`+91...`) and US international dialing exit codes (`01191...`).
+   - If travel routing mode is `"smart"` or `"ask_always"`:
+     - Calls `TravelRoamingManager.evaluateTravelRouting(context, cleanNumber, isRoaming, currentCountry, simInfos, availableChannels, activeRules = null)`.
+     - `TravelRoamingManager` evaluates the thread-safe cached `TelecomRoutingRule` list (auto-loading from SharedPreferences if needed).
+     - When an international call rule matches (e.g. calling international from home country US routed to WhatsApp), synthesizes the WhatsApp calling channel (even if `ChannelDiscoveryManager` is cold) and resolves `TravelRoutingDecision.RedirectToVoip`.
+     - Calls `cancelCall()` and dispatches `ChannelDispatchCoordinator.dispatchChannelCall(context, decision.targetChannel, cleanNumber)` to launch WhatsApp VoIP calling seamlessly.
+   - If travel routing does not redirect:
+     - Queries `ContactNumberPreference` for `preferredSimSlot` → binds `PhoneAccountHandle`.
+     - Queries `learned_call_modes` SharedPreferences for WhatsApp preference.
+     - If cellular: `placeCallUnmodified()`.
+     - If WhatsApp preferred: `cancelCall()` + dispatches WhatsApp VoIP intent.
+     - If `"never"` mode: `placeCallUnmodified()` immediately, bypassing all redirections.
 
 ---
 

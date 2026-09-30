@@ -133,6 +133,39 @@ class TravelRoamingManagerTest {
     }
 
     @Test
+    fun testCachedDynamicRule_callingInternationalFromHome_autoEvaluatesAndRoutesToWhatsApp() {
+        val testChannels = listOf(usSim, whatsAppPersonal, whatsAppBusiness)
+        val rule = com.example.data.TelecomRoutingRule(
+            name = "International Calls via WhatsApp VoIP",
+            ruleExpression = "When @location: Home, route @numbers: International via @channel: WhatsApp",
+            targetChannelId = "whatsapp",
+            locationPattern = "home:US",
+            destinationPrefix = "all_intl",
+            guardAction = "warn_roaming",
+            isEnabled = true,
+            priority = 100
+        )
+
+        val testManager = object : TravelRoamingManager(context) {
+            override fun getCurrentCountryIso(): String = "us"
+        }
+        testManager.setHomeCountryIso("us")
+        testManager.updateCachedRules(listOf(rule))
+
+        // Call WITHOUT passing activeRules (mirrors OmniCallRedirectionService / Tesla car Bluetooth call)
+        val decision = testManager.evaluateTravelRouting(
+            phoneNumber = "+919876543210",
+            availableChannels = testChannels
+        )
+
+        assertTrue("Should be travel optimized", decision.isTravelOptimized)
+        assertNotNull(decision.recommendedChannel)
+        assertTrue("Recommended channel should be WhatsApp", decision.recommendedChannel is CallingChannel.WhatsApp)
+        val wa = decision.recommendedChannel as CallingChannel.WhatsApp
+        assertFalse("Should be WhatsApp Personal per rule", wa.isBusiness)
+    }
+
+    @Test
     fun testDomesticCallWithoutRule_routesToDomesticNonRoamingSim() {
         val testChannels = listOf(usSimRoaming, indiaSim, whatsAppPersonal, whatsAppBusiness)
 

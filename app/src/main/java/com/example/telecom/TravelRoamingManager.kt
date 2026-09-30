@@ -5,6 +5,9 @@ import android.telephony.TelephonyManager
 import com.example.domain.model.CallingChannel
 import com.example.util.ContactHelper
 import com.example.util.PhoneNumberNormalizer
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Outcome of a Travel & Roaming routing evaluation.
@@ -46,6 +49,8 @@ open class TravelRoamingManager(
     private val prefs by lazy {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
+
+    private val cachedActiveRules = CopyOnWriteArrayList<com.example.data.TelecomRoutingRule>()
 
     fun isSmartRoamingEnabled(): Boolean {
         return prefs.getBoolean(KEY_SMART_ROAMING_ENABLED, true)
@@ -105,6 +110,73 @@ open class TravelRoamingManager(
 
     fun setRoamingGuardEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_ROAMING_GUARD_ENABLED, enabled).apply()
+    }
+
+    fun getActiveRules(): List<com.example.data.TelecomRoutingRule> {
+        if (cachedActiveRules.isNotEmpty()) {
+            return cachedActiveRules
+        }
+        val fromPrefs = loadRulesFromPrefs()
+        if (fromPrefs.isNotEmpty()) {
+            cachedActiveRules.addAll(fromPrefs)
+            return cachedActiveRules
+        }
+        return emptyList()
+    }
+
+    fun updateCachedRules(rules: List<com.example.data.TelecomRoutingRule>) {
+        cachedActiveRules.clear()
+        cachedActiveRules.addAll(rules)
+        saveRulesToPrefs(rules)
+    }
+
+    private fun saveRulesToPrefs(rules: List<com.example.data.TelecomRoutingRule>) {
+        try {
+            val jsonArray = JSONArray()
+            for (rule in rules) {
+                val obj = JSONObject()
+                obj.put("id", rule.id)
+                obj.put("name", rule.name)
+                obj.put("ruleExpression", rule.ruleExpression)
+                obj.put("targetChannelId", rule.targetChannelId)
+                obj.put("locationPattern", rule.locationPattern)
+                obj.put("destinationPrefix", rule.destinationPrefix)
+                obj.put("guardAction", rule.guardAction)
+                obj.put("isEnabled", rule.isEnabled)
+                obj.put("priority", rule.priority)
+                obj.put("createdAt", rule.createdAt)
+                jsonArray.put(obj)
+            }
+            prefs.edit().putString(KEY_CACHED_ROUTING_RULES, jsonArray.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    private fun loadRulesFromPrefs(): List<com.example.data.TelecomRoutingRule> {
+        val jsonStr = prefs.getString(KEY_CACHED_ROUTING_RULES, null) ?: return emptyList()
+        return try {
+            val jsonArray = JSONArray(jsonStr)
+            val list = mutableListOf<com.example.data.TelecomRoutingRule>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                list.add(
+                    com.example.data.TelecomRoutingRule(
+                        id = obj.optLong("id", 0L),
+                        name = obj.optString("name", ""),
+                        ruleExpression = obj.optString("ruleExpression", ""),
+                        targetChannelId = obj.optString("targetChannelId", ""),
+                        locationPattern = obj.optString("locationPattern", "any"),
+                        destinationPrefix = obj.optString("destinationPrefix", "any"),
+                        guardAction = obj.optString("guardAction", "warn_roaming"),
+                        isEnabled = obj.optBoolean("isEnabled", true),
+                        priority = obj.optInt("priority", 0),
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     fun getActiveProfileContext(): String {
@@ -268,7 +340,6 @@ open class TravelRoamingManager(
         val targetCountry = getTargetCountryIso(clean)
         val waBizChannel = channels.filterIsInstance<CallingChannel.WhatsApp>().firstOrNull { it.isBusiness && it.isAvailable }
         val waPersonalChannel = channels.filterIsInstance<CallingChannel.WhatsApp>().firstOrNull { !it.isBusiness && it.isAvailable }
-        val fallbackWa = waBizChannel ?: waPersonalChannel
 
         val activeSims = channels.filterIsInstance<CallingChannel.CellularSim>()
         val hasRoamingSim = activeSims.any { it.isRoaming }
@@ -276,8 +347,9 @@ open class TravelRoamingManager(
         // Tier 2: Dynamic User Routing Rules (@ Slot Composer)
         // Policy Gate P5: "Always Ask" — rules still evaluate but result becomes a pre-selected
         // suggestion in the picker rather than an auto-dialed channel.
-        if (!activeRules.isNullOrEmpty()) {
-            for (rule in activeRules.filter { it.isEnabled }.sortedByDescending { it.priority }) {
+        val effectiveRules = activeRules ?: getActiveRules()
+        if (!effectiveRules.isNullOrEmpty()) {
+            for (rule in effectiveRules.filter { it.isEnabled }.sortedByDescending { it.priority }) {
                 if (matchesRule(rule, currentCountry, targetCountry, clean, hasRoamingSim)) {
                     val resolvedChan = resolveRuleChannel(rule.targetChannelId, channels, waBizChannel, waPersonalChannel)
                     if (resolvedChan != null) {
@@ -371,13 +443,14 @@ open class TravelRoamingManager(
 
         // Destination prefix check
         val dest = rule.destinationPrefix.trim()
+        val e164Clean = PhoneNumberNormalizer.toE164(cleanNumber, currentCountry.uppercase())
         val destMatch = when {
             dest.equals("any", ignoreCase = true) -> true
             dest.equals("all_intl", ignoreCase = true) -> targetCountry != currentCountry.uppercase()
-            dest == "+1" -> cleanNumber.startsWith("+1") || targetCountry == "US"
-            dest == "+91" -> cleanNumber.startsWith("+91") || targetCountry == "IN"
-            dest.startsWith("+") -> cleanNumber.startsWith(dest)
-            else -> cleanNumber.startsWith(dest) || targetCountry.equals(dest, ignoreCase = true)
+            dest == "+1" -> cleanNumber.startsWith("+1") || e164Clean.startsWith("+1") || targetCountry == "US"
+            dest == "+91" -> cleanNumber.startsWith("+91") || e164Clean.startsWith("+91") || targetCountry == "IN"
+            dest.startsWith("+") -> cleanNumber.startsWith(dest) || e164Clean.startsWith(dest) || targetCountry.equals(dest.removePrefix("+"), ignoreCase = true)
+            else -> cleanNumber.startsWith(dest) || e164Clean.startsWith(dest) || targetCountry.equals(dest, ignoreCase = true)
         }
         return destMatch
     }
@@ -388,13 +461,42 @@ open class TravelRoamingManager(
         waBiz: CallingChannel.WhatsApp?,
         waPersonal: CallingChannel.WhatsApp?
     ): CallingChannel? {
-        return when (targetChannelId.lowercase()) {
+        val channel = when (targetChannelId.lowercase()) {
             "whatsapp_business", "whatsapp_biz", "w4b" -> waBiz ?: waPersonal
             "whatsapp", "whatsapp_personal" -> waPersonal ?: waBiz
             "sim_1", "sim1" -> channels.filterIsInstance<CallingChannel.CellularSim>().firstOrNull { it.slotIndex == 0 }
             "sim_2", "sim2" -> channels.filterIsInstance<CallingChannel.CellularSim>().firstOrNull { it.slotIndex == 1 }
             "google_voice" -> channels.filterIsInstance<CallingChannel.GoogleVoice>().firstOrNull()
             else -> channels.firstOrNull { it.id.equals(targetChannelId, ignoreCase = true) }
+        }
+        if (channel != null) return channel
+
+        // Fallback for cold start / background service execution if ChannelDiscoveryManager has not emitted WhatsApp channels yet
+        return when (targetChannelId.lowercase()) {
+            "whatsapp_business", "whatsapp_biz", "w4b" -> {
+                if (isPackageInstalled("com.whatsapp.w4b")) {
+                    CallingChannel.WhatsApp(isBusiness = true, packageName = "com.whatsapp.w4b", isAvailable = true)
+                } else if (isPackageInstalled("com.whatsapp")) {
+                    CallingChannel.WhatsApp(isBusiness = false, packageName = "com.whatsapp", isAvailable = true)
+                } else null
+            }
+            "whatsapp", "whatsapp_personal" -> {
+                if (isPackageInstalled("com.whatsapp")) {
+                    CallingChannel.WhatsApp(isBusiness = false, packageName = "com.whatsapp", isAvailable = true)
+                } else if (isPackageInstalled("com.whatsapp.w4b")) {
+                    CallingChannel.WhatsApp(isBusiness = true, packageName = "com.whatsapp.w4b", isAvailable = true)
+                } else null
+            }
+            else -> null
+        }
+    }
+
+    private fun isPackageInstalled(packageName: String): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -404,6 +506,7 @@ open class TravelRoamingManager(
         private const val KEY_HOME_COUNTRY_ISO = "home_country_iso"
         private const val KEY_PRIMARY_DOMESTIC_SIM_SLOT = "primary_domestic_sim_slot"
         private const val KEY_ROAMING_GUARD_ENABLED = "roaming_guard_enabled"
+        private const val KEY_CACHED_ROUTING_RULES = "cached_routing_rules"
 
         @Volatile
         private var INSTANCE: TravelRoamingManager? = null
