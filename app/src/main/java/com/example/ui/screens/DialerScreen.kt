@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.view.HapticFeedbackConstants
+import android.view.ViewTreeObserver
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -85,6 +86,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.util.PhoneNumberNormalizer
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -197,6 +203,8 @@ fun DialerScreen(
     channelPreferenceRepository: ChannelPreferenceRepository = remember(context) { ChannelPreferenceRepository.getInstance(context) },
     channelDiscoveryManager: ChannelDiscoveryManager = remember(context) { ChannelDiscoveryManager.getInstance(context) },
     travelRoamingManager: com.example.telecom.TravelRoamingManager = remember(context) { com.example.telecom.TravelRoamingManager.getInstance(context) },
+    isFocused: Boolean = true,
+    windowFocusSignal: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -562,22 +570,156 @@ fun DialerScreen(
                 localNumber = newText
             }
 
+            val view = LocalView.current
             val clipboardManager = LocalClipboardManager.current
+            var clipboardText by remember { mutableStateOf<String?>(null) }
+
+            val refreshClipboard: () -> Unit = remember(context, clipboardManager) {
+                {
+                    try {
+                        val androidClipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        val clip = androidClipboard?.primaryClip
+                        val text = if (clip != null && clip.itemCount > 0) {
+                            val item = clip.getItemAt(0)
+                            item.coerceToText(context)?.toString()?.takeIf { it.isNotBlank() }
+                                ?: item.text?.toString()
+                                ?: item.uri?.toString()
+                        } else {
+                            clipboardManager.getText()?.text
+                        }
+                        val cleaned = PhoneNumberNormalizer.cleanRawInput(text)
+                        if (cleaned.isNotBlank()) {
+                            clipboardText = cleaned
+                            android.util.Log.i("OmniDialClipboard", "Clipboard read success: '$cleaned', isLikely=${PhoneNumberNormalizer.isLikelyPhoneNumber(cleaned, context)}")
+                        } else if (androidClipboard?.hasPrimaryClip() == false || (clip != null && clip.itemCount == 0)) {
+                            clipboardText = null
+                            android.util.Log.i("OmniDialClipboard", "Clipboard is empty")
+                        }
+                    } catch (e: SecurityException) {
+                        android.util.Log.w("OmniDialClipboard", "Clipboard access denied (window not focused yet): ${e.message}")
+                        // Do NOT overwrite clipboardText! Window will gain focus momentarily.
+                    } catch (e: Throwable) {
+                        android.util.Log.w("OmniDialClipboard", "Clipboard read failed: ${e.message}")
+                    }
+                }
+            }
+
+            // Window focus signal from MainActivity (direct OS onWindowFocusChanged callback)
+            LaunchedEffect(windowFocusSignal, isFocused) {
+                if (isFocused && windowFocusSignal > 0L) {
+                    refreshClipboard()
+                    delay(100)
+                    refreshClipboard()
+                    delay(300)
+                    refreshClipboard()
+                    delay(700)
+                    refreshClipboard()
+                }
+            }
+
+            // Window focus listener: Android 10+ requires window focus to access clipboard.
+            DisposableEffect(view, isFocused) {
+                val focusListener = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+                    if (hasFocus && isFocused) {
+                        coroutineScope.launch {
+                            refreshClipboard()
+                            delay(150)
+                            refreshClipboard()
+                            delay(400)
+                            refreshClipboard()
+                        }
+                    }
+                }
+                view.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+                if (view.hasWindowFocus() && isFocused) {
+                    refreshClipboard()
+                }
+                onDispose {
+                    view.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+                }
+            }
+
+            // Refresh when Keypad tab becomes focused or when number is cleared
+            LaunchedEffect(isFocused, localNumber.isEmpty()) {
+                if (isFocused && localNumber.isEmpty()) {
+                    refreshClipboard()
+                    delay(100)
+                    refreshClipboard()
+                    delay(300)
+                    refreshClipboard()
+                    delay(600)
+                    refreshClipboard()
+                    delay(1200)
+                    refreshClipboard()
+                }
+            }
+
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner, context, isFocused) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME && isFocused) {
+                        coroutineScope.launch {
+                            delay(100)
+                            refreshClipboard()
+                            delay(300)
+                            refreshClipboard()
+                            delay(700)
+                            refreshClipboard()
+                        }
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+
+                val androidClipboard = try {
+                    context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                } catch (_: Throwable) {
+                    null
+                }
+                val clipListener = android.content.ClipboardManager.OnPrimaryClipChangedListener {
+                    if (isFocused) {
+                        coroutineScope.launch {
+                            delay(100)
+                            refreshClipboard()
+                            delay(300)
+                            refreshClipboard()
+                        }
+                    }
+                }
+                try {
+                    androidClipboard?.addPrimaryClipChangedListener(clipListener)
+                } catch (_: Throwable) {}
+
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                    try {
+                        androidClipboard?.removePrimaryClipChangedListener(clipListener)
+                    } catch (_: Throwable) {}
+                }
+            }
+
+            val hasLikelyPhoneNumber = remember(clipboardText) {
+                PhoneNumberNormalizer.isLikelyPhoneNumber(clipboardText, context) ||
+                    PhoneNumberNormalizer.extractLikelyPhoneNumber(clipboardText, context) != null
+            }
+            val showPasteButton = localNumber.isEmpty() && hasLikelyPhoneNumber
+
             val pasteFromClipboard: () -> Unit = {
-                val raw = clipboardManager.getText()?.text.orEmpty()
-                val sanitized = raw.filter { it.isDigit() || it == '+' || it == '*' || it == '#' || it == ',' || it == ';' }
+                val raw = clipboardText ?: run {
+                    val androidClipboard = try {
+                        context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    } catch (_: Throwable) { null }
+                    androidClipboard?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
+                        ?: clipboardManager.getText()?.text.orEmpty()
+                }
+                val candidate = PhoneNumberNormalizer.extractLikelyPhoneNumber(raw, context) ?: raw
+                val sanitized = candidate.filter { it.isDigit() || it == '+' || it == '*' || it == '#' || it == ',' || it == ';' }
                 if (sanitized.isNotBlank()) {
                     updateLocalNumber(sanitized)
                     selectionState = TextRange(sanitized.length)
                 } else {
-                    android.widget.Toast.makeText(context, "Clipboard is empty", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(context, "No valid number in clipboard", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
-
-            // The paste button is always shown while the entry is empty: a
-            // clipboard pre-check is unreliable (the clipboard can change while
-            // the screen is open with no signal to refresh on), so tapping
-            // validates instead - an empty clipboard shows a toast.
 
             // Stable long-press reference: the pointerInput detector below uses
             // a Unit key so it survives recompositions; this keeps the lambda
@@ -822,9 +964,9 @@ fun DialerScreen(
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
-                            // Driven by localNumber so the button hides the instant
-                            // a key is pressed, not 200ms later on the echo.
-                            if (localNumber.isEmpty()) {
+                            // Only show the paste button when the entry is empty and
+                            // the clipboard contains a string likely to be a phone number.
+                            if (showPasteButton) {
                                 IconButton(
                                     onClick = pasteFromClipboard,
                                     modifier = Modifier
@@ -838,10 +980,6 @@ fun DialerScreen(
                                         modifier = Modifier.size(26.dp)
                                     )
                                 }
-                            } else {
-                                // Keep the left cluster the same width so the
-                                // number field doesn't shift when paste hides.
-                                Spacer(modifier = Modifier.size(48.dp))
                             }
                         }
 

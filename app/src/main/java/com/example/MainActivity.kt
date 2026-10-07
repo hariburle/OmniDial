@@ -273,6 +273,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    val windowFocusSignal = androidx.compose.runtime.mutableLongStateOf(0L)
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            windowFocusSignal.longValue = System.currentTimeMillis()
+        }
+    }
+
     override fun onPause() {
         super.onPause()
         CallManager.isCallUiForegrounded = false
@@ -1378,6 +1387,8 @@ fun MainAppContent(
                     )
                     2 -> DialerScreen(
                         number = dialerNumber,
+                        isFocused = (selectedTab == 2),
+                        windowFocusSignal = (context as? MainActivity)?.windowFocusSignal?.longValue ?: 0L,
                         favorites = favorites,
                         recentCalls = recentCalls,
                         isDefaultDialer = isDefaultDialer,
