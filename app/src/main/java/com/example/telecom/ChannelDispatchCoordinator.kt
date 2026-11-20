@@ -24,8 +24,7 @@ sealed interface DispatchResult {
 class ChannelDispatchCoordinator(
     private val context: Context,
     private val discoveryManager: ChannelDiscoveryManager = ChannelDiscoveryManager.getInstance(context),
-    private val preferenceRepository: ChannelPreferenceRepository = ChannelPreferenceRepository.getInstance(context),
-    private val travelRoamingManager: TravelRoamingManager = TravelRoamingManager.getInstance(context)
+    private val preferenceRepository: ChannelPreferenceRepository = ChannelPreferenceRepository.getInstance(context)
 ) {
 
     /**
@@ -38,8 +37,7 @@ class ChannelDispatchCoordinator(
     suspend fun resolveChannel(
         phoneNumber: String,
         explicitChannel: CallingChannel? = null,
-        learnedMode: String? = null,
-        globalMode: String = "ask_learn"
+        learnedMode: String? = null
     ): CallingChannel {
         // 0. Safety Guardrail: Emergency numbers ALWAYS route to Domestic Cellular SIM
         if (discoveryManager.isEmergencyNumber(phoneNumber)) {
@@ -53,7 +51,6 @@ class ChannelDispatchCoordinator(
         }
 
         // 2. Pinned Per-Number Preference
-        var pinnedChannel: CallingChannel? = null
         val normalized = PhoneNumberNormalizer.toE164(phoneNumber)
         if (normalized.isNotBlank()) {
             val pref = preferenceRepository.getPreferenceForNumber(normalized)
@@ -61,28 +58,12 @@ class ChannelDispatchCoordinator(
                 if (pref.preferredChannelId.equals("ask", ignoreCase = true)) {
                     return CallingChannel.AskAlways
                 }
-                pinnedChannel = discoveryManager.getChannelById(pref.preferredChannelId)
+                val found = discoveryManager.getChannelById(pref.preferredChannelId)
+                if (found != null) {
+                    return found
+                }
             }
         }
-
-        // 3. Dynamic Non-Mutating Travel & Roaming Overlay (with policy gates)
-        val travelDecision = travelRoamingManager.evaluateTravelRouting(
-            phoneNumber = phoneNumber,
-            pinnedChannel = pinnedChannel,
-            userExplicitOverride = explicitChannel,
-            globalMode = globalMode
-        )
-        // isPreSelectedSuggestion: "Always Ask" mode + rule match → open the picker
-        if (travelDecision.isPreSelectedSuggestion) {
-            return CallingChannel.AskAlways
-        }
-        if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
-            return travelDecision.recommendedChannel
-        }
-        if (pinnedChannel != null) {
-            return pinnedChannel
-        }
-
 
         // 3. Learned Call Mode Bias
         if (learnedMode.equals("whatsapp_business", ignoreCase = true)) {

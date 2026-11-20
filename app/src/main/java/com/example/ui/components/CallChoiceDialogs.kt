@@ -375,12 +375,6 @@ fun MultiChannelChoiceDialog(
     channels: List<CallingChannel>,
     initialRememberChoice: Boolean = false,
     showRememberChoice: Boolean = true,
-    /**
-     * When set, this channel is highlighted as a rule-based suggestion.
-     * The user still taps to confirm — it is NOT auto-dialed.
-     * Only populated in "Always Ask" mode when a Smart Rule matched.
-     */
-    suggestedChannel: CallingChannel? = null,
     onSelectChannel: (channel: CallingChannel, remember: Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -425,48 +419,23 @@ fun MultiChannelChoiceDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     displayChannels.forEach { channel ->
-                        val isSuggested = suggestedChannel != null && channel.id == suggestedChannel.id
                         val brandColor = Color(channel.brandColorHex)
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isSuggested)
-                                brandColor.copy(alpha = 0.22f)
-                            else
-                                brandColor.copy(alpha = 0.12f),
-                            border = BorderStroke(
-                                if (isSuggested) 2.dp else 1.dp,
-                                if (isSuggested) brandColor else brandColor.copy(alpha = 0.5f)
-                            ),
+                            color = brandColor.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, brandColor.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onSelectChannel(channel, if (showRememberChoice) rememberChoice else false) }
                                 .testTag("channel_dialog_option_${channel.id}")
                         ) {
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                if (isSuggested) {
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = brandColor.copy(alpha = 0.25f),
-                                        modifier = Modifier.padding(bottom = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = "⚡ Suggested by rule",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = brandColor,
-                                            modifier = androidx.compose.ui.Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
                                     when (channel) {
                                         is CallingChannel.CellularSim -> {
                                             Icon(
@@ -525,7 +494,6 @@ fun MultiChannelChoiceDialog(
                             }
                         }
                     }
-                }
 
                 if (showRememberChoice) {
                     Row(

@@ -506,7 +506,6 @@ fun MainAppContent(
     val pendingCallMethodChoice by viewModel.pendingCallMethodChoice.collectAsStateWithLifecycle()
     val pendingSimChoice by viewModel.pendingSimChoicePrompt.collectAsStateWithLifecycle()
     val pendingRoamingWarning by viewModel.pendingRoamingWarning.collectAsStateWithLifecycle()
-    val routingRules by viewModel.routingRules.collectAsStateWithLifecycle()
     val dismissModalsTrigger by viewModel.dismissModalsTrigger.collectAsStateWithLifecycle()
 
     val isFlipToShhhEnabled by viewModel.isFlipToShhhEnabled.collectAsStateWithLifecycle()
@@ -1520,10 +1519,6 @@ fun MainAppContent(
                     )
                     4 -> RulesScreen(
                         rules = rules,
-                        routingRules = routingRules,
-                        onSaveRoutingRule = { viewModel.saveRoutingRule(it) },
-                        onToggleRoutingRule = { viewModel.toggleRoutingRuleEnabled(it) },
-                        onDeleteRoutingRule = { viewModel.deleteRoutingRule(it) },
                         automationLogs = automationLogs,
                         favorites = favorites,
                         themeMode = themeMode,

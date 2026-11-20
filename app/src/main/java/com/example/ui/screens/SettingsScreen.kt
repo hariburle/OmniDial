@@ -267,17 +267,23 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val options = listOf(
-                    Triple("ask_learn", "Smart Routing", "Rules auto-fire. Asks once if no rule matches, then remembers") to Icons.Default.AutoAwesome,
-                    Triple("ask_always", "Always Ask", "Show channel picker on every call") to Icons.AutoMirrored.Filled.HelpOutline,
-                    Triple("never", "Cellular Only", "Standard carrier calls only. Rules ignored") to Icons.Default.PhoneDisabled
+                    listOf(
+                        Triple("ask_learn", "Ask & Learn", "Prompts once & memorizes choice") to Icons.Default.Psychology,
+                        Triple("ask_always", "Ask Always", "Prompt channel on every call") to Icons.AutoMirrored.Filled.HelpOutline
+                    ),
+                    listOf(
+                        Triple("all_international", "Avoid Roaming", "Direct foreign numbers to VoIP / WhatsApp") to Icons.Default.Public,
+                        Triple("never", "Cellular Only", "Standard carrier calls only") to Icons.Default.PhoneDisabled
+                    )
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    options.forEach { (info, icon) ->
-                        val (mode, label, desc) = info
-                        val isSelected = whatsAppCallMode == mode || (mode == "ask_learn" && whatsAppCallMode == "all_international")
+                options.forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowItems.forEach { (info, icon) ->
+                            val (mode, label, desc) = info
+                            val isSelected = whatsAppCallMode == mode
                         Card(
                             onClick = { onSetWhatsAppCallMode(mode) },
                             shape = RoundedCornerShape(12.dp),
@@ -333,14 +339,15 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 9.sp,
                                     lineHeight = 11.sp,
-                                    maxLines = 3
+                                    maxLines = 2
                                 )
                             }
                         }
                     }
                 }
-                if (whatsAppCallMode == "ask_learn" || whatsAppCallMode == "all_international") {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                if (whatsAppCallMode == "ask_learn") {
                     Text(
                         text = "$learnedChoicesCount contact choice(s) remembered",
                         style = MaterialTheme.typography.labelMedium,
@@ -348,12 +355,12 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
-                    OutlinedButton(
-                        onClick = { showResetConfirmDialog = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Reset Choices and Learn Memory", fontSize = 12.sp)
-                    }
+                }
+                OutlinedButton(
+                    onClick = { showResetConfirmDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Reset Choices and Learn Memory", fontSize = 12.sp)
                 }
             }
         }

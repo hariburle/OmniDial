@@ -491,9 +491,6 @@ class MainViewModel(
     private val _pendingRoamingWarning = MutableStateFlow<RoamingWarningPrompt?>(null)
     val pendingRoamingWarning: StateFlow<RoamingWarningPrompt?> = _pendingRoamingWarning.asStateFlow()
 
-    val routingRules: StateFlow<List<com.example.data.TelecomRoutingRule>> = repository.allRoutingRules
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     private val _combinedRecentCalls = MutableStateFlow<List<RecentCall>>(inMemoryCachedRecentCalls ?: emptyList())
     val recentCalls: StateFlow<List<RecentCall>> = _combinedRecentCalls.asStateFlow()
 
@@ -1573,39 +1570,20 @@ class MainViewModel(
      * checking explicitly learned choices, international rules, or recent call history.
      */
     fun getPreferredCallingMode(phoneNumber: String): String {
-        // Backward compat: "all_international" (Avoid Roaming) was retired in favour of Smart Routing rules.
-        // Treat it identically to "ask_learn" (Smart Routing) so existing users aren't broken.
-        val effectiveMode = if (_whatsAppCallMode.value == "all_international") "ask_learn" else _whatsAppCallMode.value
-
         // If mode is set to "never", override all preferred channels to cellular without wiping saved preferences!
-        if (effectiveMode == "never") {
+        if (_whatsAppCallMode.value == "never") {
             return "cellular"
         }
 
         // If mode is set to "ask_always", return "ask_always" so both dialers are always shown
-        if (effectiveMode == "ask_always") {
+        if (_whatsAppCallMode.value == "ask_always") {
             return "ask_always"
         }
 
         val clean = phoneNumber.replace(Regex("[^0-9+]"), "")
         val digits = clean.filter { it.isDigit() }.takeLast(10)
 
-        // 0. Dynamic Travel & Roaming overlay (non-mutating)
-        // Global mode is passed so policy gates (Cellular Only / Always Ask) are enforced inside the engine.
-        try {
-            val travelDecision = com.example.telecom.TravelRoamingManager.getInstance(appContext)
-                .evaluateTravelRouting(clean, globalMode = effectiveMode)
-            if (travelDecision.isPreSelectedSuggestion) {
-                // "Always Ask" with a rule match: surface the picker (caller will pre-highlight rule suggestion)
-                return "ask_always"
-            }
-            if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
-                return travelDecision.recommendedChannel.id
-            }
-        } catch (_: Exception) {}
-
-
-        // 0b. Check unified Room ChannelPreferenceRepository
+        // 0. Check unified Room ChannelPreferenceRepository
         try {
             val channelPref = com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
             if (channelPref != null && channelPref.isNotBlank() && channelPref != "ask") {
@@ -1619,7 +1597,10 @@ class MainViewModel(
             ?: _learnedCallModes.value.entries.firstOrNull { ContactHelper.isSamePhoneNumber(it.key, clean) }?.value
         if (learned != null) return learned
 
-        // 2. (all_international retired — use Smart Rules for roaming-avoidance behaviour)
+        // 2. If user configured all international to WhatsApp, check international based on phone location
+        if (_whatsAppCallMode.value == "all_international" && ContactHelper.isInternationalNumber(appContext, clean)) {
+            return "whatsapp"
+        }
 
         // 3. Count past WhatsApp/Google Voice calls vs regular cellular calls in recent calls
         val calls = recentCalls.value.filter { call ->
@@ -1690,36 +1671,6 @@ class MainViewModel(
             com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(cleanNumber)
                 ?: com.example.data.ChannelPreferenceRepository.getInstance(appContext).getCachedPreference(clean)
         } catch (_: Exception) { null }
-
-        // Dynamic Travel & Roaming overlay (non-mutating)
-        try {
-            val pinnedChannel = if (perNumberPref != null && perNumberPref.isNotBlank() && perNumberPref != "ask" && perNumberPref != "ask_always") {
-                com.example.telecom.ChannelDiscoveryManager.getInstance(context).getChannelById(perNumberPref)
-            } else null
-
-            val travelDecision = com.example.telecom.TravelRoamingManager.getInstance(context).evaluateTravelRouting(
-                cleanNumber,
-                pinnedChannel = pinnedChannel,
-                activeRules = routingRules.value
-            )
-            if (travelDecision.isTravelOptimized && travelDecision.recommendedChannel != null) {
-                when (val chan = travelDecision.recommendedChannel) {
-                    is com.example.domain.model.CallingChannel.WhatsApp -> {
-                        placeWhatsAppCall(context, cleanNumber, isBusiness = chan.isBusiness)
-                        return
-                    }
-                    is com.example.domain.model.CallingChannel.CellularSim -> {
-                        placeCall(context, cleanNumber, reason, overrideSimSlot = chan.slotIndex + 1)
-                        return
-                    }
-                    is com.example.domain.model.CallingChannel.GoogleVoice -> {
-                        placeGoogleVoiceCall(context, cleanNumber)
-                        return
-                    }
-                    else -> {}
-                }
-            }
-        } catch (_: Exception) {}
 
         if (perNumberPref != null && perNumberPref.isNotBlank() && perNumberPref != "ask" && perNumberPref != "ask_always") {
             when (perNumberPref.lowercase()) {
@@ -2194,29 +2145,6 @@ class MainViewModel(
         val prompt = _pendingRoamingWarning.value ?: return
         _pendingRoamingWarning.value = null
         placeWhatsAppCall(context, prompt.number, isBusiness = isBusiness)
-    }
-
-    // Dynamic Telecom Routing Rules (@ Slot Composer)
-    fun saveRoutingRule(rule: com.example.data.TelecomRoutingRule) {
-        viewModelScope.launch {
-            if (rule.id == 0L) {
-                repository.insertRoutingRule(rule)
-            } else {
-                repository.updateRoutingRule(rule)
-            }
-        }
-    }
-
-    fun toggleRoutingRuleEnabled(rule: com.example.data.TelecomRoutingRule) {
-        viewModelScope.launch {
-            repository.updateRoutingRule(rule.copy(isEnabled = !rule.isEnabled))
-        }
-    }
-
-    fun deleteRoutingRule(rule: com.example.data.TelecomRoutingRule) {
-        viewModelScope.launch {
-            repository.deleteRoutingRule(rule)
-        }
     }
 
     fun clearLogs() {
