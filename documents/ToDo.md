@@ -19,6 +19,16 @@
   - Task 15.5: Post-Call Follow-Up Action Rules
   - Task 15.6: Last-Mile Roaming Tariff Intercept Guard (Pre-call warning dialog before placing cellular calls on roaming SIMs)
 
+### Recently Completed (v2.1.2 — Build 24, branch `feature/smart-travel-roaming`)
+- [x] **Collapsible Setup Status with Status Pills**: `PermissionsHubCard` collapses to a horizontal pill strip (one pill per setup step, same chip styling as the channel summary); starts collapsed when all steps are done, expanded when anything needs attention; tapping a pending pill jumps to that step.
+- [x] **Context-Sensitive Keypad Paste**: Paste button appears only when the clipboard holds a phone-number-like string (`PhoneNumberNormalizer.isLikelyPhoneNumber`); staggered clipboard refresh triggers are deliberate — Android 10+ throws `SecurityException` until window focus is granted at an unpredictable moment, do NOT simplify them to a single read.
+- [x] **Car/Bluetooth Smart Redirection & Restructured Settings**: International dials from car head units route via WhatsApp VoIP; Settings reorganized into 6 sections.
+
+### Open Verification Items (from Sep–Oct 2026 testing)
+- [ ] **Conference drop-one safety (Sep 23 test)**: Dropping one participant showed a false "call ended" while a live leg remained. Verify on the fix: both merged participants named, Manage visible, drop leaves an accurately displayed live call, no false "call ended" / "0 people" / "Unknown", End disconnects every live leg (confirmed from the other phone), Add-person opens Contacts first, Keypad second.
+- [ ] **Car/head-unit per-number channel preferences**: Car calls read SharedPreferences mirrors, not the Room `number_channel_preferences` table. Known gaps: pre-existing pins never backfilled to mirrors, backup restore bypasses mirrors, global WhatsApp mode `"never"` early-returns before per-number SIM pins are checked, Google Voice pins ignored from car, and the favorites card reads the legacy learned-choice map while the contact sheet reads Room. Verify all of these on the fix.
+- [ ] **Favorites position restore**: Backup/restore preserves `sortOrder`; if positions look lost after a reinstall, the favorites were auto-rebuilt from device starred contacts (device order) instead of restored — restoring the manual backup re-applies saved positions.
+
 - [x] **Zero-Touch Smart Travel & Roaming Engine**: Implemented `TravelRoamingManager` with dynamic, non-mutating runtime resolution overlay. Automatically routes US (+1) calls via WhatsApp VoIP while in India to avoid roaming charges, and domestic (+91) calls via India SIM slot. Saved preferences in Room DB remain 100% preserved and restore automatically upon return to the US.
 - [x] **Annotated-Call-Log-Only Backups**: In `BackupManager.kt`, call logs are already filtered so only calls with notes, reminders, spam flags, custom reasons, or tags are exported (`if (!hasCustomData) continue`). Plain unannotated calls are excluded.
 - [x] **Conference Calling Collapse & Leg Safety**: Implemented collapse-pending state machine, survivor tracking, pre-merge identity retention on `onCallRemoved`, and multi-leg teardown on End button.
