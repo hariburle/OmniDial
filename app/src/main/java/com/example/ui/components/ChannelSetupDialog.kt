@@ -282,7 +282,7 @@ private fun HomeRegionCard(context: android.content.Context) {
 
     val displayCountry = remember(selectedIso) {
         try {
-            java.util.Locale("", selectedIso.uppercase()).displayCountry
+            java.util.Locale.Builder().setRegion(selectedIso.uppercase()).build().displayCountry
                 .takeIf { it.isNotBlank() && it != selectedIso.uppercase() } ?: selectedIso.uppercase()
         } catch (_: Exception) { selectedIso.uppercase() }
     }
