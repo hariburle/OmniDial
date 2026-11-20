@@ -138,7 +138,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // ---------------------------------------------------------------------------------
-        // 1. SYSTEM HEALTH & ROLES (TOP)
+        // 1. SYSTEM HEALTH, ROLES & SPAM FILTERING (TOP)
         // ---------------------------------------------------------------------------------
         if (setupStepStates.isNotEmpty()) {
             Text(
@@ -153,6 +153,168 @@ fun SettingsScreen(
                 onRerunSetupWizard = onRerunSetupWizard,
                 onOpenAppSettings = onOpenAppSettings
             )
+        }
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Screening status header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Caller ID & Spam Filtering",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (screeningRoleHeld) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (screeningRoleHeld) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
+                                contentDescription = null,
+                                tint = if (screeningRoleHeld) Color(0xFF15803D) else Color(0xFFB45309),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = if (screeningRoleHeld) "Active" else "Action Needed",
+                                color = if (screeningRoleHeld) Color(0xFF15803D) else Color(0xFFB45309),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
+                if (!screeningRoleHeld) {
+                    Text(
+                        text = "Android requires granting the Caller ID & Spam app role so OmniDial can screen incoming calls and detect suspected spam.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = {
+                            val intent = RoleHelper.createCallScreeningRoleIntent(context)
+                            if (intent != null) {
+                                try {
+                                    screeningLauncher.launch(intent)
+                                } catch (_: Exception) {
+                                    screeningLauncher.launch(RoleHelper.createDefaultAppsSettingsIntent(context))
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Enable Spam Screening", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Text(
+                        text = "OmniDial screens incoming calls: suspected spam is silenced and logged as a missed call so you can always check back.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // Auto-block toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Auto-Block Suspected Spam",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (autoBlockSpam) "On: reject outright (caller never rings)" else "Off: silence and log as missed call",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoBlockSpam,
+                        onCheckedChange = { checked ->
+                            autoBlockSpam = checked
+                            screeningPrefs.edit().putBoolean(OmniCallScreeningService.KEY_SPAM_AUTO_BLOCK, checked).apply()
+                        },
+                        modifier = Modifier.testTag("auto_block_spam_switch")
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                // Blocked numbers list entry
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showSpamDialog = true }
+                        .testTag("entry_spam_management")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Manage Blocked Numbers & Rules",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = "${spamNumbers.size} blocked",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Open Spam Manager",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
         }
 
         // ---------------------------------------------------------------------------------
@@ -846,182 +1008,9 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // ---------------------------------------------------------------------------------
-        // 4. SPAM & CALL PROTECTION (UNIFIED)
-        // ---------------------------------------------------------------------------------
-        Text(
-            text = "Spam & Call Protection",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Screening status header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Shield,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Caller ID & Spam Filtering",
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (screeningRoleHeld) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (screeningRoleHeld) Icons.Default.CheckCircle else Icons.Default.WarningAmber,
-                                contentDescription = null,
-                                tint = if (screeningRoleHeld) Color(0xFF15803D) else Color(0xFFB45309),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = if (screeningRoleHeld) "Active" else "Action Needed",
-                                color = if (screeningRoleHeld) Color(0xFF15803D) else Color(0xFFB45309),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-
-                if (!screeningRoleHeld) {
-                    Text(
-                        text = "Android requires granting the Caller ID & Spam app role so OmniDial can screen incoming calls and detect suspected spam.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Button(
-                        onClick = {
-                            val intent = RoleHelper.createCallScreeningRoleIntent(context)
-                            if (intent != null) {
-                                try {
-                                    screeningLauncher.launch(intent)
-                                } catch (_: Exception) {
-                                    screeningLauncher.launch(RoleHelper.createDefaultAppsSettingsIntent(context))
-                                }
-                            }
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Enable Spam Screening", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Text(
-                        text = "OmniDial screens incoming calls: suspected spam is silenced and logged as a missed call so you can always check back.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                // Auto-block toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Auto-Block Suspected Spam",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (autoBlockSpam) "On: reject outright (caller never rings)" else "Off: silence and log as missed call",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = autoBlockSpam,
-                        onCheckedChange = { checked ->
-                            autoBlockSpam = checked
-                            screeningPrefs.edit().putBoolean(OmniCallScreeningService.KEY_SPAM_AUTO_BLOCK, checked).apply()
-                        },
-                        modifier = Modifier.testTag("auto_block_spam_switch")
-                    )
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                // Blocked numbers list entry
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showSpamDialog = true }
-                        .testTag("entry_spam_management")
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Manage Blocked Numbers & Rules",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Text(
-                                    text = "${spamNumbers.size} blocked",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (spamNumbers.isNotEmpty()) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = "Open Spam Manager",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
 
         // ---------------------------------------------------------------------------------
-        // 5. APPEARANCE & NAVIGATION
+        // 4. APPEARANCE & NAVIGATION
         // ---------------------------------------------------------------------------------
         Text(
             text = "Appearance & Navigation",
@@ -1314,7 +1303,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(4.dp))
 
         // ---------------------------------------------------------------------------------
-        // 6. BACKUP & MAINTENANCE
+        // 5. BACKUP & MAINTENANCE
         // ---------------------------------------------------------------------------------
         BackupManagementCard(
             localBackups = localBackups,
