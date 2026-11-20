@@ -6,6 +6,28 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
+### 0. Task 16.4 (Release 2.1.3): Pinned In-Call Controls, Notes Above Keyboard, Compact Header, Parked Rule UI
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **End Call stays visible with keypad open**:
+     - Place a call, open the keypad, verify End call and Hide stay pinned at the bottom and the rest of the screen scrolls.
+     - Close the keypad and verify the layout returns to normal.
+  2. **Post-call note field above the keyboard**:
+     - End a call, tap the notes field, verify the keyboard opens and the field scrolls above it (never hidden underneath).
+     - Type a note, verify the 5 s / 60 s auto-close behavior is unchanged.
+  3. **Compact header & wrapping badges**:
+     - Call a contact with no photo, verify a compact header row instead of a large placeholder.
+     - Call a contact with a photo, open the keypad, verify the photo shrinks.
+     - Verify the SIM / Saved Contact badges sit in one wrapping row.
+  4. **Rules tab shows Call Automation only**:
+     - Open the Rules tab, verify no Smart Routing section or "New Routing Rule" composer.
+     - Open Settings, verify the 4-mode grid (Ask & Learn / Ask Always / Avoid Roaming / Cellular Only) plus the Smart Travel & Roaming card with Home Region.
+  5. **Car routing + roaming warning still work**:
+     - Place a call from the car head unit, verify it follows the kept engine path.
+     - Verify the roaming warning still appears where expected.
+  6. **Old backup restores cleanly**:
+     - Restore a v2.1.2 `.bak` backup, verify it restores without error and the app does not crash.
+
 ### 0. Task 16.3: Bluetooth / External Car Redirection & Restructured Settings Screen
 - [ ] **To Test**
 - **Test Scenarios**:

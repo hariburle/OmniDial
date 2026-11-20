@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.1.3` | `25` | Nov 2026 | End call stays reachable with the keypad open, notes field scrolls above the keyboard, compact in-call header, and a simplified Rules tab — roaming warnings and car smart routing unchanged. |
 | `2.1.2` | `24` | Sep 2026 | Reliable car & Bluetooth smart call redirection to WhatsApp VoIP, and restructured 6-section Settings screen. |
 | `2.1.1` | `23` | Sep 2026 | Smart Telecom Routing with zero-mutation overlay, Dynamic Rule Composer UX fixes, context-sensitive FAB, and itemized backup reporting. |
 | `2.1.0` | `22` | Sep 2026 | In-call Bento Card UI overhaul, dynamic audio route picker, split conference participants view, fresh-install auto-restore, and dialer avatar/name contact details card. |
@@ -35,7 +36,21 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 2.1.2 (Latest) — Car Infotainment Smart Redirection & Streamlined Settings</h3></summary>
+<summary><h3>🚀 Release 2.1.3 (Latest) — In-Call Screen That Stays Usable & Simpler Rules</h3></summary>
+
+### What's New & Improvements:
+- **End Call Always Within Reach**: Opening the keypad during a call can no longer hide the End call button or the other controls — they stay pinned at the bottom of the screen.
+- **Notes You Can Actually See**: When you write a note after a call, the text field now moves itself above the keyboard instead of disappearing underneath it.
+- **Tidier In-Call Screen**: Contact labels now sit side by side in one row instead of stacking vertically, and calls from contacts without a photo show a neat compact header instead of a large empty placeholder.
+- **Simpler Rules Tab**: The rule-creation screens are parked for now, so the Rules tab shows your call automation rules only. Your roaming warnings, car and Bluetooth smart call routing, and home-region setting all keep working exactly as before — nothing you rely on while travelling has changed.
+- **Old Backups Still Restore**: Backups saved before this release restore just as before.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>🚀 Release 2.1.2 — Car Infotainment Smart Redirection & Streamlined Settings</h3></summary>
 
 ### What's New & Improvements:
 - **Seamless Car & Bluetooth Smart Redirection**: Calling from your vehicle infotainment system (such as Tesla, Android Auto, or Bluetooth hands-free car kits) now fully honors your Smart Routing rules. Calling an international number while at home automatically routes over WhatsApp VoIP, protecting you from accidental cellular carrier roaming fees.
@@ -342,8 +357,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v2.1.2.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v2.1.1.apk`, `OmniDial-v2.1.0.apk`, `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.1.3.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v2.1.2.apk`, `OmniDial-v2.1.1.apk`, `OmniDial-v2.1.0.apk`, `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

@@ -1,10 +1,10 @@
 # OmniDial — System Architecture & Technical Documentation
 
-> **Current Version**: v2.1.2 (Build 24) — September 2026
+> **Current Version**: v2.1.3 (Build 25) — November 2026
 
 ## 1. Executive Summary
 
-**OmniDial** is a native Android Telecom dialer and call management application built with Jetpack Compose, Kotlin Coroutines/StateFlow, Room SQLite database (v17), and Android Telecom framework (`InCallService`).
+**OmniDial** is a native Android Telecom dialer and call management application built with Jetpack Compose, Kotlin Coroutines/StateFlow, Room SQLite database (v18), and Android Telecom framework (`InCallService`).
 
 The app unifies phone contacts, app-created local contacts, T9 smart dialing, automated call screening/rules, ambient geofencing guards, dual-SIM management, E.164 number normalization, tiered caller trust badges, carrier STIR/SHAKEN spam detection, and persistent drag-and-drop VIP favorite shortcuts into a clean Material 3 design.
 
@@ -214,7 +214,7 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 
 ---
 
-## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.1.2)
+## 10. Recent Fixes & Quality Upgrades (v1.5.0–v2.1.3)
 
 1. **Multi-Channel Calling Engine (MCCE)**: Introduced `ChannelDiscoveryManager`, `CallingChannel`, `ChannelConfigRepository`, `ChannelPreferenceRepository`, and `ChannelDispatchCoordinator`.
 2. **Dynamic Keypad Channel Dock**: Added `KeypadChannelDock` above dial pad for 1-tap channel switching between SIM 1, SIM 2, and WhatsApp with live roaming and carrier labels.
@@ -235,6 +235,8 @@ All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk 
 17. **Settings Permissions Hub (v2.0.2)**: Added dedicated `PermissionsHubCard` in Settings displaying real-time status of all 6 wizard setup steps, individual launchers, and full wizard rerun.
 18. **Bluetooth / Car Head Unit Smart Call Redirection & Cached Dynamic Rules**: Fixed carrier cellular fallback when dialing from Bluetooth/Tesla car head units by introducing thread-safe in-memory and SharedPreferences caching (`CopyOnWriteArrayList` + `KEY_CACHED_ROUTING_RULES`) in `TravelRoamingManager.kt`. When Telecom's `OmniCallRedirectionService` fires on its binder thread, it evaluates active `TelecomRoutingRule`s without blocking SQLite queries or risking Telecom ANRs. Correctly matches international calls placed from home (handling US exit codes `011...` and standard E.164) and redirects to WhatsApp/VoIP seamlessly with cold-start channel synthesis fallback.
 19. **Streamlined Settings Screen Architecture**: Reorganized `SettingsScreen.kt` into 6 clear functional groups (System Health & Roles, Calling Channels & Policies, Keypad & Speed Dial, Spam & Call Protection, Appearance & Navigation, Backup & Maintenance). Removed redundant `CallRedirectionCard` and consolidated spam blocking toggles with the blocked numbers management dialog into a unified `SpamProtectionCard`.
+20. **Pinned In-Call Controls & Notes Above Keyboard (v2.1.3)**: `InCallScreen.kt` content is now a scrollable column with the Bento grid + End button pinned in a bottom bar outside the scroll area, plus `imePadding()`; post-call note field scrolls into view via `remember { BringIntoViewRequester() }` (Compose 1.8 removed `rememberBringIntoViewRequester()`; file opts in to `ExperimentalFoundationApi`); `CallerHeroCard.kt` gains a `compact` mode (56.dp header row for no-photo calls, photo shrinks when the keypad is open); badges converted to a `FlowRow`.
+21. **Rule-Management UI Parked, Engine Kept (v2.1.3)**: `RulesScreen.kt` reverted to main + detailed-backup signature; `MainViewModel` routing-rules StateFlow/CRUD and travel overlays removed; Settings mode grid restored to the 4-mode 2×2; `ChannelDispatchCoordinator.kt` byte-identical to main; `DynamicRuleComposerDialog`, plan doc, and smart-routing guide deleted. `TravelRoamingManager`, `TelecomRoutingRule` entity/DAO/repo, car redirection path, roaming warning, home region, and backup routing-rules blocks (format unchanged) all kept intact.
 
 ---
 

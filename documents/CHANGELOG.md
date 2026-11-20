@@ -6,6 +6,25 @@
 
 ---
 
+## 🚀 [v2.1.3] — Build 25 (November 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **End Call Always Reachable**: The in-call screen is now scrollable with the End call button pinned at the bottom, so opening the keypad can never hide End call, Hide, or the other in-call controls.
+- **Notes Field Stays Above the Keyboard**: When writing a note after a call, the notes field scrolls itself above the keyboard instead of hiding underneath it.
+- **Cleaner In-Call Header**: Contact badges (SIM, saved contact) now sit in one wrapping horizontal row instead of a tall vertical stack, and contacts without a photo show a compact header instead of a large blank placeholder. A real contact photo shrinks when the keypad needs the room.
+- **Simplified Rules Tab**: The rule-creation screens are parked for now — the Rules tab shows Call Automation only. Roaming warnings, car/Bluetooth smart call routing, and the home-region setting all keep working exactly as before.
+- **Older Backups Still Restore**: Backups made before this release restore cleanly; the parked rule data is simply skipped.
+
+### 🔧 Technical / Architecture Notes
+- **Pinned In-Call Bottom Bar**: `InCallScreen.kt` content is now a scrollable column (`weight(1f)` + `verticalScroll`) with the Bento grid + End button in a pinned bottom bar outside the scroll area; outer column has `imePadding()`.
+- **Note Field Bring-Into-View**: Post-call note field uses `remember { BringIntoViewRequester() }` + `bringIntoView()` on focus (`rememberBringIntoViewRequester()` was removed in Compose 1.8; `InCallScreen` now opts in to `ExperimentalFoundationApi`).
+- **Compact Hero Card**: `CallerHeroCard.kt` gains a `compact` param — no-photo calls render a 56.dp header row; real photos shrink (280→150.dp desk, 220→120.dp handheld) when the keypad is open.
+- **Rule-Management UI Parked**: `RulesScreen.kt` reverted to main + the detailed-backup signature; `MainViewModel` routing-rules StateFlow/CRUD and travel overlays removed; `getPreferredCallingMode()`/`initiateCall()` restored to main; Settings mode grid restored to the 4-mode 2×2; `ChannelDispatchCoordinator.kt` byte-identical to main; dead `suggestedChannel` removed; `documents/DYNAMIC_RULE_COMPOSER_PLAN.md` and `docs/guides/smart-routing.html` deleted with their links.
+- **Kept Intact**: `TravelRoamingManager` + `TelecomRoutingRule` entity/DAO/repo, car redirection path (`OmniCallRedirectionService` → `evaluateTravelRouting`), full roaming warning, home region + Relocation Assistant, whole Settings travel card, and backup routing-rules blocks (format unchanged — restore guards with `has()`/`optJSONArray`/try-catch, pre-routing backups skip the block).
+- Incremented `versionCode` to 25 and `versionName` to `"2.1.3"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.1.2] — Build 24 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
