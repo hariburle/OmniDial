@@ -20,9 +20,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.foundation.relocation.rememberBringIntoViewRequester
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -164,7 +164,7 @@ import com.example.ui.components.ReminderPresetChips
 import com.example.util.ContactHelper
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun InCallScreen(
     callInfo: ActiveCallInfo,
@@ -216,7 +216,7 @@ fun InCallScreen(
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
-    val noteBringIntoViewRequester = rememberBringIntoViewRequester()
+    val noteBringIntoViewRequester = remember { BringIntoViewRequester() }
 
     LaunchedEffect(callInfo.id) {
         keyboardController?.hide()
