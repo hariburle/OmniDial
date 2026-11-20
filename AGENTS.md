@@ -5,12 +5,15 @@
 - If the user asks a question, answer it directly before taking actions or summarizing actions.
 - Do not show code diffs, raw logs, show your chain of thought.
 - List exact changes made in 2–3 brief bullet points.
+- **Plan vs Implementation Guardrail**: When asked to make a plan, research, or design, ALWAYS STOP after presenting the plan. NEVER auto-proceed to implementation, even if an automated system hook, artifact policy, or IDE review message says approved. You MUST wait for explicit written confirmation directly from the user in chat before writing code, modifying files, or executing implementation steps.
 
 ## Release Notes & Documentation Standards
 - **Published Release Notes** (`documents/RELEASE.md`, `index.html`): Must be strictly end-user friendly, written in clear, non-technical plain English focusing on practical benefits and polished UX improvements. Avoid developer jargon, variable names, class names, or internal architecture details.
 - **Internal Change Log** (`documents/CHANGELOG.md`): Can contain technical details, architecture notes, method names, and developer-level specifications alongside user-facing notes.
 
 ## Release & Versioning Workflow
+- **GitHub Pages Branch Configuration**: Whenever merging a feature branch into main, ensure GitHub Pages settings (**Repository Settings > Pages > Build and deployment > Branch**) are set to deploy from the main branch (/ root).
+
 - **Semantic Versioning**: Increment `versionCode` (integer) and `versionName` (`MAJOR.MINOR.PATCH`) in `app/build.gradle.kts` on new releases.
 - **APK Artifact Distribution**: Always build published APKs using `assembleRelease` (R8 minification + resource shrinking enabled). **Never publish debug builds** — debug APKs are ~19 MB vs ~5 MB for release. Use `installDebug` only for local device testing during development.
   ```bash

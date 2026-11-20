@@ -6,6 +6,83 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
+### 0. Task 16.4 (Release 2.1.3): Pinned In-Call Controls, Notes Above Keyboard, Compact Header, Parked Rule UI
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **End Call stays visible with keypad open**:
+     - Place a call, open the keypad, verify End call and Hide stay pinned at the bottom and the rest of the screen scrolls.
+     - Close the keypad and verify the layout returns to normal.
+  2. **Post-call note field above the keyboard**:
+     - End a call, tap the notes field, verify the keyboard opens and the field scrolls above it (never hidden underneath).
+     - Type a note, verify the 5 s / 60 s auto-close behavior is unchanged.
+  3. **Compact header & wrapping badges**:
+     - Call a contact with no photo, verify a compact header row instead of a large placeholder.
+     - Call a contact with a photo, open the keypad, verify the photo shrinks.
+     - Verify the SIM / Saved Contact badges sit in one wrapping row.
+  4. **Rules tab shows Call Automation only**:
+     - Open the Rules tab, verify no Smart Routing section or "New Routing Rule" composer.
+     - Open Settings, verify the 4-mode grid (Ask & Learn / Ask Always / Avoid Roaming / Cellular Only) plus the Smart Travel & Roaming card with Home Region.
+  5. **Car routing + roaming warning still work**:
+     - Place a call from the car head unit, verify it follows the kept engine path.
+     - Verify the roaming warning still appears where expected.
+  6. **Old backup restores cleanly**:
+     - Restore a v2.1.2 `.bak` backup, verify it restores without error and the app does not crash.
+
+### 0. Task 16.3: Bluetooth / External Car Redirection & Restructured Settings Screen
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **Tesla / Bluetooth Car Unit Smart Call Redirection**:
+     - Configure a Smart Routing rule: Dialing an international number (e.g. India +91) from Home country (US +1) routes to WhatsApp VoIP.
+     - Place an outgoing call to an international number (+91... or US exit code 01191...) via a Bluetooth car hands-free system (Tesla head unit or Bluetooth HFP dialer).
+     - Verify `OmniCallRedirectionService` intercepts the outgoing call on the Telecom binder thread using thread-safe cached dynamic rules (`TravelRoamingManager.evaluateTravelRouting()`).
+     - Verify the carrier cellular call is cancelled and the call seamlessly launches over WhatsApp VoIP.
+  2. **Thread-Safe Cached Smart Rules & Cold Start**:
+     - Force stop OmniDial and place an outgoing international call from car Bluetooth immediately.
+     - Verify rules load reliably from SharedPreferences cache and synthesize the WhatsApp channel without ANR or binder timeout.
+  3. **Restructured Settings Screen Layout**:
+     - Open Settings tab.
+     - Verify the 6 streamlined sections appear in order:
+       1. **System Health & Roles** (`PermissionsHubCard`)
+       2. **Calling Channels & Policies** (`ChannelPreferencesCard`)
+       3. **Keypad & Speed Dial** (`T9KeypadSettingsCard`, `QuickDialPreferencesCard`)
+       4. **Spam & Call Protection** (`SpamProtectionCard` unifying auto-block switch and spam manager dialog)
+       5. **Appearance & Navigation** (`ThemeSelectorCard`, `SwipeNavigationCard`, `InCallUiSettingsCard`, `DialerDisplaySettingsCard`, `ContactSortingCard`)
+       6. **Backup & Maintenance** (`BackupCard`, `ResetPreferencesCard`, `AppInfoCard`)
+     - Verify the redundant `CallRedirectionCard` is removed (already covered in `PermissionsHubCard`).
+     - Verify the spam management dialog opens smoothly from the unified Spam & Call Protection card.
+
+### 0. Task 16.2 (Release 2.1.1): Smart Telecom Routing, Context FAB, and Detailed Backup Reporting
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **Rules Panel Filter Chips & Non-Wrapping Typography**:
+     - Open the Rules tab. Verify the top category chips ("All", "Smart Routing", "Call Automation") are in a single scrollable row without text wrapping inside pills.
+     - Test font scaling / smaller device widths. Verify smooth horizontal scroll without overflow.
+  2. **Context-Sensitive Floating Action Button**:
+     - Tap **Smart Routing** filter chip. Verify the FAB changes icon and displays "New Routing Rule", and tapping it directly opens the Smart Telecom Routing dialog.
+     - Tap **Call Automation** filter chip. Verify the FAB changes icon and displays "New Automation Rule", and tapping it directly opens the Call Automation dialog.
+     - Tap **All** filter chip. Verify the FAB displays "New Rule", and tapping it opens the choice dialog to select between Smart Telecom Routing, Call Automation, or Recipe Templates.
+  3. **Dynamic Rule Composer Dialog Layout**:
+     - Open the Smart Routing rule editor.
+     - Verify the dialog expands comfortably to 95% screen width.
+     - Verify `@location`, `@numbers`, `@channel`, and `@guard` parameter slots use fluid FlowRow layouts with unwrapped chip text.
+     - Tap each slot and verify option pickers wrap cleanly without multi-line broken labels.
+  4. **Channel Preferences "Reset Choices" Visibility**:
+     - Open Settings → Channel Preferences.
+     - Select **Cellular Only**: Verify the divider and "Reset Choices and Learn Memory" button are completely hidden.
+     - Select **Always Ask**: Verify the "Reset Choices..." button remains hidden.
+     - Select **Smart Routing**: Verify the divider, remembered contact choices count, and "Reset Choices and Learn Memory" button appear.
+  5. **Detailed Backup Creation Breakdown**:
+     - Go to Settings → Backups and tap **Backup Now**.
+     - Verify an immediate completion dialog appears showing:
+       - Exact count of Smart Routing rules (`• X smart routing rules`)
+       - Exact count of Call Automation rules (`• Y call automation rules`)
+       - Counts for favorites, contacts, call logs, spam numbers, and channel preferences
+       - The generated `.bak` filename.
+  6. **Backup Restoration Verification**:
+     - Tap any saved backup or use **Browse Files** to restore.
+     - Verify stale routing rules are cleanly cleared before restore without duplication.
+     - Verify the restoration complete dialog reports both smart routing rules and call automation rules accurately.
+
 ### 0. Task 16.1 (Release 2.0.3): In-Call Screen Redesign & Audio-Adaptive Bento Layout
 - [ ] **To Test**
 - **Test Scenarios**:

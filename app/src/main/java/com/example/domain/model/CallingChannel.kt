@@ -36,6 +36,7 @@ sealed interface CallingChannel {
         val isRoaming: Boolean,
         val customName: String? = null,
         val deviceSimName: String? = null,
+        val countryIso: String? = null,
         override val isAvailable: Boolean = true
     ) : CallingChannel {
         override val id: String = if (slotIndex == 0) "sim_1" else "sim_2"

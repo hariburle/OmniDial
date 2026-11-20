@@ -70,23 +70,121 @@ fun CallerHeroCard(
     conferenceParticipantNames: List<String> = emptyList(),
     audioRouteName: String? = null,
     audioRoute: Int = CallAudioState.ROUTE_EARPIECE,
+    // Compact mode: the in-call screen passes true while the DTMF keypad is
+    // open, so the card shrinks instead of pushing the End button off-screen.
+    compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val hasPhoto = !callInfo.photoUri.isNullOrBlank()
     val displayName = if (isConference) "Conference" else callInfo.nickname?.ifBlank { null } ?: callInfo.displayName
     val formalName = callInfo.displayName
 
-    // Dynamic height based on audio route (desk mode vs handheld earpiece)
+    // Generate a consistent gradient from the caller name hash
+    val gradientColors = rememberGradientForName(displayName)
+
+    // No photo and no conference: skip the big placeholder card entirely.
+    // A small gradient disc + name row carries the same identity in ~56dp.
+    if (!hasPhoto && !isConference) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .testTag("caller_compact_header"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.linearGradient(colors = gradientColors)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isVoicemail) {
+                    Icon(
+                        imageVector = Icons.Default.Voicemail,
+                        contentDescription = "Voicemail",
+                        modifier = Modifier.size(26.dp),
+                        tint = Color.White.copy(alpha = 0.9f)
+                    )
+                } else {
+                    val rawName = callInfo.nickname?.ifBlank { null } ?: callInfo.displayName
+                    val initials = getInitials(rawName)
+                    if (initials.isNotBlank()) {
+                        Text(
+                            text = initials,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Caller",
+                            modifier = Modifier.size(26.dp),
+                            tint = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val subtitle = buildString {
+                    if (!callInfo.numberLabel.isNullOrBlank()) {
+                        append(callInfo.numberLabel)
+                        if (callInfo.phoneNumber.isNotBlank()) append(" • ")
+                    }
+                    if (callInfo.phoneNumber.isNotBlank()) {
+                        append(callInfo.phoneNumber)
+                    }
+                }
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (!audioRouteName.isNullOrBlank()) {
+                    Text(
+                        text = audioRouteName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        return
+    }
+
+    // Dynamic height based on audio route (desk mode vs handheld earpiece).
+    // With a real photo, compact mode shrinks the card when space is needed
+    // (keypad open); the name stays overlaid on the photo with the scrim.
     val isDeskMode = audioRoute == CallAudioState.ROUTE_SPEAKER || audioRoute == CallAudioState.ROUTE_BLUETOOTH
-    val targetHeight = if (isDeskMode) 280.dp else 220.dp
+    val targetHeight = if (compact) {
+        if (isDeskMode) 150.dp else 120.dp
+    } else if (isDeskMode) 280.dp else 220.dp
     val animatedHeight by animateDpAsState(
         targetValue = targetHeight,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "hero_card_height"
     )
-
-    // Generate a consistent gradient from the caller name hash
-    val gradientColors = rememberGradientForName(displayName)
 
     Surface(
         modifier = modifier

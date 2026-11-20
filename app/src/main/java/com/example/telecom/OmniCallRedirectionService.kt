@@ -91,8 +91,15 @@ class OmniCallRedirectionService : CallRedirectionService() {
         }
         val pinnedCellular = isPinnedNumber(prefs.getStringSet("pinned_cellular_numbers", emptySet()) ?: emptySet())
 
+        val travelDecision = try {
+            TravelRoamingManager.getInstance(applicationContext).evaluateTravelRouting(cleanNumber, globalMode = globalMode)
+        } catch (_: Exception) { null }
+
+        val isTravelGoogleVoice = travelDecision?.isTravelOptimized == true &&
+                travelDecision.recommendedChannel is com.example.domain.model.CallingChannel.GoogleVoice
+
         // 1. Google Voice Redirection
-        if (!pinnedCellular && preferredMode == "google_voice") {
+        if (!pinnedCellular && (preferredMode == "google_voice" || isTravelGoogleVoice)) {
             Log.i(TAG, "External outgoing call for $cleanNumber redirected to Google Voice")
             cancelCall()
             try {
@@ -103,9 +110,13 @@ class OmniCallRedirectionService : CallRedirectionService() {
             return
         }
 
+        val isTravelWhatsApp = travelDecision?.isTravelOptimized == true &&
+                travelDecision.recommendedChannel is com.example.domain.model.CallingChannel.WhatsApp
+
         // 2. WhatsApp Redirection (Only if WhatsApp is not globally set to "never")
         val shouldRedirectToWhatsApp = when {
             globalMode == "never" -> false
+            isTravelWhatsApp -> true
             pinnedCellular -> false
             preferredMode == "whatsapp" || preferredMode == "whatsapp_business" -> true
             globalMode == "all_international" && isInternational -> true
@@ -113,8 +124,9 @@ class OmniCallRedirectionService : CallRedirectionService() {
         }
 
         if (shouldRedirectToWhatsApp) {
-            val useBusiness = preferredMode == "whatsapp_business"
-            Log.i(TAG, "External outgoing call for $cleanNumber redirected to WhatsApp (preferredMode=$preferredMode)")
+            val useBusiness = preferredMode == "whatsapp_business" ||
+                (travelDecision?.recommendedChannel as? com.example.domain.model.CallingChannel.WhatsApp)?.isBusiness == true
+            Log.i(TAG, "External outgoing call for $cleanNumber redirected to WhatsApp (preferredMode=$preferredMode, reason=${travelDecision?.reason})")
             // Abort cellular network call
             cancelCall()
 
@@ -137,7 +149,11 @@ class OmniCallRedirectionService : CallRedirectionService() {
         val simPrefsSet = (prefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet()) +
                           (legacyPrefs.getStringSet("contact_sim_preferences", emptySet()) ?: emptySet())
         val pinnedSimSet = prefs.getStringSet("pinned_sim_numbers", emptySet()) ?: emptySet()
-        var preferredSimSlot: Int? = null
+        var preferredSimSlot: Int? = if (travelDecision?.isTravelOptimized == true && travelDecision.recommendedChannel is com.example.domain.model.CallingChannel.CellularSim) {
+            (travelDecision.recommendedChannel as com.example.domain.model.CallingChannel.CellularSim).slotIndex + 1
+        } else {
+            null
+        }
         for (entry in pinnedSimSet.toList() + simPrefsSet.toList()) {
             val parts = entry.split(":")
             if (parts.size >= 2) {

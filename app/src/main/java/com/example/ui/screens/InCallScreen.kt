@@ -20,7 +20,13 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.displayCutoutPadding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
@@ -158,6 +164,7 @@ import com.example.ui.components.ReminderPresetChips
 import com.example.util.ContactHelper
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun InCallScreen(
     callInfo: ActiveCallInfo,
@@ -208,6 +215,8 @@ fun InCallScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val noteBringIntoViewRequester = remember { BringIntoViewRequester() }
 
     LaunchedEffect(callInfo.id) {
         keyboardController?.hide()
@@ -306,15 +315,21 @@ fun InCallScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .displayCutoutPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .imePadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Section: Minimize button, Status, Caller details
+            // Scrollable content: top row, caller header, badges, keypad,
+            // ringing + post-call UI. The bento controls + End button live
+            // in a pinned bar below, so opening the keypad can never push
+            // them off-screen (and the keyboard can never trap the note field).
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(top = 8.dp)
             ) {
                 // Top row with minimize button and status chip
                 Row(
@@ -405,14 +420,17 @@ fun InCallScreen(
                             it.displayName.takeIf { d -> d.isNotBlank() && d != "Unknown" }
                         },
                         audioRouteName = heroAudioLabel,
-                        audioRoute = audioRoute
+                        audioRoute = audioRoute,
+                        compact = showKeypad
                     )
                 }
 
-                // Badges row: SIM, Trust, Call Reason, Community ID
-                // These are compact chips below the hero card.
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                // Badges row: SIM, Trust, Call Reason, Community ID.
+                // One horizontal wrapping row, so the chips use the width
+                // of the screen instead of stacking vertically.
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // SIM badge (hidden during conference)
@@ -670,7 +688,6 @@ fun InCallScreen(
                         )
                     }
                 }
-            }
 
             // Middle Section: Optional DTMF Keypad
             AnimatedVisibility(
@@ -724,12 +741,6 @@ fun InCallScreen(
                 }
             }
 
-            // Bottom Section: Audio controls & Call End/Answer buttons
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
-            ) {
                 if (callInfo.state == Call.STATE_RINGING) {
                     // Incoming Call: Explicit Audio Route Selection (No Mute / Keypad before answering)
                     Column(
@@ -1042,11 +1053,17 @@ fun InCallScreen(
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .bringIntoViewRequester(noteBringIntoViewRequester)
                                         .onFocusChanged { focusState ->
                                             if (focusState.isFocused) {
                                                 isUserInteractingWithNote = true
                                                 autoCloseTimerActive = false
                                                 lastNoteInteractionMillis = System.currentTimeMillis()
+                                                // Scroll the field above the keyboard instead
+                                                // of leaving it hidden underneath it.
+                                                coroutineScope.launch {
+                                                    noteBringIntoViewRequester.bringIntoView()
+                                                }
                                             }
                                         }
                                         .testTag("post_call_note_input"),
@@ -1116,7 +1133,19 @@ fun InCallScreen(
                             }
                         }
                     }
-                } else {
+                }
+            }
+
+            // Pinned bottom bar: bento grid + End. It lives outside the
+            // scroll area above, so it stays on screen with the keypad open.
+            if (callInfo.state != Call.STATE_RINGING &&
+                callInfo.state != Call.STATE_DISCONNECTED
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
                     // Active or Outgoing Call: Bento Grid Controls + Audio Routes + End
                     val hasMultipleAudioRoutes = availableBluetoothDevices.isNotEmpty() ||
                         (supportedAudioRoutes and (CallAudioState.ROUTE_BLUETOOTH or CallAudioState.ROUTE_WIRED_HEADSET)) != 0

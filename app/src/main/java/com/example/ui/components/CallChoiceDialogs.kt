@@ -44,7 +44,9 @@ import com.example.domain.model.CallingChannel
 import com.example.telecom.SimInfo
 import com.example.ui.CallMethodChoicePrompt
 import com.example.ui.CloudContactConfirmation
+import com.example.ui.RoamingWarningPrompt
 import com.example.ui.SimChoicePrompt
+import androidx.compose.material.icons.filled.Warning
 
 /**
  * Dialog prompting user to confirm cloud modifications to Google Contacts.
@@ -434,64 +436,64 @@ fun MultiChannelChoiceDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                when (channel) {
-                                    is CallingChannel.CellularSim -> {
-                                        Icon(
-                                            imageVector = Icons.Default.SimCard,
-                                            contentDescription = null,
-                                            tint = brandColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                    when (channel) {
+                                        is CallingChannel.CellularSim -> {
+                                            Icon(
+                                                imageVector = Icons.Default.SimCard,
+                                                contentDescription = null,
+                                                tint = brandColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        is CallingChannel.WhatsApp -> {
+                                            WhatsAppIcon(
+                                                modifier = Modifier.size(20.dp),
+                                                tint = brandColor
+                                            )
+                                        }
+                                        is CallingChannel.GoogleVoice -> {
+                                            Icon(
+                                                imageVector = Icons.Default.Phone,
+                                                contentDescription = null,
+                                                tint = brandColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        else -> {
+                                            Icon(
+                                                imageVector = Icons.Default.Phone,
+                                                contentDescription = null,
+                                                tint = brandColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     }
-                                    is CallingChannel.WhatsApp -> {
-                                        WhatsAppIcon(
-                                            modifier = Modifier.size(20.dp),
-                                            tint = brandColor
-                                        )
-                                    }
-                                    is CallingChannel.GoogleVoice -> {
-                                        Icon(
-                                            imageVector = Icons.Default.Phone,
-                                            contentDescription = null,
-                                            tint = brandColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    else -> {
-                                        Icon(
-                                            imageVector = Icons.Default.Phone,
-                                            contentDescription = null,
-                                            tint = brandColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
 
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = channel.displayName,
-                                        fontWeight = FontWeight.SemiBold,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    val subtitle = when (channel) {
-                                        is CallingChannel.CellularSim -> if (channel.isRoaming) "Cellular (Roaming)" else "Cellular Network"
-                                        is CallingChannel.WhatsApp -> if (channel.isBusiness) "WhatsApp Business VoIP" else "Free on Wi-Fi / Data"
-                                        is CallingChannel.GoogleVoice -> "Google Voice VoIP / Carrier"
-                                        else -> "Standard Carrier Network"
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = channel.displayName,
+                                            fontWeight = FontWeight.SemiBold,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        val subtitle = when (channel) {
+                                            is CallingChannel.CellularSim -> if (channel.isRoaming) "Cellular (Roaming)" else "Cellular Network"
+                                            is CallingChannel.WhatsApp -> if (channel.isBusiness) "WhatsApp Business VoIP" else "Free on Wi-Fi / Data"
+                                            is CallingChannel.GoogleVoice -> "Google Voice VoIP / Carrier"
+                                            else -> "Standard Carrier Network"
+                                        }
+                                        Text(
+                                            text = subtitle,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
-                                    Text(
-                                        text = subtitle,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
                                 }
                             }
                         }
                     }
-                }
 
                 if (showRememberChoice) {
                     Row(
@@ -614,6 +616,127 @@ fun CallConfirmationDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = brandColor)
             ) {
                 Text(if (isWhatsApp) "Call on WhatsApp" else "Call")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+/**
+ * Last-Mile Roaming Safety Intercept Dialog:
+ * Intercepts cellular calls on roaming SIMs and provides free VoIP / domestic SIM alternatives.
+ */
+@Composable
+fun RoamingWarningDialog(
+    prompt: RoamingWarningPrompt,
+    onUseWhatsApp: (isBusiness: Boolean) -> Unit,
+    onUseDomesticSim: (slot: Int) -> Unit,
+    onProceedRoaming: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val waColor = Color(0xFF25D366)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = "Roaming Tariff Warning",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val nameOrNum = prompt.contactName ?: prompt.number
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "${prompt.roamingSimName} is actively roaming.",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = "Placing a cellular call to $nameOrNum may incur international roaming rates ($2.00+/min).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Recommended Alternatives:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                if (prompt.isWhatsAppBizAvailable) {
+                    Button(
+                        onClick = { onUseWhatsApp(true) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = waColor)
+                    ) {
+                        WhatsAppIcon(modifier = Modifier.size(18.dp), tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Use WhatsApp Business • Free", color = Color.White)
+                    }
+                }
+                if (prompt.isWhatsAppAvailable) {
+                    Button(
+                        onClick = { onUseWhatsApp(false) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = waColor)
+                    ) {
+                        WhatsAppIcon(modifier = Modifier.size(18.dp), tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Use WhatsApp • Free", color = Color.White)
+                    }
+                }
+
+                if (prompt.domesticSimSlot != null && prompt.domesticSimName != null) {
+                    FilledTonalButton(
+                        onClick = { onUseDomesticSim(prompt.domesticSimSlot) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SimCard,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Use ${prompt.domesticSimName} (Domestic)")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onProceedRoaming,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Proceed on Roaming SIM")
             }
         },
         dismissButton = {

@@ -190,20 +190,32 @@ interface AppDao {
     @Query("SELECT * FROM number_channel_preferences")
     fun getAllNumberChannelPreferences(): Flow<List<NumberChannelPreference>>
 
+    @Query("SELECT * FROM number_channel_preferences WHERE profile_context = :profileContext")
+    fun getNumberChannelPreferencesForProfile(profileContext: String): Flow<List<NumberChannelPreference>>
+
     @Query("SELECT * FROM number_channel_preferences")
     suspend fun getAllNumberChannelPreferencesList(): List<NumberChannelPreference>
 
-    @Query("SELECT * FROM number_channel_preferences WHERE normalized_number = :normalizedNumber LIMIT 1")
+    @Query("SELECT * FROM number_channel_preferences WHERE normalized_number = :normalizedNumber AND profile_context = :profileContext LIMIT 1")
+    suspend fun getNumberChannelPreferenceForProfile(normalizedNumber: String, profileContext: String): NumberChannelPreference?
+
+    @Query("SELECT * FROM number_channel_preferences WHERE normalized_number = :normalizedNumber ORDER BY updated_timestamp DESC LIMIT 1")
     suspend fun getNumberChannelPreference(normalizedNumber: String): NumberChannelPreference?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setNumberChannelPreference(pref: NumberChannelPreference)
+
+    @Query("DELETE FROM number_channel_preferences WHERE normalized_number = :normalizedNumber AND profile_context = :profileContext")
+    suspend fun deleteNumberChannelPreferenceForProfile(normalizedNumber: String, profileContext: String)
 
     @Query("DELETE FROM number_channel_preferences WHERE normalized_number = :normalizedNumber")
     suspend fun deleteNumberChannelPreference(normalizedNumber: String)
 
     @Query("DELETE FROM number_channel_preferences")
     suspend fun clearAllNumberChannelPreferences()
+
+    @Query("INSERT OR REPLACE INTO number_channel_preferences (normalized_number, profile_context, preferred_channel_id, custom_label, updated_timestamp) SELECT normalized_number, :toContext, preferred_channel_id, custom_label, updated_timestamp FROM number_channel_preferences WHERE profile_context = :fromContext")
+    suspend fun promoteProfilePreferences(fromContext: String, toContext: String)
 
     @Query("SELECT * FROM channel_configurations ORDER BY order_index ASC")
     fun getAllChannelConfigs(): Flow<List<ChannelConfig>>
@@ -258,5 +270,28 @@ interface AppDao {
 
     @Query("DELETE FROM contact_default_numbers")
     suspend fun clearAllDefaultNumbers()
+
+    // --- Telecom Routing Rules (@ Slot Composer) ---
+
+    @Query("SELECT * FROM telecom_routing_rules ORDER BY priority DESC, created_at DESC")
+    fun getAllRoutingRules(): Flow<List<TelecomRoutingRule>>
+
+    @Query("SELECT * FROM telecom_routing_rules ORDER BY priority DESC, created_at DESC")
+    suspend fun getAllRoutingRulesList(): List<TelecomRoutingRule>
+
+    @Query("SELECT * FROM telecom_routing_rules WHERE is_enabled = 1 ORDER BY priority DESC, created_at DESC")
+    suspend fun getEnabledRoutingRules(): List<TelecomRoutingRule>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRoutingRule(rule: TelecomRoutingRule): Long
+
+    @Update
+    suspend fun updateRoutingRule(rule: TelecomRoutingRule)
+
+    @Delete
+    suspend fun deleteRoutingRule(rule: TelecomRoutingRule)
+
+    @Query("DELETE FROM telecom_routing_rules")
+    suspend fun clearAllRoutingRules()
 }
 

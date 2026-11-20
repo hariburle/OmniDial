@@ -19,8 +19,8 @@ android {
     applicationId = "com.aistudio.telecomdialer.hdyzif"
     minSdk = 24
     targetSdk = 36
-    versionCode = 22
-    versionName = "2.1.0"
+    versionCode = 25
+    versionName = "2.1.3"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

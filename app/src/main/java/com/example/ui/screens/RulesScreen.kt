@@ -228,7 +228,7 @@ fun RulesScreen(
     onExportBackup: ((android.net.Uri, (Boolean) -> Unit) -> Unit)? = null,
     onImportBackup: ((android.net.Uri, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     localBackups: List<java.io.File> = emptyList(),
-    onCreateLocalBackup: (((Boolean) -> Unit) -> Unit)? = null,
+    onCreateLocalBackup: (((BackupRestoreResult) -> Unit) -> Unit)? = null,
     onRestoreLocalBackup: ((java.io.File, ((String, Float) -> Unit)?, (BackupRestoreResult) -> Unit) -> Unit)? = null,
     onDeleteLocalBackup: ((java.io.File) -> Unit)? = null,
     globalSimPreferenceMode: String = "system",

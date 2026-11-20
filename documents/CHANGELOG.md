@@ -2,9 +2,72 @@
 
 > **Purpose**: This file serves as our real-time running log of every enhancement, UI refinement, and bug fix. As new changes are made, append them directly under `[Unreleased]` so nothing is ever forgotten when publishing future release notes and website updates.
 
+## 🚀 [Unreleased]
+
+---
+
+## 🚀 [v2.1.3] — Build 25 (November 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **End Call Always Reachable**: The in-call screen is now scrollable with the End call button pinned at the bottom, so opening the keypad can never hide End call, Hide, or the other in-call controls.
+- **Notes Field Stays Above the Keyboard**: When writing a note after a call, the notes field scrolls itself above the keyboard instead of hiding underneath it.
+- **Cleaner In-Call Header**: Contact badges (SIM, saved contact) now sit in one wrapping horizontal row instead of a tall vertical stack, and contacts without a photo show a compact header instead of a large blank placeholder. A real contact photo shrinks when the keypad needs the room.
+- **Simplified Rules Tab**: The rule-creation screens are parked for now — the Rules tab shows Call Automation only. Roaming warnings, car/Bluetooth smart call routing, and the home-region setting all keep working exactly as before.
+- **Older Backups Still Restore**: Backups made before this release restore cleanly; the parked rule data is simply skipped.
+
+### 🔧 Technical / Architecture Notes
+- **Pinned In-Call Bottom Bar**: `InCallScreen.kt` content is now a scrollable column (`weight(1f)` + `verticalScroll`) with the Bento grid + End button in a pinned bottom bar outside the scroll area; outer column has `imePadding()`.
+- **Note Field Bring-Into-View**: Post-call note field uses `remember { BringIntoViewRequester() }` + `bringIntoView()` on focus (`rememberBringIntoViewRequester()` was removed in Compose 1.8; `InCallScreen` now opts in to `ExperimentalFoundationApi`).
+- **Compact Hero Card**: `CallerHeroCard.kt` gains a `compact` param — no-photo calls render a 56.dp header row; real photos shrink (280→150.dp desk, 220→120.dp handheld) when the keypad is open.
+- **Rule-Management UI Parked**: `RulesScreen.kt` reverted to main + the detailed-backup signature; `MainViewModel` routing-rules StateFlow/CRUD and travel overlays removed; `getPreferredCallingMode()`/`initiateCall()` restored to main; Settings mode grid restored to the 4-mode 2×2; `ChannelDispatchCoordinator.kt` byte-identical to main; dead `suggestedChannel` removed; `documents/DYNAMIC_RULE_COMPOSER_PLAN.md` and `docs/guides/smart-routing.html` deleted with their links.
+- **Kept Intact**: `TravelRoamingManager` + `TelecomRoutingRule` entity/DAO/repo, car redirection path (`OmniCallRedirectionService` → `evaluateTravelRouting`), full roaming warning, home region + Relocation Assistant, whole Settings travel card, and backup routing-rules blocks (format unchanged — restore guards with `has()`/`optJSONArray`/try-catch, pre-routing backups skip the block).
+- Incremented `versionCode` to 25 and `versionName` to `"2.1.3"` in `app/build.gradle.kts`.
+
+---
+
+## 🚀 [v2.1.2] — Build 24 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Seamless Car & Bluetooth Smart Routing**: Vehicle infotainment systems (such as Tesla, Android Auto, and Bluetooth head units) now reliably honor your Smart Routing rules. Calling international contacts while at home automatically routes via WhatsApp VoIP, eliminating costly accidental cellular carrier roaming fees.
+- **Streamlined Settings Organization**: Reordered and decluttered the Settings screen into 6 clear, logical groups (Permissions, Channels & Policies, Keypad & Speed Dial, Spam & Call Protection, Appearance & Navigation, and Backups).
+- **Unified Spam & Call Protection**: Merged Caller ID screening and blocked numbers into a single card with an instant toggle for auto-blocking suspected spam calls.
+- **Removed Duplicate Settings**: Eliminated redundant standalone role cards that cluttered the screen, consolidating system permission status into the top Permissions Hub.
+
+### 🔧 Technical / Architecture Notes
+- **Synchronous Rule Caching & Redirection Sync**: Added in-memory `CopyOnWriteArrayList` caching and persistent SharedPreferences serialization in `TravelRoamingManager.kt` (`KEY_CACHED_ROUTING_RULES`). `ChannelPreferenceRepository.kt` now observes `AppRepository.allRoutingRules` to keep cached rules synchronised across app launches.
+- **Telecom Redirection Service Rule Gating**: In `OmniCallRedirectionService.kt`, `evaluateTravelRouting` now receives and resolves dynamic active rules, allowing WhatsApp, WhatsApp Business, Google Voice, and secondary SIM redirection from background Telecom binder threads.
+- **E.164 & Prefix Normalization**: `TravelRoamingManager.matchesRule` now parses E.164 and international exit code variations using `PhoneNumberNormalizer.toE164`, guaranteeing accurate matching for numbers dialed with or without exit codes.
+- **Settings Screen Refactoring**: Removed redundant `CallRedirectionCard.kt` and `CallScreeningCard.kt` inclusions in `SettingsScreen.kt`, moved panel swipe gestures into Appearance & Navigation, and re-anchored keypad display options under Keypad & Speed Dial.
+- Incremented `versionCode` to 24 and `versionName` to `"2.1.2"` in `app/build.gradle.kts`.
+
+---
+
+## 🚀 [v2.1.1] — Build 23 (September 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Enterprise Smart Telecom Routing Engine**: Location-aware calling policies that automatically route international and travel calls through WhatsApp VoIP or secondary local SIMs, eliminating expensive roaming charges. Built on a Zero-Mutation Runtime Overlay that leaves saved home contact preferences completely untouched.
+- **Dynamic Rule Composer & Single-Line Chips**: A streamlined rule creation experience using 4 modular parameter slots (`@location`, `@numbers`, `@channel`, `@guard`). Fixed chip text wrapping across all dialogs with single-line chip constraints and expanded 95% dialog width on mobile screens.
+- **Context-Sensitive Rules FAB**: Floating action button on the Rules tab dynamically adapts its label and target (`New Routing Rule` in Smart Routing mode, `New Automation Rule` in Call Automation mode, `New Rule` when viewing All).
+- **Detailed Backup & Restore Breakdown**: Tapping "Backup Now" displays an itemized save completion summary matching the restore UX, showing exact counts for smart routing rules, call automation recipes, speed dials, favorites, and settings.
+- **Chronological Backups by Timestamp**: Backup snapshots are now sorted chronologically by actual embedded backup timestamp rather than alphabetical filename, ensuring the newest snapshot always appears first.
+- **Illustrated How-To Guides**: Authored comprehensive user guides including a dedicated step-by-step Smart Telecom Routing guide (`docs/guides/smart-routing.html`).
+
+### 🔧 Technical / Architecture Notes
+- **TelecomRoutingRule Architecture**: Room entity `TelecomRoutingRule` integrated with `AppDao` (`getAllRoutingRules()`, `clearAllRoutingRules()`, `insertRoutingRule()`) and backed by transactional backup/restore in `BackupManager.kt`.
+- **Detailed Backup Reporting Engine**: Added `saveLocalBackupDetailed()` returning `BackupRestoreResult` with `routingRulesCount` to power immediate breakdown dialogs across `MainViewModel.kt` and `BackupManagementCard.kt`.
+- **Master Guard Policy Model**: Added `evaluateTravelRouting()` policy gating in `TravelRoamingManager.kt` and `ChannelDispatchCoordinator.kt` to short-circuit carrier calls under "Cellular Only" and emit pre-selected suggestions under "Always Ask".
+- **Dynamic Rule Composer Dialog Layout**: Refactored `DynamicRuleComposerDialog` in `RulesScreen.kt` using `FlowRow`, `usePlatformDefaultWidth = false`, and `maxLines = 1` typography constraints.
+- Incremented `versionCode` to 23 and `versionName` to `"2.1.1"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.1.0] — Build 22 (September 2026)
 
 ### 🌟 Enhancements (User-Facing)
+- **Smart Telecom Routing & Roaming Intelligence**: Modular dynamic rule engine supporting location-based matching (roaming abroad, specific country ISOs), destination prefix matching (+1, +91, domestic, international), and automatic channel routing (WhatsApp, SIMs, Google Voice) with customizable safety guard prompts.
+- **Context-Sensitive Rule Creation & Fluid Flow Layouts**: The Rules tab floating action button dynamically switches its creation target (`New Routing Rule` vs `New Automation Rule` vs `New Rule`) based on the active category filter chip. Expanded rule dialogs with responsive `FlowRow` wrapping so chips never cramp or wrap text.
+- **Detailed Backup Breakdown & Explicit Routing Coverage**: Tapping **Backup Now** immediately presents an itemized dialog matching the restore experience, detailing exact counts of smart routing rules, automation rules, favorites, contacts, and preferences. During restore, stale routing rules are cleanly flushed to prevent duplicate policies.
+- **Home Region Onboarding Assistant**: First-run channel setup now auto-detects the home country ISO from the device SIM with dynamic flag emoji preview and inline 2-letter ISO editing.
 - **Redesigned Bento Card In-Call UI**: Replaced legacy button layouts with an ergonomic caller hero card and a tactile 2x3 Bento control grid with Mute, Keypad, Add Call, Hold, and dynamic Audio routing.
 - **Smart Audio Routing & Route Picker**: In standard 2-route mode (earpiece + speaker), the audio card acts as an instant "Speaker" toggle with active status tint. In multi-route mode (Bluetooth headset, car audio, hearing aids), it becomes an "Audio ▾" selector opening a clean 1-tap route picker popup.
 - **Split Conference Participant View**: In conference calls, `ConferenceSplitView` displays separated caller cards with active/on-hold status badges and individual disconnect buttons.
@@ -13,6 +76,10 @@
 - **Fresh Install Auto-Restore & Clean Default Checkbox**: Restoring backups is now prompted via a convenient banner immediately following a fresh install. Default contact numbers in contact cards now use a compact Material 3 checkbox instead of an oversized circular icon button.
 
 ### 🔧 Technical / Architecture Notes
+- **TelecomRoutingRule Architecture**: Room entity `TelecomRoutingRule` integrated with `AppDao` (`getAllRoutingRules()`, `clearAllRoutingRules()`, `insertRoutingRule()`) and backed by transactional backup/restore in `BackupManager.kt`.
+- **Detailed Backup Reporting Engine**: Added `saveLocalBackupDetailed()` returning `BackupRestoreResult` with `routingRulesCount` to power immediate breakdown dialogs across `MainViewModel.kt` and `BackupManagementCard.kt`.
+- **Master Guard Policy Model**: Added `evaluateTravelRouting()` policy gating in `TravelRoamingManager.kt` and `ChannelDispatchCoordinator.kt` to short-circuit carrier calls under "Cellular Only" and emit pre-selected suggestions under "Always Ask".
+- **Dynamic Rule Composer Dialog Layout**: Refactored `DynamicRuleComposerDialog` in `RulesScreen.kt` using `FlowRow`, `usePlatformDefaultWidth = false`, and `maxLines = 1` typography constraints.
 - **Bento Grid Architecture**: Created `CallerHeroCard.kt`, `BentoCallControlGrid.kt`, and `ConferenceSplitView.kt` in `com.example.ui.components` with fluid Material 3 layout bounds and animated active states.
 - **Audio Route Detection**: Enhanced `CallManager.kt` and `InCallScreen.kt` audio state observation to distinguish 2-way toggle vs multi-route picker based on `CallAudioState.supportedRouteMask`.
 - **Dialer Suggestions Integration**: Added `onOpenContactDetails` callback cascade across `DialerSuggestionsList.kt`, `DialerRecentSuggestionCard`, `DialerMatchSuggestionCard`, and `DialerScreen.kt`, wiring into `ContactDetailsBottomSheet`.
@@ -294,7 +361,7 @@
 ### 🔧 Technical / Architecture Notes
 - **Domain Use-Case Extraction**: Modularized business logic into dedicated domain use cases (`EvaluateSimRuleUseCase`, `ResolveCallerIdentityUseCase`, `SearchT9ContactsUseCase`, `ManageFavoritesUseCase`).
 - **State Isolation**: Extracted `CallDurationStatusChip` to handle high-frequency timer recompositions independently of parent UI.
-- **Haptic Helper**: Created `HapticFeedbackHelper` managing API 33+ predefined `VibrationEffect` primitives with backwards compatibility to API 24.
+- **Haptic Feedback Helper**: Created `HapticFeedbackHelper` managing API 33+ predefined `VibrationEffect` primitives with backwards compatibility to API 24.
 - Incremented `versionCode` to 5 and `versionName` to `"1.1.3"` in `app/build.gradle.kts`.
 
 ---

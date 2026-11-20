@@ -46,6 +46,7 @@ class ChannelDiscoveryManager(
                             carrierName = sim.carrierName.ifBlank { sim.displayName },
                             isRoaming = sim.isRoaming,
                             deviceSimName = sim.deviceSimName ?: sim.displayName,
+                            countryIso = sim.countryIso,
                             isAvailable = true
                         )
                     )
@@ -202,8 +203,7 @@ class ChannelDiscoveryManager(
     }
 
     fun isInternationalNumber(number: String): Boolean {
-        val clean = number.trim()
-        return clean.startsWith("+") || clean.startsWith("011") || clean.startsWith("00")
+        return com.example.util.ContactHelper.isInternationalNumber(context, number)
     }
 
     private fun isPackageInstalled(packageName: String): Boolean {

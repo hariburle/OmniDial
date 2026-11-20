@@ -87,6 +87,7 @@ import com.example.data.ChannelConfigRepository
 import com.example.telecom.CallNotificationReceiver
 import com.example.telecom.ChannelDiscoveryManager
 import com.example.ui.components.ChannelSetupDialog
+import com.example.ui.components.RoamingWarningDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -269,6 +270,15 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e("MainActivity", "Failed to cancel missed calls notification", e)
             }
+        }
+    }
+
+    val windowFocusSignal = androidx.compose.runtime.mutableLongStateOf(0L)
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            windowFocusSignal.longValue = System.currentTimeMillis()
         }
     }
 
@@ -495,6 +505,7 @@ fun MainAppContent(
     val pendingCloudConfirmation by viewModel.pendingCloudConfirmation.collectAsStateWithLifecycle()
     val pendingCallMethodChoice by viewModel.pendingCallMethodChoice.collectAsStateWithLifecycle()
     val pendingSimChoice by viewModel.pendingSimChoicePrompt.collectAsStateWithLifecycle()
+    val pendingRoamingWarning by viewModel.pendingRoamingWarning.collectAsStateWithLifecycle()
     val dismissModalsTrigger by viewModel.dismissModalsTrigger.collectAsStateWithLifecycle()
 
     val isFlipToShhhEnabled by viewModel.isFlipToShhhEnabled.collectAsStateWithLifecycle()
@@ -1375,6 +1386,8 @@ fun MainAppContent(
                     )
                     2 -> DialerScreen(
                         number = dialerNumber,
+                        isFocused = (selectedTab == 2),
+                        windowFocusSignal = (context as? MainActivity)?.windowFocusSignal?.longValue ?: 0L,
                         favorites = favorites,
                         recentCalls = recentCalls,
                         isDefaultDialer = isDefaultDialer,
@@ -1555,7 +1568,7 @@ fun MainAppContent(
                         onExportBackup = { uri, onDone -> viewModel.exportBackup(uri, onDone) },
                         onImportBackup = { uri, onProgress, onDone -> viewModel.importBackup(uri, onProgress, onDone) },
                         localBackups = localBackups,
-                        onCreateLocalBackup = { onDone -> viewModel.createLocalBackup(onDone) },
+                        onCreateLocalBackup = { onDone -> viewModel.createLocalBackupDetailed(onDone) },
                         onRestoreLocalBackup = { file, onProgress, onDone -> viewModel.restoreLocalBackup(file, onProgress, onDone) },
                         onDeleteLocalBackup = { file -> viewModel.deleteLocalBackup(file) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
@@ -1727,6 +1740,27 @@ fun MainAppContent(
                         viewModel.confirmSimChoiceAndPlaceCall(context, slot)
                     },
                     onDismiss = { viewModel.cancelSimChoice() }
+                )
+            }
+        }
+
+        // Last-Mile Roaming Safety Intercept Dialog
+        if (!isCallScreenVisible) {
+            pendingRoamingWarning?.let { prompt ->
+                RoamingWarningDialog(
+                    prompt = prompt,
+                    onUseWhatsApp = { isBusiness ->
+                        viewModel.divertRoamingToWhatsApp(context, isBusiness)
+                    },
+                    onUseDomesticSim = { slot ->
+                        viewModel.divertRoamingToLocalSim(context, slot)
+                    },
+                    onProceedRoaming = {
+                        viewModel.proceedWithRoamingCall(context)
+                    },
+                    onDismiss = {
+                        viewModel.dismissRoamingWarning()
+                    }
                 )
             }
         }

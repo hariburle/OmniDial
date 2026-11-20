@@ -40,6 +40,7 @@ data class BackupRestoreResult(
     val recentCallsCount: Int = 0,
     val channelPreferencesCount: Int = 0,
     val channelConfigsCount: Int = 0,
+    val routingRulesCount: Int = 0,
     val message: String = ""
 )
 
@@ -228,6 +229,7 @@ object BackupManager {
         for (cp in channelPrefs) {
             val obj = JSONObject()
             obj.put("normalizedNumber", cp.normalizedNumber)
+            obj.put("profileContext", cp.profileContext)
             obj.put("preferredChannelId", cp.preferredChannelId)
             obj.put("customLabel", cp.customLabel ?: "")
             obj.put("updatedTimestamp", cp.updatedTimestamp)
@@ -248,6 +250,24 @@ object BackupManager {
             channelConfigArray.put(obj)
         }
         root.put("channelConfigurations", channelConfigArray)
+
+        // 10. Telecom Routing Rules (@ Slot Composer)
+        val routingRules = dao.getAllRoutingRulesList()
+        val routingRuleArray = JSONArray()
+        for (rr in routingRules) {
+            val obj = JSONObject()
+            obj.put("name", rr.name)
+            obj.put("ruleExpression", rr.ruleExpression)
+            obj.put("targetChannelId", rr.targetChannelId)
+            obj.put("locationPattern", rr.locationPattern)
+            obj.put("destinationPrefix", rr.destinationPrefix)
+            obj.put("guardAction", rr.guardAction)
+            obj.put("isEnabled", rr.isEnabled)
+            obj.put("priority", rr.priority)
+            obj.put("createdAt", rr.createdAt)
+            routingRuleArray.put(obj)
+        }
+        root.put("telecomRoutingRules", routingRuleArray)
 
         // Generate SHA-256 payload integrity checksum
         val signature = computePayloadSignature(
@@ -689,6 +709,7 @@ object BackupManager {
                                 if (num.isBlank() || channelId.isBlank()) continue
                                 val pref = NumberChannelPreference(
                                     normalizedNumber = PhoneNumberNormalizer.toE164(num),
+                                    profileContext = obj.optString("profileContext", "home:US"),
                                     preferredChannelId = channelId,
                                     customLabel = obj.optString("customLabel").ifBlank { null },
                                     updatedTimestamp = obj.optLong("updatedTimestamp", System.currentTimeMillis())
@@ -701,6 +722,38 @@ object BackupManager {
                 } catch (e: Throwable) {
                     android.util.Log.w("BackupManager", "Error restoring number channel preferences: ${e.message}")
                 }
+            }
+
+            var restoredRoutingRules = 0
+            if (root.has("telecomRoutingRules")) {
+                try {
+                    val rrArray = root.optJSONArray("telecomRoutingRules")
+                    if (rrArray != null) {
+                        dao.clearAllRoutingRules()
+                        for (i in 0 until rrArray.length()) {
+                            try {
+                                val obj = rrArray.getJSONObject(i)
+                                val name = obj.optString("name", "").ifBlank { "Routing Rule" }
+                                val expr = obj.optString("ruleExpression", "")
+                                val chanId = obj.optString("targetChannelId", "")
+                                if (expr.isBlank() || chanId.isBlank()) continue
+                                val rule = com.example.data.TelecomRoutingRule(
+                                    name = name,
+                                    ruleExpression = expr,
+                                    targetChannelId = chanId,
+                                    locationPattern = obj.optString("locationPattern", "any"),
+                                    destinationPrefix = obj.optString("destinationPrefix", "any"),
+                                    guardAction = obj.optString("guardAction", "warn_roaming"),
+                                    isEnabled = obj.optBoolean("isEnabled", true),
+                                    priority = obj.optInt("priority", 0),
+                                    createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                                )
+                                dao.insertRoutingRule(rule)
+                                restoredRoutingRules++
+                            } catch (_: Throwable) {}
+                        }
+                    }
+                } catch (_: Throwable) {}
             }
 
             // 8b. Backward Compatibility: Migrate legacy preferences into number_channel_preferences if missing
@@ -815,7 +868,8 @@ object BackupManager {
                 recentCallsCount = restoredRecentCalls,
                 channelPreferencesCount = restoredChannelPrefs,
                 channelConfigsCount = restoredChannelConfigs,
-                message = "Backup restored successfully ($restoredRules rules, $restoredFavs favorites, $restoredContacts contacts, $restoredRecentCalls recent calls, $restoredChannelPrefs channel prefs, and settings restored)."
+                routingRulesCount = restoredRoutingRules,
+                message = "Backup restored successfully ($restoredRules automation rules, $restoredRoutingRules routing rules, $restoredFavs favorites, $restoredContacts contacts, $restoredRecentCalls recent calls, $restoredChannelPrefs channel prefs, and settings restored)."
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -843,8 +897,23 @@ object BackupManager {
         return dir
     }
 
-    suspend fun saveLocalBackup(context: Context, isAutoBackup: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+    suspend fun saveLocalBackupDetailed(context: Context, isAutoBackup: Boolean = false): BackupRestoreResult = withContext(Dispatchers.IO) {
         try {
+            val db = AppDatabase.getInstance(context)
+            val dao = db.appDao()
+            val rulesCount = dao.getAllRulesList().size
+            val routingRulesCount = dao.getAllRoutingRulesList().size
+            val favsCount = dao.getAllFavoritesList().size
+            val contactsCount = dao.getAllLocalContactsList().size
+            val spamCount = dao.getAllSpamNumbersList().size
+            val ignoredCount = dao.getAllIgnoredContactsList().size
+            val recentCallsCount = dao.getAllRecentCallsList().count { rc ->
+                !rc.note.isNullOrBlank() || (rc.reminderTime != null && rc.reminderTime > 0L) ||
+                rc.isSpam || !rc.callReason.isNullOrBlank() || !rc.communityTag.isNullOrBlank() || !rc.ruleMatched.isNullOrBlank()
+            }
+            val channelPrefsCount = dao.getAllNumberChannelPreferencesList().size
+            val channelConfigsCount = dao.getAllChannelConfigsList().size
+
             val json = createBackupJson(context)
             val fileName = if (isAutoBackup) generateAutoBackupFileName() else generateBackupFileName()
             
@@ -860,9 +929,7 @@ object BackupManager {
                     val externalFile = File(externalDir, fileName)
                     externalFile.writeText(json)
                 }
-            } catch (e: Exception) {
-                // Secondary external write is best-effort
-            }
+            } catch (_: Exception) {}
 
             // 3. Persist to Public Documents/OmniDial and Downloads/OmniDial via MediaStore (survives uninstalls)
             try {
@@ -907,9 +974,7 @@ object BackupManager {
                     if (!pubDl.exists()) pubDl.mkdirs()
                     File(pubDl, fileName).writeText(json)
                 }
-            } catch (e: Exception) {
-                // Public storage persistence is best-effort fallback
-            }
+            } catch (_: Exception) {}
 
             // Clear dirty flag and record timestamp
             try {
@@ -925,11 +990,30 @@ object BackupManager {
                 rotateAutoBackups(context, keepCount = 5)
             }
 
-            true
+            BackupRestoreResult(
+                success = true,
+                rulesCount = rulesCount,
+                routingRulesCount = routingRulesCount,
+                favoritesCount = favsCount,
+                contactsCount = contactsCount,
+                spamCount = spamCount,
+                ignoredCount = ignoredCount,
+                recentCallsCount = recentCallsCount,
+                channelPreferencesCount = channelPrefsCount,
+                channelConfigsCount = channelConfigsCount,
+                message = "Backup saved successfully ($fileName)."
+            )
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            BackupRestoreResult(
+                success = false,
+                message = "Failed to create backup: ${e.localizedMessage ?: "Unknown error"}"
+            )
         }
+    }
+
+    suspend fun saveLocalBackup(context: Context, isAutoBackup: Boolean = false): Boolean {
+        return saveLocalBackupDetailed(context, isAutoBackup).success
     }
 
     private fun rotateAutoBackups(context: Context, keepCount: Int = 5) {
@@ -940,7 +1024,7 @@ object BackupManager {
             } ?: emptyArray()
 
             if (autoFiles.size > keepCount) {
-                val sorted = autoFiles.sortedByDescending { it.lastModified() }
+                val sorted = autoFiles.sortedByDescending { getBackupTimestamp(it) }
                 for (oldFile in sorted.drop(keepCount)) {
                     val key = getBackupKey(oldFile.name)
                     oldFile.delete()
@@ -1173,7 +1257,20 @@ object BackupManager {
             }
         }
 
-        return result.sortedByDescending { it.lastModified() }
+        return result.sortedByDescending { getBackupTimestamp(it) }
+    }
+
+    fun getBackupTimestamp(file: File): Long {
+        val timestampRegex = Regex("""\d{8}_\d{6}""")
+        val match = timestampRegex.find(file.name)
+        if (match != null) {
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+                val date = sdf.parse(match.value)
+                if (date != null) return date.time
+            } catch (_: Exception) {}
+        }
+        return file.lastModified()
     }
 
     fun getBackupKey(fileName: String): String {

@@ -25,6 +25,15 @@ object PhoneNumberNormalizer {
     private val nonDigitOrPlus = Regex("[^0-9+]")
     private val nonDigitPlusStarHash = Regex("[^0-9+*#]")
 
+    private val emergencyOrServiceCodes = setOf(
+        "911", "112", "999", "000", "110", "119", "100", "101", "102", "108",
+        "211", "311", "411", "511", "611", "711", "811"
+    )
+
+    private val validPhoneCharsRegex = Regex("^[+*#0-9,\\-;() .\\/]+$")
+    private val extensionRegex = Regex("(?i)\\s*(ext\\.?|x)\\s*\\d+$")
+    private val ussdPattern = Regex("^[*#][0-9*#]{1,15}$")
+
     /**
      * toE164 is a pure function of (rawNumber, defaultRegion) but costs a full libphonenumber
      * parse + validation + format. It is called from Room entity constructors, repository lookups
@@ -213,6 +222,177 @@ object PhoneNumberNormalizer {
         }
 
         return false
+    }
+
+    /**
+     * Determines whether the given text is likely to represent a phone number (or USSD/emergency/service code)
+     * suitable for pasting into the dialer.
+     *
+     * Rejects:
+     * - Null, empty, or blank strings
+     * - Strings with letters or non-phone symbols (emails, URLs, words/sentences)
+     * - Arbitrary numbers too short or too long (e.g. 2-digit numbers, 5-digit ZIPs, 6-digit OTPs, 16+ digit CCs)
+     * - Dates or invalid digit patterns
+     *
+     * Accepts:
+     * - International numbers: +1 650 253 0000, +91 98765 43210
+     * - Domestic numbers: (650) 253-0000, 650-253-0000, 9876543210
+     * - Local 7-digit numbers: 555-1234
+     * - USSD / MMI / feature codes: *86, *#06#, #123#
+     * - Recognized emergency and service short codes: 911, 112, 999, 611, 411
+     * - Numbers with DTMF pause/wait: 1-800-555-1234,1234#
+     * - tel: URIs: tel:+16502530000
+     */
+    fun cleanRawInput(input: CharSequence?): String {
+        if (input == null) return ""
+        return input.toString()
+            .replace("\u200E", "") // LRM
+            .replace("\u200F", "") // RLM
+            .replace("\u200B", "") // Zero-width space
+            .replace("\u200C", "") // ZWNJ
+            .replace("\u200D", "") // ZWJ
+            .replace("\uFEFF", "") // BOM
+            .replace("\u202A", "") // LRE
+            .replace("\u202B", "") // RLE
+            .replace("\u202C", "") // PDF
+            .replace("\u202D", "") // LRO
+            .replace("\u202E", "") // RLO
+            .replace("\u2066", "") // LRI
+            .replace("\u2067", "") // RLI
+            .replace("\u2068", "") // FSI
+            .replace("\u2069", "") // PDI
+            .replace("\u00A0", " ") // NBSP
+            .replace("\u202F", " ") // Narrow NBSP
+            .replace("\u2007", " ") // Figure space
+            .replace("\u2009", " ") // Thin space
+            .replace("\u3000", " ") // Ideographic space
+            .trim()
+            .removeSurrounding("\"")
+            .removeSurrounding("'")
+            .removeSurrounding("“", "”")
+            .removeSurrounding("‘", "’")
+            .trim()
+    }
+
+    fun isLikelyPhoneNumber(text: CharSequence?, context: Context? = null): Boolean {
+        if (text.isNullOrBlank()) return false
+        val trimmed = cleanRawInput(text)
+        if (trimmed.length < 3 || trimmed.length > 40) return false
+
+        // Clean tel: scheme if present
+        val clean = if (trimmed.startsWith("tel:", ignoreCase = true)) {
+            trimmed.substring(4).trimStart('/', ' ')
+        } else {
+            trimmed
+        }
+
+        // Check for USSD / MMI codes first (e.g. *86, *#06#, #31#)
+        val compactUssd = clean.replace(" ", "")
+        if (ussdPattern.matches(compactUssd)) {
+            val digits = compactUssd.filter { it.isDigit() }
+            return digits.isNotEmpty()
+        }
+
+        // Strip trailing extension if present (e.g. "ext 102", "x12")
+        val withoutExt = extensionRegex.replace(clean, "")
+
+        // Must only contain valid phone characters (+, digits, spaces, -, ., (, ), /, ,, ;)
+        if (!validPhoneCharsRegex.matches(withoutExt)) {
+            return false
+        }
+
+        // Cannot have any remaining letters
+        if (withoutExt.any { it in 'a'..'z' || it in 'A'..'Z' }) {
+            return false
+        }
+
+        // Base portion before pause/wait delimiters
+        val baseCandidate = withoutExt.takeWhile { it != ',' && it != ';' }.trim()
+        val baseDigits = baseCandidate.filter { it.isDigit() }
+
+        if (baseDigits.isEmpty()) return false
+
+        // Check emergency and carrier short codes
+        if (baseDigits in emergencyOrServiceCodes) {
+            return true
+        }
+        @Suppress("DEPRECATION")
+        try {
+            if (android.telephony.PhoneNumberUtils.isEmergencyNumber(baseDigits)) {
+                return true
+            }
+        } catch (_: Throwable) {}
+
+        // Standard phone numbers must have between 7 and 15 digits in the base part (up to 17 if international exit code 011/00 used)
+        val maxDigits = if (baseCandidate.startsWith("011") || baseCandidate.startsWith("00")) 17 else 15
+        if (baseDigits.length !in 7..maxDigits) {
+            return false
+        }
+
+        // Validate with Google libphonenumber if available
+        val util = phoneUtil
+        if (util != null) {
+            val defaultRegion = getDefaultCountryIso(context)
+            try {
+                val parsed = util.parse(baseCandidate, defaultRegion)
+                if (util.isPossibleNumber(parsed)) {
+                    return true
+                }
+            } catch (_: Throwable) {}
+
+            if (baseCandidate.startsWith("+")) {
+                try {
+                    val parsedIntl = util.parse(baseCandidate, null)
+                    if (util.isPossibleNumber(parsedIntl)) {
+                        return true
+                    }
+                } catch (_: Throwable) {}
+                // Any string starting with '+' and having 7..15 digits is an international phone number
+                return true
+            }
+        }
+
+        // Permissive fallback: if it has 7 to maxDigits digits and only valid phone characters
+        return baseDigits.length in 7..maxDigits
+    }
+
+    /**
+     * Extracts a likely phone number from raw clipboard text if one is present.
+     * Handles exact phone numbers, tel: URIs, or text containing a phone number.
+     * Returns null if no phone number is found or text is empty/non-numeric.
+     */
+    fun extractLikelyPhoneNumber(text: CharSequence?, context: Context? = null): String? {
+        if (text.isNullOrBlank()) return null
+        val raw = cleanRawInput(text)
+        if (raw.isBlank()) return null
+
+        // 1. Direct match
+        if (isLikelyPhoneNumber(raw, context)) {
+            val clean = if (raw.startsWith("tel:", ignoreCase = true)) {
+                raw.substring(4).trimStart('/', ' ')
+            } else raw
+            return clean
+        }
+
+        // 2. If text is short (<= 60 chars) and single-line, scan for embedded phone number
+        if (raw.length <= 60 && !raw.contains('\n')) {
+            val util = phoneUtil
+            if (util != null) {
+                val defaultRegion = getDefaultCountryIso(context)
+                try {
+                    val matches = util.findNumbers(raw, defaultRegion)
+                    val firstMatch = matches.firstOrNull()
+                    if (firstMatch != null) {
+                        val matchedStr = firstMatch.rawString()
+                        if (isLikelyPhoneNumber(matchedStr, context)) {
+                            return matchedStr
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+
+        return null
     }
 
     /**

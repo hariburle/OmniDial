@@ -75,6 +75,18 @@ data class SimChoicePrompt(
     val reason: String? = null
 )
 
+data class RoamingWarningPrompt(
+    val number: String,
+    val contactName: String? = null,
+    val roamingSimSlot: Int,
+    val roamingSimName: String,
+    val domesticSimSlot: Int? = null,
+    val domesticSimName: String? = null,
+    val isWhatsAppAvailable: Boolean = false,
+    val isWhatsAppBizAvailable: Boolean = false,
+    val reason: String? = null
+)
+
 /**
  * Unified ViewModel orchestrating the state, background workers, and business logic of OmniDial.
  *
@@ -475,6 +487,9 @@ class MainViewModel(
 
     private val _pendingSimChoicePrompt = MutableStateFlow<SimChoicePrompt?>(null)
     val pendingSimChoicePrompt: StateFlow<SimChoicePrompt?> = _pendingSimChoicePrompt.asStateFlow()
+
+    private val _pendingRoamingWarning = MutableStateFlow<RoamingWarningPrompt?>(null)
+    val pendingRoamingWarning: StateFlow<RoamingWarningPrompt?> = _pendingRoamingWarning.asStateFlow()
 
     private val _combinedRecentCalls = MutableStateFlow<List<RecentCall>>(inMemoryCachedRecentCalls ?: emptyList())
     val recentCalls: StateFlow<List<RecentCall>> = _combinedRecentCalls.asStateFlow()
@@ -1324,6 +1339,36 @@ class MainViewModel(
             }
             else -> _selectedSimSlot.value
         }
+
+        // Last-Mile Roaming Safety Intercept
+        val targetSim = _activeSims.value.firstOrNull { it.slotIndex == effectiveSlot - 1 }
+        val isRoamingGuard = try {
+            com.example.telecom.TravelRoamingManager.getInstance(context).isRoamingGuardEnabled()
+        } catch (_: Exception) { false }
+
+        if (targetSim?.isRoaming == true && isRoamingGuard) {
+            val contact = lookupContactByNumber(cleanNumber)
+            val channels = try {
+                com.example.telecom.ChannelDiscoveryManager.getInstance(context).availableChannels.value
+            } catch (_: Exception) { emptyList() }
+            val waBiz = channels.filterIsInstance<com.example.domain.model.CallingChannel.WhatsApp>().firstOrNull { it.isBusiness && it.isAvailable }
+            val waPersonal = channels.filterIsInstance<com.example.domain.model.CallingChannel.WhatsApp>().firstOrNull { !it.isBusiness && it.isAvailable }
+            val localSim = _activeSims.value.firstOrNull { !it.isRoaming }
+
+            _pendingRoamingWarning.value = RoamingWarningPrompt(
+                number = cleanNumber,
+                contactName = contact?.name,
+                roamingSimSlot = effectiveSlot,
+                roamingSimName = targetSim.displayName.ifBlank { "SIM $effectiveSlot" },
+                domesticSimSlot = localSim?.let { it.slotIndex + 1 },
+                domesticSimName = localSim?.displayName?.ifBlank { "SIM ${localSim.slotIndex + 1}" },
+                isWhatsAppAvailable = waPersonal != null,
+                isWhatsAppBizAvailable = waBiz != null,
+                reason = effectiveReason
+            )
+            return
+        }
+
         maximizeCall()
 
         // If in ask_learn mode and user explicitly triggered cellular call, learn the choice directly
@@ -2078,6 +2123,30 @@ class MainViewModel(
         }
     }
 
+    fun dismissRoamingWarning() {
+        _pendingRoamingWarning.value = null
+    }
+
+    fun proceedWithRoamingCall(context: Context) {
+        val prompt = _pendingRoamingWarning.value ?: return
+        _pendingRoamingWarning.value = null
+        maximizeCall()
+        executeTelecomPlaceCall(context, prompt.number, prompt.roamingSimSlot, prompt.reason)
+    }
+
+    fun divertRoamingToLocalSim(context: Context, slot: Int) {
+        val prompt = _pendingRoamingWarning.value ?: return
+        _pendingRoamingWarning.value = null
+        maximizeCall()
+        executeTelecomPlaceCall(context, prompt.number, slot, prompt.reason)
+    }
+
+    fun divertRoamingToWhatsApp(context: Context, isBusiness: Boolean) {
+        val prompt = _pendingRoamingWarning.value ?: return
+        _pendingRoamingWarning.value = null
+        placeWhatsAppCall(context, prompt.number, isBusiness = isBusiness)
+    }
+
     fun clearLogs() {
         viewModelScope.launch {
             repository.clearAutomationLogs()
@@ -2633,12 +2702,16 @@ class MainViewModel(
     }
 
     fun createLocalBackup(onComplete: (Boolean) -> Unit) {
+        createLocalBackupDetailed { result -> onComplete(result.success) }
+    }
+
+    fun createLocalBackupDetailed(onComplete: (com.example.util.BackupRestoreResult) -> Unit) {
         viewModelScope.launch {
-            val success = com.example.util.BackupManager.saveLocalBackup(appContext)
-            if (success) {
+            val result = com.example.util.BackupManager.saveLocalBackupDetailed(appContext)
+            if (result.success) {
                 refreshLocalBackups()
             }
-            onComplete(success)
+            onComplete(result)
         }
     }
 
