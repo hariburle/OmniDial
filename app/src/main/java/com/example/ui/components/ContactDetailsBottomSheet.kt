@@ -183,6 +183,7 @@ fun ContactDetailsBottomSheet(
     val isUnknownNumber = remember(contact, isVoicemail) {
         if (isVoicemail) return@remember false
         val trimmed = contact.name.trim()
+        trimmed.equals("Incoming Caller", ignoreCase = true) ||
         trimmed.startsWith("+") ||
         trimmed.all { it.isDigit() || it == '+' || it == ' ' || it == '-' || it == '(' || it == ')' } ||
         trimmed == contact.phoneNumber.trim()
