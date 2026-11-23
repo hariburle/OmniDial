@@ -2587,10 +2587,24 @@ class MainViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             ContactHelper.updateContactDetails(appContext, oldNumber, newName, newNumber, newLabel, newNickname)
             val localList = repository.getAllLocalContactsList()
-            val existingLocal = localList.firstOrNull { it.phoneNumber == oldNumber }
+            val existingLocal = localList.firstOrNull {
+                ContactHelper.isSamePhoneNumber(it.phoneNumber, oldNumber) ||
+                (oldNumber.isNotBlank() && ContactHelper.normalizeToLocalDigits(it.phoneNumber) == ContactHelper.normalizeToLocalDigits(oldNumber))
+            }
             if (existingLocal != null) {
                 repository.updateLocalContact(
                     existingLocal.copy(
+                        name = newName,
+                        phoneNumber = newNumber,
+                        label = newLabel,
+                        nickname = newNickname
+                    )
+                )
+            } else {
+                // No stored contact for this number yet (e.g. an unsaved Recents
+                // entry): create it instead of silently dropping the edit.
+                repository.insertLocalContact(
+                    LocalContact(
                         name = newName,
                         phoneNumber = newNumber,
                         label = newLabel,
