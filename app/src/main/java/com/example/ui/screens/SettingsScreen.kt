@@ -68,6 +68,8 @@ fun SettingsScreen(
     onSetDefaultStartTab: (Int) -> Unit,
     swipeToSwitchPanels: Boolean,
     onSetSwipeToSwitchPanels: (Boolean) -> Unit,
+    showButtonLabels: Boolean = true,
+    onSetShowButtonLabels: (Boolean) -> Unit = {},
     navBarStyle: String = "full",
     onSetNavBarStyle: (String) -> Unit = {},
     callAnswerStyle: String,
@@ -1295,6 +1297,33 @@ fun SettingsScreen(
                         checked = swipeToSwitchPanels,
                         onCheckedChange = onSetSwipeToSwitchPanels,
                         modifier = Modifier.testTag("swipe_to_switch_panels_switch")
+                    )
+                }
+
+                HorizontalDivider()
+
+                // 6. Show labels on buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Show labels on buttons",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Show text labels next to icons on filter rows",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showButtonLabels,
+                        onCheckedChange = onSetShowButtonLabels,
+                        modifier = Modifier.testTag("show_button_labels_switch")
                     )
                 }
             }

@@ -307,6 +307,15 @@ class MainViewModel(
         prefs.edit().putBoolean("swipe_to_switch_panels", enabled).apply()
     }
 
+    // Show Labels on Buttons setting (Default: true)
+    private val _showButtonLabels = MutableStateFlow(prefs.getBoolean("show_button_labels", true))
+    val showButtonLabels: StateFlow<Boolean> = _showButtonLabels.asStateFlow()
+
+    fun setShowButtonLabels(enabled: Boolean) {
+        _showButtonLabels.value = enabled
+        prefs.edit().putBoolean("show_button_labels", enabled).apply()
+    }
+
     // Navigation Bar Style ("full", "compact", "indicator")
     private val _navBarStyle = MutableStateFlow(prefs.getString("nav_bar_style", "full") ?: "full")
     val navBarStyle: StateFlow<String> = _navBarStyle.asStateFlow()
@@ -2738,6 +2747,7 @@ class MainViewModel(
                 _showDialerQuickActions.value = prefs.getBoolean("show_dialer_quick_actions", true)
                 _defaultStartTab.value = prefs.getInt("default_start_tab", 0)
                 _swipeToSwitchPanels.value = prefs.getBoolean("swipe_to_switch_panels", true)
+                _showButtonLabels.value = prefs.getBoolean("show_button_labels", true)
                 _navBarStyle.value = prefs.getString("nav_bar_style", "full") ?: "full"
                 _notSpamWhitelist.value = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()
                 _learnedCallModes.value = loadLearnedCallModes()
@@ -2790,6 +2800,7 @@ class MainViewModel(
                 _showDialerQuickActions.value = prefs.getBoolean("show_dialer_quick_actions", true)
                 _defaultStartTab.value = prefs.getInt("default_start_tab", 0)
                 _swipeToSwitchPanels.value = prefs.getBoolean("swipe_to_switch_panels", true)
+                _showButtonLabels.value = prefs.getBoolean("show_button_labels", true)
                 _navBarStyle.value = prefs.getString("nav_bar_style", "full") ?: "full"
                 _notSpamWhitelist.value = prefs.getStringSet("not_spam_whitelist", emptySet()) ?: emptySet()
                 _learnedCallModes.value = loadLearnedCallModes()

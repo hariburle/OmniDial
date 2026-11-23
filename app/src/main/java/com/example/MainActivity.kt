@@ -526,6 +526,7 @@ fun MainAppContent(
     val showDialerQuickActions by viewModel.showDialerQuickActions.collectAsStateWithLifecycle()
     val callAnswerStyle by viewModel.callAnswerStyle.collectAsStateWithLifecycle()
     val swipeToSwitchPanels by viewModel.swipeToSwitchPanels.collectAsStateWithLifecycle()
+    val showButtonLabels by viewModel.showButtonLabels.collectAsStateWithLifecycle()
     val navBarStyle by viewModel.navBarStyle.collectAsStateWithLifecycle()
     val localBackups by viewModel.localBackups.collectAsStateWithLifecycle()
     val pendingRestoreBackup by viewModel.pendingRestoreBackup.collectAsStateWithLifecycle()
@@ -1378,6 +1379,7 @@ fun MainAppContent(
                         onClearDefaultContactNumber = { contact -> viewModel.clearDefaultContactNumber(contact) },
                         onSyncToPhone = { contact -> viewModel.syncAppContactToPhone(contact) },
                         onDeleteAllCalls = { viewModel.deleteAllRecentCalls() },
+                        showButtonLabels = showButtonLabels,
                         isCallLogPermissionGranted = context.checkSelfPermission(Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED,
                         onRequestCallLogPermission = {
                             unskipWizardStep(SetupStep.PHONE_PERMISSIONS)
@@ -1514,6 +1516,7 @@ fun MainAppContent(
                         onDeleteCall = { call -> viewModel.deleteRecentCall(call) },
                         onDeleteCallsForNumber = { num -> viewModel.deleteRecentCallsForNumber(num) },
                         onDeleteContact = { viewModel.deleteContact(it) },
+                        showButtonLabels = showButtonLabels,
                         isContactsPermissionGranted = isContactsPermissionGranted(),
                         onRequestContactsPermission = {
                             unskipWizardStep(SetupStep.CONTACTS)
@@ -1567,6 +1570,8 @@ fun MainAppContent(
                         deviceContacts = deviceContacts,
                         swipeToSwitchPanels = swipeToSwitchPanels,
                         onSetSwipeToSwitchPanels = { viewModel.setSwipeToSwitchPanels(it) },
+                        showButtonLabels = showButtonLabels,
+                        onSetShowButtonLabels = { viewModel.setShowButtonLabels(it) },
                         navBarStyle = navBarStyle,
                         onSetNavBarStyle = { viewModel.setNavBarStyle(it) },
                         onExportBackup = { uri, onDone -> viewModel.exportBackup(uri, onDone) },

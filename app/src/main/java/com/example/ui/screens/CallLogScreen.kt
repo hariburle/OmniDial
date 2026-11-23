@@ -172,6 +172,7 @@ fun CallLogScreen(
     dismissModalsTrigger: Long = 0L,
     isFocused: Boolean = false,
     scrollToTopTrigger: Long = 0L,
+    showButtonLabels: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -697,43 +698,84 @@ fun CallLogScreen(
                 filterOptions.forEach { item ->
                     val isSelected = (selectedFilter == item.key)
                     val accentColor = item.activeColor ?: MaterialTheme.colorScheme.primary
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            selectedFilter = if (isSelected && item.key != "ALL") "ALL" else item.key
-                        },
-                        label = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    if (showButtonLabels) {
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedFilter = if (isSelected && item.key != "ALL") "ALL" else item.key
+                            },
+                            label = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = item.shortLabel,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = accentColor.copy(alpha = 0.18f),
+                                selectedLabelColor = accentColor
+                            ),
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 0.5.dp,
+                                color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            ),
+                            modifier = Modifier
+                                .height(36.dp)
+                                .testTag("recents_filter_${item.key.lowercase()}")
+                        )
+                    } else {
+                        @OptIn(ExperimentalMaterial3Api::class)
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text(item.label)
+                                }
+                            },
+                            state = rememberTooltipState()
+                        ) {
+                            Surface(
+                                onClick = {
+                                    selectedFilter = if (isSelected && item.key != "ALL") "ALL" else item.key
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) {
+                                    accentColor.copy(alpha = 0.18f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                },
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 0.5.dp,
+                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .testTag("recents_filter_${item.key.lowercase()}")
                             ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Text(
-                                    text = item.shortLabel,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = item.label,
+                                        tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
                             }
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = accentColor.copy(alpha = 0.18f),
-                            selectedLabelColor = accentColor
-                        ),
-                        border = BorderStroke(
-                            width = if (isSelected) 1.5.dp else 0.5.dp,
-                            color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier
-                            .height(36.dp)
-                            .testTag("recents_filter_${item.key.lowercase()}")
-                    )
+                        }
+                    }
                 }
                 }
 

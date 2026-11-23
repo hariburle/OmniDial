@@ -144,6 +144,7 @@ fun ContactsScreen(
     isContactsPermissionGranted: Boolean = true,
     onRequestContactsPermission: () -> Unit = {},
     dismissModalsTrigger: Long = 0L,
+    showButtonLabels: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -477,11 +478,13 @@ fun ContactsScreen(
             .fillMaxSize()
             .testTag("contacts_screen")
     ) {
-        // Smart Contact Discovery & Filter Row (Equally distributed, elegant wide rounded-rectangular buttons)
+        // Smart Contact Discovery & Filter Row (labels shown when the setting is on,
+        // icon-only buttons otherwise — same choice as the Recents filter row)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .then(if (showButtonLabels) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -504,52 +507,97 @@ fun ContactsScreen(
                     SmartContactSort.REDISCOVER -> Color(0xFF8B5CF6)
                 }
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(36.dp)
-                ) {
-                    @OptIn(ExperimentalMaterial3Api::class)
-                    TooltipBox(
-                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                        tooltip = {
-                            PlainTooltip {
-                                Text(sortMode.description)
+                if (showButtonLabels) {
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            if (sortMode == SmartContactSort.REDISCOVER && isSelected) {
+                                rediscoverShuffleSeed = System.currentTimeMillis()
+                                Toast.makeText(context, "Reshuffled Rediscover list", Toast.LENGTH_SHORT).show()
+                            } else {
+                                smartSortBy = sortMode
                             }
                         },
-                        state = rememberTooltipState(),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Surface(
-                            onClick = {
-                                if (sortMode == SmartContactSort.REDISCOVER && isSelected) {
-                                    rediscoverShuffleSeed = System.currentTimeMillis()
-                                    Toast.makeText(context, "Reshuffled Rediscover list", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    smartSortBy = sortMode
-                                }
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) {
-                                accentColor.copy(alpha = 0.18f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                            },
-                            border = BorderStroke(
-                                width = if (isSelected) 1.5.dp else 0.5.dp,
-                                color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .testTag("contact_filter_${sortMode.name.lowercase()}")
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
+                        label = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
                                 Icon(
                                     imageVector = icon,
-                                    contentDescription = sortMode.description,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    contentDescription = null,
+                                    tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
                                 )
+                                Text(
+                                    text = sortMode.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = accentColor.copy(alpha = 0.18f),
+                            selectedLabelColor = accentColor
+                        ),
+                        border = BorderStroke(
+                            width = if (isSelected) 1.5.dp else 0.5.dp,
+                            color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .testTag("contact_filter_${sortMode.name.lowercase()}")
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                    ) {
+                        @OptIn(ExperimentalMaterial3Api::class)
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text(sortMode.description)
+                                }
+                            },
+                            state = rememberTooltipState(),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Surface(
+                                onClick = {
+                                    if (sortMode == SmartContactSort.REDISCOVER && isSelected) {
+                                        rediscoverShuffleSeed = System.currentTimeMillis()
+                                        Toast.makeText(context, "Reshuffled Rediscover list", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        smartSortBy = sortMode
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) {
+                                    accentColor.copy(alpha = 0.18f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                },
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 0.5.dp,
+                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .testTag("contact_filter_${sortMode.name.lowercase()}")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = sortMode.description,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
