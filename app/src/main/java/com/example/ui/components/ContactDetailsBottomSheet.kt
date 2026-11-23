@@ -244,6 +244,8 @@ fun ContactDetailsBottomSheet(
 
     var contactCallHistory by remember { mutableStateOf<List<RecentCall>>(emptyList()) }
     var contactDetails by remember { mutableStateOf<ContactDetails?>(null) }
+    // Details beyond numbers stay hidden until the user asks for them.
+    var detailsExpanded by remember(stableContactKey) { mutableStateOf(false) }
     var isLoadingHistory by remember { mutableStateOf(true) }
     var pendingChannelChoiceNumber by remember { mutableStateOf<ContactPhoneNumber?>(null) }
     var pendingMessageChannelNumber by remember { mutableStateOf<ContactPhoneNumber?>(null) }
@@ -1174,7 +1176,8 @@ fun ContactDetailsBottomSheet(
 
             // -------------------------------------------------------------
             // CONTACT DETAILS SECTION (read live from the device Contacts app,
-            // display-only — hidden entirely when the contact has no details)
+            // display-only — hidden until the user asks, and hidden entirely
+            // when the contact has no details)
             // -------------------------------------------------------------
             val details = contactDetails
             if (details != null) {
@@ -1183,27 +1186,50 @@ fun ContactDetailsBottomSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { detailsExpanded = !detailsExpanded }
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "DETAILS",
-                        style = MaterialTheme.typography.labelMedium,
+                        text = if (detailsExpanded) "Hide details" else "Show details",
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Text(
-                        text = "From Phone Contacts",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
+                    Icon(
+                        imageVector = if (detailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (detailsExpanded) "Hide details" else "Show details",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                if (detailsExpanded) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "DETAILS",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "From Phone Contacts",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
 
-                Card(
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
@@ -1251,6 +1277,7 @@ fun ContactDetailsBottomSheet(
                             }
                         }
                     }
+                }
                 }
             }
 
