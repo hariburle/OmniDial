@@ -123,6 +123,9 @@ fun ContactsScreen(
     onAddNewContactMulti: ((name: String, numbers: List<ContactPhoneNumber>, destination: ContactSaveDestination, addToFavorites: Boolean) -> Unit)? = null,
     onUpdateContact: (oldNumber: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
     onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
+    onClearDefaultContactNumber: ((DeviceContact) -> Unit)? = null,
+    onDeleteCall: ((RecentCall) -> Unit)? = null,
+    onDeleteCallsForNumber: ((String) -> Unit)? = null,
     defaultContactNumbers: List<com.example.data.ContactDefaultNumber> = emptyList(),
     onSyncContactToPhone: (DeviceContact) -> Unit = {},
     onSyncAllAppContactsToDevice: () -> Unit = {},
@@ -1347,14 +1350,7 @@ fun ContactsScreen(
                 contactForDetailsSheet = detailContact.copy(phoneNumber = num, label = label)
             },
             onClearDefaultNumber = {
-                val firstNum = detailContact.phoneNumbers.firstOrNull()?.number ?: detailContact.phoneNumber
-                val firstLabel = detailContact.phoneNumbers.firstOrNull()?.label ?: detailContact.label
-                if (onSetDefaultContactNumber != null) {
-                    onSetDefaultContactNumber(detailContact, firstNum, firstLabel)
-                } else {
-                    onUpdateContact(detailContact.phoneNumber, detailContact.name, firstNum, firstLabel, detailContact.nickname)
-                }
-                contactForDetailsSheet = detailContact.copy(phoneNumber = firstNum, label = firstLabel)
+                onClearDefaultContactNumber?.invoke(detailContact)
             },
             onCreateRule = { num ->
                 onCreateRule(num)
@@ -1372,6 +1368,15 @@ fun ContactsScreen(
                 onDeleteContact(contactToDelete)
                 contactForDetailsSheet = null
             },
+            onDeleteCall = onDeleteCall,
+            onDeleteCallLog = if (onDeleteCallsForNumber != null) {
+                {
+                    val numsToDelete = (detailContact.phoneNumbers.map { it.number } + listOf(detailContact.phoneNumber))
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    numsToDelete.forEach { num -> onDeleteCallsForNumber?.invoke(num) }
+                }
+            } else null,
             getPreferredCallingMode = getPreferredCallingMode,
             onSaveLearnedCallMode = onSaveLearnedCallMode,
             activeSims = activeSims,

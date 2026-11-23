@@ -1330,15 +1330,13 @@ fun MainAppContent(
                         onSetPreferredSimSlot = { num, slot -> viewModel.setPreferredSimSlot(num, slot) },
                         globalSimPreferenceMode = globalSimPreferenceMode,
                         onCallBack = { recentCall ->
-                            if (recentCall.callReason?.contains("WhatsApp Business", ignoreCase = true) == true) {
-                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber, isBusiness = true)
-                            } else if (recentCall.callReason?.contains("WhatsApp", ignoreCase = true) == true) {
-                                viewModel.placeWhatsAppCall(context, recentCall.phoneNumber, isBusiness = false)
-                            } else if (recentCall.callReason?.contains("Google Voice", ignoreCase = true) == true) {
-                                viewModel.placeGoogleVoiceCall(context, recentCall.phoneNumber)
-                            } else {
-                                viewModel.placeCall(context, recentCall.phoneNumber, null, overrideSimSlot = recentCall.simSlot)
-                            }
+                            viewModel.initiateCall(context, recentCall.phoneNumber)
+                        },
+                        onCallNumber = { num ->
+                            viewModel.initiateCall(context, num)
+                        },
+                        onCallNumberDirect = { num, slot ->
+                            viewModel.placeCall(context, num, overrideSimSlot = slot)
                         },
                         onCreateRuleForNumber = { num ->
                             ruleNumberToCreate = num
@@ -1377,6 +1375,9 @@ fun MainAppContent(
                             viewModel.deleteRecentCallsForNumber(phoneNumber)
                         },
                         onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
+                        onClearDefaultContactNumber = { contact -> viewModel.clearDefaultContactNumber(contact) },
+                        onSyncToPhone = { contact -> viewModel.syncAppContactToPhone(contact) },
+                        onDeleteAllCalls = { viewModel.deleteAllRecentCalls() },
                         isCallLogPermissionGranted = context.checkSelfPermission(Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED,
                         onRequestCallLogPermission = {
                             unskipWizardStep(SetupStep.PHONE_PERMISSIONS)
@@ -1509,6 +1510,9 @@ fun MainAppContent(
                             viewModel.syncAllAppContactsToDevice()
                         },
                         onSetDefaultContactNumber = { contact, num, label -> viewModel.setDefaultContactNumber(contact, num, label) },
+                        onClearDefaultContactNumber = { contact -> viewModel.clearDefaultContactNumber(contact) },
+                        onDeleteCall = { call -> viewModel.deleteRecentCall(call) },
+                        onDeleteCallsForNumber = { num -> viewModel.deleteRecentCallsForNumber(num) },
                         onDeleteContact = { viewModel.deleteContact(it) },
                         isContactsPermissionGranted = isContactsPermissionGranted(),
                         onRequestContactsPermission = {

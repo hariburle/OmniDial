@@ -1864,6 +1864,35 @@ class MainViewModel(
         }
     }
 
+    fun deleteAllRecentCalls() {
+        val allNumbers = _combinedRecentCalls.value.map { it.phoneNumber }.distinct()
+        if (allNumbers.isEmpty()) return
+        // Registry: suppress re-import of these numbers, as deleteRecentCallsForNumber does
+        val now = System.currentTimeMillis()
+        allNumbers.forEach { num ->
+            val digits = num.filter { it.isDigit() }.takeLast(10)
+            if (digits.isNotBlank()) deletedNumbersUntil[digits] = now
+            deletedNumbersUntil[num.trim()] = now
+        }
+        persistDeletedRegistry()
+
+        // Immediate UI update
+        _combinedRecentCalls.value = emptyList()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                allNumbers.forEach { num ->
+                    repository.deleteRecentCallsForNumber(num)
+                    ContactHelper.deleteDeviceCallLogsForNumber(appContext, num)
+                }
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Error clearing all recent calls", e)
+            } finally {
+                refreshRecentCalls()
+            }
+        }
+    }
+
     fun disconnectCall() {
         CallManager.disconnectCall()
     }
@@ -2666,6 +2695,16 @@ class MainViewModel(
             }
 
             // 5. Trigger contacts refresh so list UI updates immediately
+            refreshContacts()
+        }
+    }
+
+    fun clearDefaultContactNumber(contact: DeviceContact) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val allNumbers = (contact.phoneNumbers.map { it.number } + listOf(contact.phoneNumber))
+                .filter { it.isNotBlank() }
+                .distinct()
+            repository.clearDefaultNumberForContact(contact.contactId, allNumbers)
             refreshContacts()
         }
     }

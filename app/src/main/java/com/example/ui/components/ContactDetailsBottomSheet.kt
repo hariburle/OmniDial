@@ -52,8 +52,10 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
@@ -64,7 +66,6 @@ import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Voicemail
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -75,6 +76,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledIconButton
@@ -136,6 +139,11 @@ import java.util.Date
 import java.util.Locale
 
 /**
+ * Delete dialog mode: RECENTS removes call history only; CONTACT deletes the whole contact.
+ */
+private enum class DeleteDialogMode { RECENTS, CONTACT }
+
+/**
  * Android Phone Dialer-style Contact Card Bottom Sheet.
  * Displays full contact details, quick action bar (Call, Message, WhatsApp, Star Favorite),
  * and an interactive list of all phone numbers.
@@ -158,6 +166,10 @@ fun ContactDetailsBottomSheet(
     onAddNewContact: ((name: String, number: String, label: String, saveToDevice: Boolean, addToFavorites: Boolean) -> Unit)? = null,
     onDeleteContact: ((DeviceContact) -> Unit)? = null,
     onDeleteCallLog: (() -> Unit)? = null,
+    onToggleSpam: (() -> Unit)? = null,
+    isSpam: Boolean = false,
+    onOpenNoteDialog: ((RecentCall) -> Unit)? = null,
+    onDeleteCall: ((RecentCall) -> Unit)? = null,
     getPreferredCallingMode: (String) -> String = { "cellular" },
     onSaveLearnedCallMode: (String, String) -> Unit = { _, _ -> },
     activeSims: List<com.example.telecom.SimInfo> = emptyList(),
@@ -180,7 +192,10 @@ fun ContactDetailsBottomSheet(
     var showEditDialog by remember { mutableStateOf(false) }
     var showCreateContactDialog by remember { mutableStateOf(false) }
     var showAddNumberDialog by remember { mutableStateOf(false) }
-    var showDeleteConfirmationDialog by remember { mutableStateOf(false) }
+    var deleteDialogMode by remember { mutableStateOf<DeleteDialogMode?>(null) }
+    var sheetShowMoreMenu by remember { mutableStateOf(false) }
+    var showSpamConfirmDialog by remember { mutableStateOf(false) }
+    var pendingNicknameForCreate by remember { mutableStateOf<String?>(null) }
     val isVoicemail = remember(contact.phoneNumber, contact.name) {
         ContactHelper.isVoicemailNumber(context, contact.phoneNumber) || contact.name.equals("Voicemail", ignoreCase = true)
     }
@@ -217,6 +232,9 @@ fun ContactDetailsBottomSheet(
     var currentDefaultNumber by remember(stableContactKey) {
         mutableStateOf(initialDefaultNumber)
     }
+    // True after the user explicitly clears the default in this sheet session;
+    // keeps the first number from re-showing the DEFAULT badge after a clear.
+    var defaultNumberCleared by remember(stableContactKey) { mutableStateOf(false) }
     var numberForActionMenu by remember { mutableStateOf<ContactPhoneNumber?>(null) }
     val preferredModes = remember { mutableStateMapOf<String, String>() }
     val preferredSims = remember { mutableStateMapOf<String, Int>() }
@@ -228,6 +246,8 @@ fun ContactDetailsBottomSheet(
     var contactDetails by remember { mutableStateOf<ContactDetails?>(null) }
     var isLoadingHistory by remember { mutableStateOf(true) }
     var pendingChannelChoiceNumber by remember { mutableStateOf<ContactPhoneNumber?>(null) }
+    var pendingMessageChannelNumber by remember { mutableStateOf<ContactPhoneNumber?>(null) }
+    var historyActionCall by remember { mutableStateOf<RecentCall?>(null) }
 
     LaunchedEffect(contact) {
         isLoadingHistory = true
@@ -289,12 +309,14 @@ fun ContactDetailsBottomSheet(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         IconButton(
-                            onClick = { showDeleteConfirmationDialog = true },
+                            onClick = {
+                                deleteDialogMode = if (onDeleteCallLog != null) DeleteDialogMode.RECENTS else DeleteDialogMode.CONTACT
+                            },
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = if (isUnknownNumber && onDeleteCallLog != null) "Remove from Recents" else "Delete Contact",
+                                contentDescription = if (onDeleteCallLog != null) "Remove from Recents" else "Delete Contact",
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -304,24 +326,56 @@ fun ContactDetailsBottomSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        IconButton(
-                            onClick = {
-                                onToggleFavorite()
-                                Toast.makeText(
-                                    context,
-                                    if (isFavorite) "Removed from Favorites" else "★ Added to Favorites",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .testTag("contact_details_star_toggle")
-                        ) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                contentDescription = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
-                                tint = if (isFavorite) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        if (onToggleSpam != null || (!isUnknownNumber && onDeleteContact != null)) {
+                            Box {
+                                IconButton(
+                                    onClick = { sheetShowMoreMenu = true },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More actions",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = sheetShowMoreMenu,
+                                    onDismissRequest = { sheetShowMoreMenu = false }
+                                ) {
+                                    if (onToggleSpam != null) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (isSpam) "Unmark as Spam" else "Report as Spam") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = if (isSpam) Icons.Default.Security else Icons.Default.Block,
+                                                    contentDescription = null,
+                                                    tint = if (isSpam) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                                                )
+                                            },
+                                            onClick = {
+                                                sheetShowMoreMenu = false
+                                                if (isSpam) {
+                                                    onToggleSpam()
+                                                } else {
+                                                    showSpamConfirmDialog = true
+                                                }
+                                            }
+                                        )
+                                    }
+                                    if (!isUnknownNumber && onDeleteContact != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Delete contact") },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                            },
+                                            onClick = {
+                                                sheetShowMoreMenu = false
+                                                deleteDialogMode = DeleteDialogMode.CONTACT
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         IconButton(
@@ -349,8 +403,7 @@ fun ContactDetailsBottomSheet(
                             shape = CircleShape,
                             color = if (isUnknownNumber) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .clickable(enabled = isUnknownNumber) { showCreateContactDialog = true },
+                                .fillMaxSize(),
                             shadowElevation = 2.dp
                         ) {
                             if (!contact.photoUri.isNullOrBlank()) {
@@ -390,25 +443,6 @@ fun ContactDetailsBottomSheet(
                             }
                         }
 
-                        if (isUnknownNumber) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .align(Alignment.BottomEnd)
-                                    .clickable { showCreateContactDialog = true }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "+",
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                            }
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -622,7 +656,11 @@ fun ContactDetailsBottomSheet(
                             (favDigits.length >= 7 && normPn == favDigits) ||
                             (displayedNumbers.size == 1)
                         )
-                        val isDefaultNumber = if (currentDefaultNumber.isNotBlank()) {
+                        // After an explicit clear, no number shows DEFAULT — the
+                        // index-0 fallback only applies when a default was never set.
+                        val isDefaultNumber = if (defaultNumberCleared) {
+                            false
+                        } else if (currentDefaultNumber.isNotBlank()) {
                             pn.number == currentDefaultNumber || ContactHelper.isSamePhoneNumber(pn.number, currentDefaultNumber)
                         } else {
                             index == 0
@@ -767,10 +805,12 @@ fun ContactDetailsBottomSheet(
                                         onCheckedChange = { checked ->
                                             if (checked) {
                                                 currentDefaultNumber = pn.number
+                                                defaultNumberCleared = false
                                                 onSetAsDefaultNumber(pn.number, pn.label)
                                                 Toast.makeText(context, "Set as default dialing number: ${pn.number}", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 currentDefaultNumber = ""
+                                                defaultNumberCleared = true
                                                 onClearDefaultNumber()
                                                 Toast.makeText(context, "Default dialing number cleared", Toast.LENGTH_SHORT).show()
                                             }
@@ -794,6 +834,10 @@ fun ContactDetailsBottomSheet(
                                                 ContactHelper.launchWhatsAppMessage(context, pn.number, isBusiness = isWaBiz)
                                             } else if (isGoogleVoiceChannel) {
                                                 ContactHelper.launchGoogleVoiceMessage(context, pn.number)
+                                            } else if (effectiveChannelId == "ask" || effectiveChannelId.isBlank()) {
+                                                // No channel set — ask which channel to message
+                                                // with, mirroring the call button's choice sheet.
+                                                pendingMessageChannelNumber = pn
                                             } else {
                                                 val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${pn.number}"))
                                                 context.startActivity(smsIntent)
@@ -1081,7 +1125,7 @@ fun ContactDetailsBottomSheet(
                                             onSaveLearnedCallMode(pn.number, "ask")
                                             Toast.makeText(context, "Preference cleared", Toast.LENGTH_SHORT).show()
                                         },
-                                        label = { Text("✕", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                        label = { Text("Ask", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                                         border = null,
                                         modifier = Modifier.height(26.dp)
                                     )
@@ -1312,10 +1356,17 @@ fun ContactDetailsBottomSheet(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        onDismiss()
-                                        onCallNumber(call.phoneNumber)
-                                    }
+                                    .combinedClickable(
+                                        onClick = {
+                                            onDismiss()
+                                            onCallNumber(call.phoneNumber)
+                                        },
+                                        onLongClick = {
+                                            if (onOpenNoteDialog != null || onDeleteCall != null) {
+                                                historyActionCall = call
+                                            }
+                                        }
+                                    )
                                     .padding(horizontal = 14.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1429,6 +1480,9 @@ fun ContactDetailsBottomSheet(
                                         }
 
                                         val dropAttribution = CallDropAttribution.forCall(call.isSpam, call.note, call.ruleMatched, call.callReason)
+                                        // A user note is shown under the block badge; only the
+                                        // literal "auto-dropped" system marker text stays hidden.
+                                        val historyNoteToShow = call.note?.takeIf { !it.contains("auto-dropped", ignoreCase = true) }
                                         if (dropAttribution != DropAttribution.NONE) {
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Surface(
@@ -1455,7 +1509,8 @@ fun ContactDetailsBottomSheet(
                                                     )
                                                 }
                                             }
-                                        } else if (!call.note.isNullOrBlank()) {
+                                        }
+                                        if (!historyNoteToShow.isNullOrBlank()) {
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -1468,7 +1523,7 @@ fun ContactDetailsBottomSheet(
                                                     modifier = Modifier.size(12.dp)
                                                 )
                                                 Text(
-                                                    text = call.note,
+                                                    text = historyNoteToShow,
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.primary,
                                                     fontWeight = FontWeight.Medium,
@@ -1514,8 +1569,6 @@ fun ContactDetailsBottomSheet(
     // Long-press Action Dialog for a selected phone number (Android Dialer Style)
     if (numberForActionMenu != null) {
         val selectedPn = numberForActionMenu!!
-        val activeDef = currentDefaultNumber.ifBlank { contact.phoneNumber }
-        val isCurrentDefault = (activeDef.isNotBlank() && (selectedPn.number == activeDef || ContactHelper.isSamePhoneNumber(selectedPn.number, activeDef))) || (contact.phoneNumbers.size <= 1)
 
         AlertDialog(
             onDismissRequest = { numberForActionMenu = null },
@@ -1557,56 +1610,6 @@ fun ContactDetailsBottomSheet(
                         ) {
                             Icon(imageVector = Icons.Default.Call, contentDescription = null, tint = Color(0xFF16A34A))
                             Text(text = "Call ${selectedPn.number}", fontWeight = FontWeight.Medium)
-                        }
-                    }
-
-                    // Set or Clear Default Number
-                    if (!isCurrentDefault) {
-                        Card(
-                            shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    currentDefaultNumber = selectedPn.number
-                                    onSetAsDefaultNumber(selectedPn.number, selectedPn.label)
-                                    Toast.makeText(context, "★ Set as default: ${selectedPn.number}", Toast.LENGTH_SHORT).show()
-                                    numberForActionMenu = null
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = Color(0xFFF59E0B))
-                                Column {
-                                    Text(text = "Set as default number", fontWeight = FontWeight.Bold)
-                                    Text(text = "Use this number as primary default for this contact", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    } else {
-                        Card(
-                            shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    currentDefaultNumber = ""
-                                    onClearDefaultNumber()
-                                    Toast.makeText(context, "Default number cleared", Toast.LENGTH_SHORT).show()
-                                    numberForActionMenu = null
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(imageVector = Icons.Outlined.StarBorder, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                Text(text = "Clear default number", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                            }
                         }
                     }
 
@@ -1845,10 +1848,10 @@ fun ContactDetailsBottomSheet(
         )
     }
 
-    if (showDeleteConfirmationDialog) {
-        val isRemovingFromRecents = isUnknownNumber && onDeleteCallLog != null
+    if (deleteDialogMode != null) {
+        val isRemovingFromRecents = deleteDialogMode == DeleteDialogMode.RECENTS
         AlertDialog(
-            onDismissRequest = { showDeleteConfirmationDialog = false },
+            onDismissRequest = { deleteDialogMode = null },
             icon = {
                 Icon(
                     imageVector = Icons.Default.Delete,
@@ -1876,7 +1879,7 @@ fun ContactDetailsBottomSheet(
             confirmButton = {
                 Button(
                     onClick = {
-                        showDeleteConfirmationDialog = false
+                        deleteDialogMode = null
                         if (isRemovingFromRecents) {
                             onDeleteCallLog?.invoke()
                             Toast.makeText(context, "Removed from Recents", Toast.LENGTH_SHORT).show()
@@ -1897,9 +1900,37 @@ fun ContactDetailsBottomSheet(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showDeleteConfirmationDialog = false },
+                    onClick = { deleteDialogMode = null },
                     shape = RoundedCornerShape(10.dp)
                 ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showSpamConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showSpamConfirmDialog = false },
+            title = { Text("Report as spam?", fontWeight = FontWeight.Bold) },
+            text = { Text("Report ${contact.phoneNumber} as spam? Future calls from this number will be blocked.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSpamConfirmDialog = false
+                        onToggleSpam?.invoke()
+                        Toast.makeText(context, "Reported as spam", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text("Report as Spam", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSpamConfirmDialog = false }) {
                     Text("Cancel")
                 }
             }
@@ -1909,10 +1940,14 @@ fun ContactDetailsBottomSheet(
     if (showCreateContactDialog) {
         CreateContactDialog(
             initialNumber = contact.phoneNumber,
-            initialName = "",
+            initialName = pendingNicknameForCreate ?: "",
             dialogTitle = "Add to Contacts",
-            onDismiss = { showCreateContactDialog = false },
+            onDismiss = {
+                pendingNicknameForCreate = null
+                showCreateContactDialog = false
+            },
             onSave = { name, number, label, destination, addToFavorites ->
+                pendingNicknameForCreate = null
                 val saveToDevice = (destination == ContactSaveDestination.PHONE_CONTACTS)
                 if (onAddNewContact != null) {
                     onAddNewContact(name, number, label, saveToDevice, addToFavorites)
@@ -1954,12 +1989,21 @@ fun ContactDetailsBottomSheet(
                 Button(
                     onClick = {
                         val trimmed = directNicknameText.trim()
-                        currentDisplayNickname = trimmed
-                        editNickname = trimmed
-                        onEditContact(contact.name, contact.phoneNumber, contact.label, trimmed.ifBlank { null })
-                        ContactHelper.updateContactNickname(context, contact.phoneNumber, trimmed, contact.contactId)
                         showNicknameEditDialog = false
-                        Toast.makeText(context, "Nickname updated and synced", Toast.LENGTH_SHORT).show()
+                        if (isUnknownNumber) {
+                            // Unknown number: a nickname must not go through the
+                            // edit path (that would create a junk contact named
+                            // "Incoming Caller") — open the create-contact flow
+                            // with the nickname as the contact name instead.
+                            pendingNicknameForCreate = trimmed.ifBlank { null }
+                            showCreateContactDialog = true
+                        } else {
+                            currentDisplayNickname = trimmed
+                            editNickname = trimmed
+                            onEditContact(contact.name, contact.phoneNumber, contact.label, trimmed.ifBlank { null })
+                            ContactHelper.updateContactNickname(context, contact.phoneNumber, trimmed, contact.contactId)
+                            Toast.makeText(context, "Nickname updated and synced", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     shape = RoundedCornerShape(10.dp)
                 ) {
@@ -2032,6 +2076,211 @@ fun ContactDetailsBottomSheet(
                 pendingChannelChoiceNumber = null
             },
             onDismiss = { pendingChannelChoiceNumber = null }
+        )
+    }
+
+    // Message channel choice (shown when no preferred channel is set, mirroring
+    // the call button's choice sheet). One-off choice: it does not save a
+    // preference — the per-number Channel chips are the persistent path.
+    if (pendingMessageChannelNumber != null) {
+        val pnTarget = pendingMessageChannelNumber!!
+        AlertDialog(
+            onDismissRequest = { pendingMessageChannelNumber = null },
+            title = {
+                Text(
+                    text = "Message ${contact.name} via",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val waChannel = availableChannels.filterIsInstance<CallingChannel.WhatsApp>()
+                        .firstOrNull { !it.isBusiness }
+                    if (waChannel != null) {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    pendingMessageChannelNumber = null
+                                    ContactHelper.launchWhatsAppMessage(context, pnTarget.number, isBusiness = false)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                WhatsAppIcon(modifier = Modifier.size(26.dp))
+                                Text(text = "WhatsApp", fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                    val waBizChannel = availableChannels.filterIsInstance<CallingChannel.WhatsApp>()
+                        .firstOrNull { it.isBusiness }
+                    if (waBizChannel != null) {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    pendingMessageChannelNumber = null
+                                    ContactHelper.launchWhatsAppMessage(context, pnTarget.number, isBusiness = true)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                WhatsAppIcon(modifier = Modifier.size(26.dp))
+                                Text(text = "WhatsApp Business", fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                    val gvChannel = availableChannels.filterIsInstance<CallingChannel.GoogleVoice>()
+                        .firstOrNull()
+                    if (gvChannel != null) {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    pendingMessageChannelNumber = null
+                                    ContactHelper.launchGoogleVoiceMessage(context, pnTarget.number)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(imageVector = Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = Color(0xFF0F9D58))
+                                Text(text = "Google Voice", fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                    Card(
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                pendingMessageChannelNumber = null
+                                val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${pnTarget.number}"))
+                                context.startActivity(smsIntent)
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(imageVector = Icons.AutoMirrored.Filled.Message, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text(text = "SMS", fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { pendingMessageChannelNumber = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Long-press action dialog for a call-history row (Note / Delete).
+    // Note and Delete are Recents-wired only; both are hidden in the Contacts tab.
+    if (historyActionCall != null) {
+        val historyCall = historyActionCall!!
+        val hasHistoryNote = !historyCall.note?.takeIf { !it.contains("auto-dropped", ignoreCase = true) }.isNullOrBlank() ||
+            historyCall.reminderTime != null
+        AlertDialog(
+            onDismissRequest = { historyActionCall = null },
+            title = {
+                Column {
+                    Text(
+                        text = when (historyCall.callType) {
+                            1 -> "Incoming call"
+                            2 -> "Outgoing call"
+                            3 -> "Missed call"
+                            else -> "Call"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(historyCall.timestamp))} • ${historyCall.phoneNumber}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (onOpenNoteDialog != null) {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    historyActionCall = null
+                                    onOpenNoteDialog(historyCall)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(imageVector = Icons.AutoMirrored.Filled.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Text(text = if (hasHistoryNote) "Edit Note / Reminder" else "Add Note / Reminder", fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                    if (onDeleteCall != null) {
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    historyActionCall = null
+                                    onDeleteCall(historyCall)
+                                    Toast.makeText(context, "Deleted", Toast.LENGTH_SHORT).show()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Text(text = "Delete this call", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { historyActionCall = null }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }

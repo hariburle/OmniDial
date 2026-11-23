@@ -55,6 +55,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -122,7 +123,8 @@ data class FilterOptionData(
     val key: String,
     val label: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val activeColor: Color? = null
+    val activeColor: Color? = null,
+    val shortLabel: String
 )
 
 data class GroupedCallLog(
@@ -150,6 +152,10 @@ fun CallLogScreen(
     onUpdateNoteAndReminder: (RecentCall, String?, Long?) -> Unit = { _, _, _ -> },
     onUpdateContact: (oldNum: String, name: String, number: String, label: String, nickname: String?) -> Unit = { _, _, _, _, _ -> },
     onSetDefaultContactNumber: ((contact: DeviceContact, number: String, label: String) -> Unit)? = null,
+    onClearDefaultContactNumber: ((DeviceContact) -> Unit)? = null,
+    onSyncToPhone: ((DeviceContact) -> Unit)? = null,
+    onCallNumberDirect: ((String, Int?) -> Unit)? = null,
+    onDeleteAllCalls: (() -> Unit)? = null,
     onDeleteContact: ((DeviceContact) -> Unit)? = null,
     onDeleteCall: (RecentCall) -> Unit = {},
     onDeleteCallsForNumber: (String) -> Unit = {},
@@ -171,6 +177,9 @@ fun CallLogScreen(
     val context = LocalContext.current
     var noteDialogCall by remember { mutableStateOf<RecentCall?>(null) }
     var contactDetailsTarget by remember { mutableStateOf<Pair<DeviceContact, FavoriteContact?>?>(null) }
+    var sheetIsSpam by remember { mutableStateOf(false) }
+    var showRecentsOverflowMenu by remember { mutableStateOf(false) }
+    var showClearAllConfirmDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(dismissModalsTrigger) {
         if (dismissModalsTrigger > 0L) {
@@ -200,6 +209,7 @@ fun CallLogScreen(
             onCallNumber = { num ->
                 onCallNumber(num)
             },
+            onCallNumberDirect = onCallNumberDirect,
             onSelectInDialer = { num ->
                 onCallNumber(num)
             },
@@ -218,19 +228,26 @@ fun CallLogScreen(
                 }
             },
             onClearDefaultNumber = {
-                val firstNum = matchedContact.phoneNumbers.firstOrNull()?.number ?: matchedContact.phoneNumber
-                val firstLabel = matchedContact.phoneNumbers.firstOrNull()?.label ?: matchedContact.label
-                if (onSetDefaultContactNumber != null) {
-                    onSetDefaultContactNumber(matchedContact, firstNum, firstLabel)
-                }
-                if (favContact != null) {
-                    onUpdateFavoriteNumber(favContact, firstNum, firstLabel)
-                    contactDetailsTarget = Pair(matchedContact.copy(phoneNumber = firstNum, label = firstLabel), favContact.copy(phoneNumber = firstNum, label = firstLabel))
-                }
+                onClearDefaultContactNumber?.invoke(matchedContact)
             },
             onCreateRule = { num ->
                 onCreateRuleForNumber(num)
             },
+            onSyncToPhone = {
+                onSyncToPhone?.invoke(matchedContact)
+            },
+            onToggleSpam = {
+                val num = matchedContact.phoneNumber
+                if (sheetIsSpam) {
+                    onRemoveSpam(num)
+                } else {
+                    onMarkSpam(num)
+                }
+                sheetIsSpam = !sheetIsSpam
+            },
+            isSpam = sheetIsSpam,
+            onDeleteCall = { call -> onDeleteCall(call) },
+            onOpenNoteDialog = { call -> noteDialogCall = call },
             onAddNewContact = { name, number, label, saveToDevice, addToFav ->
                 onAddNewContact(name, number, label, saveToDevice, addToFav)
                 contactDetailsTarget = null
@@ -282,6 +299,40 @@ fun CallLogScreen(
             }
         )
     }
+
+    if (showClearAllConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirmDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteSweep,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = { Text("Clear all recents?", fontWeight = FontWeight.Bold) },
+            text = { Text("Permanently delete all ${recentCalls.size} calls from Recents? This also removes them from the device call log.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showClearAllConfirmDialog = false
+                        onDeleteAllCalls?.invoke()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text("Clear all", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
     // Group consecutive calls from the same phone number
     val groupedCalls = androidx.compose.runtime.remember(recentCalls, spamNumbers, isSpamNumber) {
         val groups = mutableListOf<GroupedCallLog>()
@@ -323,7 +374,22 @@ fun CallLogScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("ALL") }
 
-    val filteredGroupedCalls = remember(groupedCalls, searchQuery, selectedFilter) {
+    // Current device-contact name/nickname by normalized number, for search
+    val contactNameByDigits = remember(deviceContacts) {
+        val map = mutableMapOf<String, String>()
+        deviceContacts.forEach { dc ->
+            val label = listOfNotNull(dc.name.trim().ifBlank { null }, dc.nickname?.trim()?.ifBlank { null })
+                .joinToString(" ").lowercase()
+            if (label.isBlank()) return@forEach
+            ContactHelper.normalizeToLocalDigits(dc.phoneNumber).takeIf { it.isNotBlank() }?.let { map[it] = label }
+            dc.phoneNumbers.forEach { pn ->
+                ContactHelper.normalizeToLocalDigits(pn.number).takeIf { it.isNotBlank() }?.let { map[it] = label }
+            }
+        }
+        map
+    }
+
+    val filteredGroupedCalls = remember(groupedCalls, searchQuery, selectedFilter, contactNameByDigits) {
         groupedCalls.filter { group ->
             val call = group.primaryCall
 
@@ -331,7 +397,7 @@ fun CallLogScreen(
             val matchesFilter = when (selectedFilter) {
                 "MISSED" -> call.callType == 3
                 "INCOMING" -> call.callType == 1
-                "OUTGOING" -> call.callType == 2 && call.callReason?.contains("WhatsApp", ignoreCase = true) != true
+                "OUTGOING" -> call.callType == 2
                 "WHATSAPP" -> call.callReason?.contains("WhatsApp", ignoreCase = true) == true
                 "SPAM" -> group.isSpam
                 "RULES" -> {
@@ -349,10 +415,17 @@ fun CallLogScreen(
 
             if (!matchesFilter) return@filter false
 
-            // 2. Check Search Query
+            // 2. Check Search Query (digit-insensitive: "(651) 330-2493" matches +16513302493;
+            // also matches the contact's current name/nickname, not just the name recorded at call time)
             if (searchQuery.isBlank()) true
             else {
                 val q = searchQuery.trim().lowercase()
+                val qDigits = q.filter { it.isDigit() }
+                val callDigits = call.phoneNumber.filter { it.isDigit() }
+                val numberMatches = qDigits.isNotEmpty() && (callDigits.contains(qDigits) || callDigits.takeLast(10).contains(qDigits))
+                val contactName = contactNameByDigits[ContactHelper.normalizeToLocalDigits(call.phoneNumber)]
+                val contactNameMatches = contactName != null && contactName.contains(q)
+                numberMatches || contactNameMatches ||
                 call.phoneNumber.contains(q) ||
                 (call.callerName != null && call.callerName.lowercase().contains(q)) ||
                 (call.callReason != null && call.callReason.lowercase().contains(q)) ||
@@ -597,65 +670,71 @@ fun CallLogScreen(
             }
             // Top Filter Buttons & Search Toggle Row (Stationary at the very top)
             val filterOptions = listOf(
-                FilterOptionData("ALL", "All Calls", Icons.AutoMirrored.Filled.List, null),
-                FilterOptionData("MISSED", "Missed Calls", Icons.AutoMirrored.Filled.CallMissed, MaterialTheme.colorScheme.error),
-                FilterOptionData("INCOMING", "Incoming Calls", Icons.AutoMirrored.Filled.CallReceived, Color(0xFF2E7D32)),
-                FilterOptionData("OUTGOING", "Outgoing Calls", Icons.AutoMirrored.Filled.CallMade, MaterialTheme.colorScheme.primary),
-                FilterOptionData("WHATSAPP", "WhatsApp Calls", Icons.AutoMirrored.Filled.Chat, Color(0xFF25D366)),
-                FilterOptionData("SPAM", "Spam Calls", Icons.Default.Shield, MaterialTheme.colorScheme.error),
-                FilterOptionData("RULES", "Rules & Automation", Icons.Default.Bolt, Color(0xFFE65100)),
-                FilterOptionData("NOTES", "Notes & Reminders", Icons.Default.EditNote, Color(0xFF673AB7))
+                FilterOptionData("ALL", "All Calls", Icons.AutoMirrored.Filled.List, null, "All"),
+                FilterOptionData("MISSED", "Missed Calls", Icons.AutoMirrored.Filled.CallMissed, MaterialTheme.colorScheme.error, "Missed"),
+                FilterOptionData("INCOMING", "Incoming Calls", Icons.AutoMirrored.Filled.CallReceived, Color(0xFF2E7D32), "Incoming"),
+                FilterOptionData("OUTGOING", "Outgoing Calls", Icons.AutoMirrored.Filled.CallMade, MaterialTheme.colorScheme.primary, "Outgoing"),
+                FilterOptionData("WHATSAPP", "WhatsApp Calls", Icons.AutoMirrored.Filled.Chat, Color(0xFF25D366), "WhatsApp"),
+                FilterOptionData("SPAM", "Spam Calls", Icons.Default.Shield, MaterialTheme.colorScheme.error, "Spam"),
+                FilterOptionData("RULES", "Rules & Automation", Icons.Default.Bolt, Color(0xFFE65100), "Rules"),
+                FilterOptionData("NOTES", "Notes & Reminders", Icons.Default.EditNote, Color(0xFF673AB7), "Notes")
             )
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 filterOptions.forEach { item ->
                     val isSelected = (selectedFilter == item.key)
                     val accentColor = item.activeColor ?: MaterialTheme.colorScheme.primary
-
-                    @OptIn(ExperimentalMaterial3Api::class)
-                    TooltipBox(
-                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                        tooltip = {
-                            PlainTooltip {
-                                Text(item.label)
-                            }
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            selectedFilter = if (isSelected && item.key != "ALL") "ALL" else item.key
                         },
-                        state = rememberTooltipState()
-                    ) {
-                        Surface(
-                            onClick = {
-                                selectedFilter = if (isSelected && item.key != "ALL") "ALL" else item.key
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) {
-                                accentColor.copy(alpha = 0.18f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                            },
-                            border = BorderStroke(
-                                width = if (isSelected) 1.5.dp else 0.5.dp,
-                                color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier
-                                .size(36.dp)
-                                .testTag("recents_filter_${item.key.lowercase()}")
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
+                        label = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
                                 Icon(
                                     imageVector = item.icon,
-                                    contentDescription = item.label,
+                                    contentDescription = null,
                                     tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(19.dp)
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = item.shortLabel,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
                                 )
                             }
-                        }
-                    }
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = accentColor.copy(alpha = 0.18f),
+                            selectedLabelColor = accentColor
+                        ),
+                        border = BorderStroke(
+                            width = if (isSelected) 1.5.dp else 0.5.dp,
+                            color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .testTag("recents_filter_${item.key.lowercase()}")
+                    )
+                }
                 }
 
                 // Search Toggle Button with Tooltip
@@ -699,6 +778,43 @@ fun CallLogScreen(
                                 modifier = Modifier.size(19.dp)
                             )
                         }
+                    }
+                }
+
+                // Recents overflow: Clear all
+                Box {
+                    Surface(
+                        onClick = { showRecentsOverflowMenu = true },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("recents_overflow_button")
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More recents actions",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = showRecentsOverflowMenu,
+                        onDismissRequest = { showRecentsOverflowMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Clear all recents") },
+                            leadingIcon = {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            },
+                            onClick = {
+                                showRecentsOverflowMenu = false
+                                showClearAllConfirmDialog = true
+                            }
+                        )
                     }
                 }
             }
@@ -759,6 +875,7 @@ fun CallLogScreen(
                     val activeOption = filterOptions.firstOrNull { it.key == selectedFilter }
                     val isFiltered = (selectedFilter != "ALL")
                     val accentColor = activeOption?.activeColor ?: MaterialTheme.colorScheme.primary
+                    val totalCallCount = filteredGroupedCalls.sumOf { it.count }
 
                     Row(
                         modifier = Modifier
@@ -780,9 +897,9 @@ fun CallLogScreen(
                             )
                             Text(
                                 text = if (isFiltered) {
-                                    "Filtered by: ${activeOption?.label} • ${filteredGroupedCalls.size} ${if (filteredGroupedCalls.size == 1) "call" else "calls"}"
+                                    "Filtered by: ${activeOption?.label} • $totalCallCount ${if (totalCallCount == 1) "call" else "calls"}"
                                 } else {
-                                    "All Calls • ${filteredGroupedCalls.size} ${if (filteredGroupedCalls.size == 1) "call" else "calls"}"
+                                    "All Calls • $totalCallCount ${if (totalCallCount == 1) "call" else "calls"}"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (isFiltered) FontWeight.SemiBold else FontWeight.Normal,
@@ -823,7 +940,18 @@ fun CallLogScreen(
                 }
             }
 
-            if (filteredGroupedCalls.isEmpty() && searchQuery.isNotBlank()) {
+            if (filteredGroupedCalls.isEmpty()) {
+                val emptyMessage = when {
+                    searchQuery.isNotBlank() -> "No calls match \"$searchQuery\""
+                    selectedFilter == "MISSED" -> "No missed calls"
+                    selectedFilter == "INCOMING" -> "No incoming calls"
+                    selectedFilter == "OUTGOING" -> "No outgoing calls"
+                    selectedFilter == "WHATSAPP" -> "No WhatsApp calls"
+                    selectedFilter == "SPAM" -> "No spam calls"
+                    selectedFilter == "RULES" -> "No calls with automation rules"
+                    selectedFilter == "NOTES" -> "No notes or reminders"
+                    else -> "No recent calls"
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -831,7 +959,7 @@ fun CallLogScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No calls match \"$searchQuery\"",
+                        text = emptyMessage,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -915,7 +1043,6 @@ fun CallLogScreen(
                     matchedDc = matchedDc,
                     activeSims = activeSims,
                     onCallBack = { onCallBack(group.primaryCall) },
-                    onCreateRule = { onCreateRuleForNumber(group.primaryCall.phoneNumber) },
                     onOpenNoteDialog = { target ->
                         noteDialogCall = target
                     },
@@ -935,6 +1062,7 @@ fun CallLogScreen(
                         )
                     },
                     onOpenDetails = {
+                        sheetIsSpam = group.isSpam
                         val call = group.primaryCall
                         val isVm = ContactHelper.isVoicemailNumber(context, call.phoneNumber)
                         val contactName = if (isVm) "Voicemail" else (call.callerName?.ifBlank { null } ?: call.phoneNumber)

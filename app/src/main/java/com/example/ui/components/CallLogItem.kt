@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.automirrored.filled.CallReceived
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.StarBorder
@@ -18,8 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,6 +39,8 @@ import com.example.util.DeviceContact
 import java.text.SimpleDateFormat
 import java.util.*
 
+private enum class RowConfirmAction { DELETE, CLEAR_ALL, SPAM }
+
 @Composable
 fun CallLogItem(
     group: GroupedCallLog,
@@ -41,7 +49,6 @@ fun CallLogItem(
     hasMultipleNumbers: Boolean = false,
     numberLabel: String = "Mobile",
     onCallBack: () -> Unit,
-    onCreateRule: () -> Unit,
     onOpenNoteDialog: (RecentCall) -> Unit,
     onToggleSpam: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -54,6 +61,7 @@ fun CallLogItem(
 ) {
     val call = group.primaryCall
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val isVoicemail = remember(call.phoneNumber) {
         ContactHelper.isVoicemailNumber(context, call.phoneNumber)
     }
@@ -67,7 +75,9 @@ fun CallLogItem(
     val waColor = if (isWaBiz) Color(0xFF128C7E) else Color(0xFF25D366)
     val gvColor = Color(0xFF0F9D58)
     val dropAttribution = CallDropAttribution.forCall(call.isSpam, call.note, call.ruleMatched, call.callReason)
-    val noteToShow = if (dropAttribution != DropAttribution.NONE) null else call.note
+    // A user note is shown under the block badge; only the literal "auto-dropped"
+    // system marker text itself stays hidden.
+    val noteToShow = call.note?.takeIf { !it.contains("auto-dropped", ignoreCase = true) }
     val reminderToShow = call.reminderTime
     val discoveryManager = remember(context) { com.example.telecom.ChannelDiscoveryManager.getInstance(context) }
     val availableChannels by discoveryManager.availableChannels.collectAsState()
@@ -347,7 +357,7 @@ fun CallLogItem(
                                 }
                             }
                         }
-                        if (isHighlighted) {
+                        if (isHighlighted && call.callType == 3) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = Color(0xFFDC2626)
@@ -652,6 +662,7 @@ fun CallLogItem(
             }
 
             var showOverflowMenu by remember { mutableStateOf(false) }
+            var rowConfirmAction by remember { mutableStateOf<RowConfirmAction?>(null) }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -716,6 +727,28 @@ fun CallLogItem(
                             }
                         )
                         DropdownMenuItem(
+                            text = { Text("Copy number") },
+                            leadingIcon = {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null)
+                            },
+                            onClick = {
+                                showOverflowMenu = false
+                                clipboardManager.setText(AnnotatedString(call.phoneNumber))
+                                Toast.makeText(context, "Copied ${call.phoneNumber}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Message") },
+                            leadingIcon = {
+                                Icon(Icons.AutoMirrored.Filled.Message, contentDescription = null)
+                            },
+                            onClick = {
+                                showOverflowMenu = false
+                                val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${call.phoneNumber}"))
+                                context.startActivity(smsIntent)
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text(if (group.isSpam) "Unmark as Spam" else "Report as Spam") },
                             leadingIcon = {
                                 Icon(
@@ -726,17 +759,11 @@ fun CallLogItem(
                             },
                             onClick = {
                                 showOverflowMenu = false
-                                onToggleSpam()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Create Automation Rule") },
-                            leadingIcon = {
-                                Icon(Icons.Default.SmartToy, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            },
-                            onClick = {
-                                showOverflowMenu = false
-                                onCreateRule()
+                                if (group.isSpam) {
+                                    onToggleSpam()
+                                } else {
+                                    rowConfirmAction = RowConfirmAction.SPAM
+                                }
                             }
                         )
                         HorizontalDivider()
@@ -747,7 +774,7 @@ fun CallLogItem(
                             },
                             onClick = {
                                 showOverflowMenu = false
-                                onDeleteCall()
+                                rowConfirmAction = RowConfirmAction.DELETE
                             }
                         )
                         if (group.count > 1) {
@@ -758,10 +785,66 @@ fun CallLogItem(
                                 },
                                 onClick = {
                                     showOverflowMenu = false
-                                    onDeleteCallsForNumber()
+                                    rowConfirmAction = RowConfirmAction.CLEAR_ALL
                                 }
                             )
                         }
+                    }
+
+                    if (rowConfirmAction != null) {
+                        val action = rowConfirmAction!!
+                        AlertDialog(
+                            onDismissRequest = { rowConfirmAction = null },
+                            title = {
+                                Text(
+                                    text = when (action) {
+                                        RowConfirmAction.DELETE -> "Delete this call?"
+                                        RowConfirmAction.CLEAR_ALL -> "Clear all ${group.count} calls?"
+                                        RowConfirmAction.SPAM -> "Report as spam?"
+                                    },
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            text = {
+                                Text(
+                                    text = when (action) {
+                                        RowConfirmAction.DELETE -> "Permanently delete this call from Recents? This also removes it from the device call log."
+                                        RowConfirmAction.CLEAR_ALL -> "Permanently delete all ${group.count} calls for ${call.phoneNumber} from Recents? This also removes them from the device call log."
+                                        RowConfirmAction.SPAM -> "Report ${call.phoneNumber} as spam? Future calls from this number will be blocked."
+                                    }
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        rowConfirmAction = null
+                                        when (action) {
+                                            RowConfirmAction.DELETE -> onDeleteCall()
+                                            RowConfirmAction.CLEAR_ALL -> onDeleteCallsForNumber()
+                                            RowConfirmAction.SPAM -> onToggleSpam()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    )
+                                ) {
+                                    Text(
+                                        text = when (action) {
+                                            RowConfirmAction.DELETE -> "Delete"
+                                            RowConfirmAction.CLEAR_ALL -> "Clear all"
+                                            RowConfirmAction.SPAM -> "Report as Spam"
+                                        },
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { rowConfirmAction = null }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
                     }
                 }
             }

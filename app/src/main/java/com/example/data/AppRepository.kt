@@ -315,6 +315,22 @@ class AppRepository(private val appDao: AppDao, private val context: android.con
         }
     }
 
+    suspend fun clearDefaultNumberForContact(
+        contactId: Long?,
+        phoneNumbers: List<String>
+    ) {
+        markDirty()
+        if (contactId != null && contactId > 0L) {
+            appDao.deleteDefaultNumberByContactId(contactId)
+        }
+        for (num in phoneNumbers) {
+            val norm = com.example.util.PhoneNumberNormalizer.toE164(num)
+            if (norm.isNotBlank()) {
+                appDao.deleteDefaultNumber(norm)
+            }
+        }
+    }
+
     suspend fun clearAllDefaultNumbers() {
         markDirty()
         appDao.clearAllDefaultNumbers()
