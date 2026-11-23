@@ -34,6 +34,20 @@ data class DeviceContact(
     val t9NicknameWords: List<String> = nickname?.trim()?.takeIf { it.isNotBlank() }?.split(Regex("\\s+"))?.map { T9Helper.stringToT9(it) }?.filter { it.isNotBlank() } ?: emptyList()
 )
 
+/**
+ * Display-only details for one contact, read live from the device Contacts
+ * provider (never stored in the app database). Shown in the contact sheet.
+ */
+data class ContactDetails(
+    val addresses: List<String> = emptyList(),
+    val emails: List<String> = emptyList(),
+    val company: String? = null,
+    val jobTitle: String? = null
+) {
+    val isEmpty: Boolean
+        get() = addresses.isEmpty() && emails.isEmpty() && company.isNullOrBlank() && jobTitle.isNullOrBlank()
+}
+
 object ContactHelper {
 
     fun launchContactEditor(context: Context, contact: DeviceContact) {
@@ -1169,6 +1183,71 @@ object ContactHelper {
             } else null
         } catch (e: Exception) {
             e.printStackTrace()
+            null
+        } finally {
+            cursor?.close()
+        }
+    }
+
+    /**
+     * Reads display-only details (postal address, email, organization) live from
+     * the device Contacts provider for one contact. Returns null when the contact
+     * has none of these fields. Nothing is copied into the app database, so the
+     * values are always as fresh as the system Contacts app. Used by the contact
+     * details sheet.
+     */
+    fun fetchContactDetails(context: Context, contactId: Long): ContactDetails? {
+        if (contactId <= 0) return null
+        var cursor: Cursor? = null
+        return try {
+            val projection = arrayOf(
+                ContactsContract.Data.MIMETYPE,
+                ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS,
+                ContactsContract.CommonDataKinds.Email.ADDRESS,
+                ContactsContract.CommonDataKinds.Organization.COMPANY,
+                ContactsContract.CommonDataKinds.Organization.TITLE
+            )
+            val selection = "${ContactsContract.Data.CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} IN (?, ?, ?)"
+            val selectionArgs = arrayOf(
+                contactId.toString(),
+                ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE,
+                ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE,
+                ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE
+            )
+            cursor = context.contentResolver.query(
+                ContactsContract.Data.CONTENT_URI, projection, selection, selectionArgs, null
+            )
+            val addresses = linkedSetOf<String>()
+            val emails = linkedSetOf<String>()
+            var company: String? = null
+            var jobTitle: String? = null
+            cursor?.let {
+                val mimeIdx = it.getColumnIndex(ContactsContract.Data.MIMETYPE)
+                val addrIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS)
+                val emailIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS)
+                val companyIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Organization.COMPANY)
+                val titleIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Organization.TITLE)
+                while (it.moveToNext()) {
+                    val mime = if (mimeIdx != -1) it.getString(mimeIdx) else null
+                    when (mime) {
+                        ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE -> {
+                            val addr = if (addrIdx != -1) it.getString(addrIdx)?.trim().orEmpty() else ""
+                            if (addr.isNotBlank()) addresses += addr
+                        }
+                        ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE -> {
+                            val email = if (emailIdx != -1) it.getString(emailIdx)?.trim().orEmpty() else ""
+                            if (email.isNotBlank()) emails += email
+                        }
+                        ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE -> {
+                            if (company.isNullOrBlank() && companyIdx != -1) company = it.getString(companyIdx)?.trim().orEmpty().ifBlank { null }
+                            if (jobTitle.isNullOrBlank() && titleIdx != -1) jobTitle = it.getString(titleIdx)?.trim().orEmpty().ifBlank { null }
+                        }
+                    }
+                }
+            }
+            ContactDetails(addresses = addresses.toList(), emails = emails.toList(), company = company, jobTitle = jobTitle)
+                .takeIf { !it.isEmpty }
+        } catch (_: Exception) {
             null
         } finally {
             cursor?.close()

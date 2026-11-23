@@ -52,6 +52,9 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Phone
@@ -125,6 +128,7 @@ import com.example.data.RecentCall
 import com.example.util.ContactHelper
 import com.example.util.ContactPhoneNumber
 import com.example.util.DeviceContact
+import com.example.util.ContactDetails
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -221,6 +225,7 @@ fun ContactDetailsBottomSheet(
     var currentDisplayNickname by remember(contact.nickname, favoriteContact?.nickname) { mutableStateOf(effectiveNickname) }
 
     var contactCallHistory by remember { mutableStateOf<List<RecentCall>>(emptyList()) }
+    var contactDetails by remember { mutableStateOf<ContactDetails?>(null) }
     var isLoadingHistory by remember { mutableStateOf(true) }
     var pendingChannelChoiceNumber by remember { mutableStateOf<ContactPhoneNumber?>(null) }
 
@@ -239,6 +244,8 @@ fun ContactDetailsBottomSheet(
                 .take(40)
 
             contactCallHistory = merged
+            contactDetails = contact.contactId?.takeIf { it > 0 }
+                ?.let { ContactHelper.fetchContactDetails(context, it) }
             isLoadingHistory = false
         }
     }
@@ -1116,6 +1123,88 @@ fun ContactDetailsBottomSheet(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                        }
+                    }
+                }
+            }
+
+            // -------------------------------------------------------------
+            // CONTACT DETAILS SECTION (read live from the device Contacts app,
+            // display-only — hidden entirely when the contact has no details)
+            // -------------------------------------------------------------
+            val details = contactDetails
+            if (details != null) {
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "DETAILS",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "From Phone Contacts",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        val detailRows = buildList {
+                            details.company?.let { add(Triple(Icons.Default.Work, "Company", it)) }
+                            details.jobTitle?.let { add(Triple(Icons.Default.Badge, "Title", it)) }
+                            details.emails.forEach { add(Triple(Icons.Default.Email, "Email", it)) }
+                            details.addresses.forEach { add(Triple(Icons.Default.LocationOn, "Address", it)) }
+                        }
+                        detailRows.forEachIndexed { index, (icon, label, value) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = value,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+                            if (index < detailRows.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                    modifier = Modifier.padding(horizontal = 12.dp)
+                                )
+                            }
                         }
                     }
                 }
