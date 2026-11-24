@@ -120,7 +120,7 @@ app/src/main/java/com/example/
 │   │   ├── CallLogScreen.kt             # Recents, SIM badges, instant update via callLoggedEvent, labeled filter chips, digit-insensitive search
 │   │   ├── ContactsScreen.kt            # Directory, Nicknames filter, default number prioritization, labeled sort filters
 │   │   ├── InCallScreen.kt              # Active call UI, roaming badge, DTMF, touch/lift ring silencing
-│   │   ├── RulesScreen.kt               # Call Automation rules list with Recipes gallery, rule editor, execution history; Smart Routing UI removed in v2.1.3
+│   │   ├── RulesScreen.kt               # Call Automation rules list with Recipes gallery, rule editor, execution history
 │   │   └── SettingsScreen.kt            # 5 streamlined sections: System Health/Roles/Spam Filtering, Calling Channels, Keypad, Appearance, Backup; "Show labels on buttons" switch in Appearance & Navigation
 │   └── components/
 │       ├── CompactSearchBar.kt          # Unified 42dp pill search input
@@ -163,7 +163,7 @@ app/src/main/java/com/example/
 ### 4.1 Dual-Channel Dispatch (Cellular vs WhatsApp)
 - **Cellular**: `TelecomManager.placeCall()` (default dialer) or `Intent.ACTION_CALL` fallback.
 - **WhatsApp**: Number normalized via `PhoneNumberNormalizer.toE164()`, then dispatched via `https://api.whatsapp.com/send?phone=<e164>` with package constraint to `com.whatsapp`.
-- **External call interception**: `OmniCallRedirectionService.onPlaceCall()` evaluates cached Smart Telecom Routing rules (rerouting international calls to WhatsApp) or queries `ContactNumberPreference` for `preferredSimSlot` — binds the target `PhoneAccountHandle` or cancels and routes to WhatsApp VoIP.
+- **External call interception**: `OmniCallRedirectionService.onPlaceCall()` evaluates the stored travel policy (rerouting international calls to WhatsApp) or queries `ContactNumberPreference` for `preferredSimSlot` — binds the target `PhoneAccountHandle` or cancels and routes to WhatsApp VoIP.
 
 ### 4.2 T9 Smart Search Engine (`T9Helper.kt`)
 - Maps digits `2–9` to Latin letter clusters.
@@ -193,7 +193,7 @@ Both checks are passive (no GPS, no geofence API) — zero additional battery dr
 - All main tabs use `CompactSearchBar` constrained to **42dp** height.
 - Live filtering performed in-memory on loaded dataset, preventing unnecessary DB re-queries per keystroke.
 
-### 4.7 Smart Telecom Routing Subsystem (`TravelRoamingManager.kt`)
+### 4.7 Travel & Roaming Subsystem (`TravelRoamingManager.kt`)
 - **Zero-Mutation Runtime Overlay**: Never mutates or overwrites saved user preferences in Room DB while abroad. Dynamic interceptors evaluate current cellular network country vs home country and route automatically.
 - **4-Parameter Rule Grammar**: Structured as `@location` (Where are you?), `@numbers` (Who are you calling?), `@channel` (How should it connect?), and `@guard` (Roaming protection action).
 - **Global Modes**: `smart` (auto-routes or prompts per rule), `ask_always` (pre-selects recommended channel in modal picker), and `off` (pure direct dial).

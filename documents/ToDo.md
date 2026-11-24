@@ -12,13 +12,10 @@
 ### Short-Term Polish & Feature Additions
 - [ ] **Task 14.3: Generic Calling-Channel Registry**: Beyond hardcoded WhatsApp/Google Voice checks, add dynamic package detection and adapters for Telegram, Signal, and generic SIP calling accounts.
 - [ ] **Phase 15: New Rule Sets Beyond Incoming Engine (See [omnidial-rule-sets-design.md](omnidial-rule-sets-design.md))**:
-  - Task 15.1: Dual-Profile Channel Preferences (Home vs. Roaming context partitioning in Room DB)
-  - Task 15.2: Natural-Language Free-Text Rule Composer with in-place `@` slot pickers (`@channel`, `@location`, `@numbers`, `@guard`)
-  - Task 15.3: Quiet Hours & Scheduled DND
-  - Task 15.4: Incoming Screening+ with AI reason extraction
-  - Task 15.5: Post-Call Follow-Up Action Rules
-  - Task 15.6: Last-Mile Roaming Tariff Intercept Guard (Pre-call warning dialog before placing cellular calls on roaming SIMs)
-  - *Note: Tasks 15.1–15.2 (outgoing routing rules + NL composer) are parked since v2.1.3 removed routing-rule authoring; 15.3–15.6 build on the surviving incoming-call engine.*
+  - Task 15.1: Quiet Hours & Scheduled DND
+  - Task 15.2: Incoming Screening+ with AI reason extraction
+  - Task 15.3: Post-Call Follow-Up Action Rules
+  - Task 15.4: Last-Mile Roaming Tariff Intercept Guard (Pre-call warning dialog before placing cellular calls on roaming SIMs)
 
 ### Recently Completed (v2.2.0 — Build 26)
 - [x] **Recents overhaul**: Labeled filter chips, digit-insensitive + contact-name search, correct call counts, confirm-before-delete, clear-all recents, and calls from Recents that respect the contact's preferred channel/SIM.
@@ -27,7 +24,7 @@
 
 ### Recently Completed (v2.1.3 — Build 25)
 - [x] **Pinned in-call controls & notes above keyboard**: End call button stays pinned with the keypad open; post-call note field scrolls above the keyboard; compact no-photo header with wrapping badges.
-- [x] **Smart Routing rule UI parked**: Routing-rule creation screens removed; the Rules tab shows Call Automation rules only. Roaming warnings, car/Bluetooth smart routing, and the home-region setting unchanged.
+- [x] **Smart Routing removed**: Routing-rule creation screens removed; the Rules tab shows Call Automation rules only. Roaming warnings, car/Bluetooth smart routing, and the home-region setting unchanged.
 
 ### Recently Completed (v2.1.2 — Build 24, branch `feature/smart-travel-roaming`)
 - [x] **Collapsible Setup Status with Status Pills**: `PermissionsHubCard` collapses to a horizontal pill strip (one pill per setup step, same chip styling as the channel summary); starts collapsed when all steps are done, expanded when anything needs attention; tapping a pending pill jumps to that step.
@@ -178,24 +175,17 @@
   ---
 
 ### 🔀 Phase 15 (Future): New Rule Sets Beyond the Incoming-Call Engine
-*Pattern-based outgoing channel routing, quiet hours, smarter incoming screening, post-call follow-ups, and natural-language rule creation (documented in [`documents/omnidial-rule-sets-design.md`](omnidial-rule-sets-design.md)). Builds on the generic channel ids from Task 14.3. All new rule sets ship disabled by default — day-one behavior is unchanged.*
-> **Parked in part (v2.1.3):** Tasks 15.1 (outgoing routing rules) and 15.2 (NL rule composer) depend on routing-rule authoring, which was removed in v2.1.3. Tasks 15.3–15.6 build on the surviving incoming-call engine and are unaffected.
-- [ ] **Task 15.1: Outgoing Channel Routing Rules**
-  - *Goal*: Let users say "all +91 numbers → WhatsApp" or "all employees of Acme → SIM 2" instead of pinning numbers one at a time.
-  - *Deliverable*: `channel_routing_rules` table (number pattern / company / title conditions → channel, user-ordered priority); `ChannelRoutingEvaluator` hooked into the keypad channel resolution; per-rule dry-run test; automation-log entries.
-- [ ] **Task 15.2: Natural-Language Rule Creation**
-  - *Goal*: Let users type "everyone at Acme uses SIM 2" and get a rule, without learning a rule builder.
-  - *Deliverable*: On-device template parser (no cloud LLM) producing the same rule objects as the manual builder; mandatory type → parsed-preview → confirm flow showing the rule in plain words plus its match count; ambiguous input pre-fills the manual form instead of guessing.
-- [ ] **Task 15.3: Quiet Hours**
+*Quiet hours, smarter incoming screening, post-call follow-ups, and location/roaming conditions (documented in [`documents/omnidial-rule-sets-design.md`](omnidial-rule-sets-design.md)). Builds on the generic channel ids from Task 14.3. All new rule sets ship disabled by default — day-one behavior is unchanged.*
+- [ ] **Task 15.1: Quiet Hours**
   - *Goal*: Time-of-day awareness for incoming calls (favorites ring through at night, work hours auto-decline + SMS for non-VIPs).
   - *Deliverable*: `quiet_hours_windows` table with per-window exception lists; evaluation inside the existing incoming automation pass with VIP exceptions punching through.
-- [ ] **Task 15.4: Incoming Screening+**
+- [ ] **Task 15.2: Incoming Screening+**
   - *Goal*: Go beyond the gate buzzer — decline + auto-SMS for spam suspects, VIP ring-through, unknown-number policies.
   - *Deliverable*: New `actionKind` values (decline / decline+SMS / silent-ring) on `caller_rules`, reusing existing table, UI, and Test button with zero behavior change for existing rows.
-- [ ] **Task 15.5: Post-Call Follow-Up Rules**
+- [ ] **Task 15.3: Post-Call Follow-Up Rules**
   - *Goal*: Pattern-driven follow-ups instead of manual notes/reminders every time (e.g. after calls to family numbers, prompt for a note).
   - *Deliverable*: `post_call_rules` table (pattern → `prompt_note` / `create_reminder` / `notify_callback`); new branch in `CallManager.handleCallEnded`, isolated from call behavior.
-- [ ] **Task 15.6: Location/Roaming Conditions & Scheduled Toggles**
+- [ ] **Task 15.4: Location/Roaming Conditions & Scheduled Toggles**
   - *Goal*: Rules that react to where the phone is (roaming → always ask before cellular calls) and arm/disarm on a schedule.
   - *Deliverable*: Roaming/location as first-class rule conditions (after fixing the deprecated Wi-Fi SSID read); scheduled enable/disable via the existing `ReminderScheduler` AlarmManager pattern.
 

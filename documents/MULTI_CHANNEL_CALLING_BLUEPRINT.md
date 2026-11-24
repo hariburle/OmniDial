@@ -142,7 +142,7 @@ When placing a call to any phone number, the system determines the transport cha
 [ OUTGOING CALL REQUEST (Normalized Number, Contact) ]
                            │
                            ▼
-  1. Automated Recipe Rule Match? ──────YES────➔ [ Apply Rule Channel (e.g. Roaming ➔ WhatsApp) ]
+  1. Stored Travel Rule Match? ──────YES────➔ [ Apply Rule Channel (e.g. Roaming ➔ WhatsApp) ]
                            │ NO
                            ▼
   2. Per-Number Pinned Preference? ─────YES────➔ [ Apply Number's Pinned Channel (e.g. +1...99 ➔ SIM 2) ]
@@ -156,8 +156,6 @@ When placing a call to any phone number, the system determines the transport cha
      ├─ "Cellular Preferred" ──────────────────➔ [ Use Default Cellular SIM ]
      └─ "Last Used Channel" ───────────────────➔ [ Use Most Recent Calling Channel ]
 ```
-
-> **Note (v2.1.3):** routing-rule creation UI was removed, so step 1 only fires for routing rules stored before the park; the engine still evaluates them.
 
 ---
 

@@ -102,11 +102,7 @@ to generic ids like `"app:com.whatsapp"`. One-time migration mapping old → new
 previously available channel must resolve to the same post-migration channel.
 
 ### 4.6 Interaction with the rules design
-`channel_routing_rules.targetChannelId` (see `omnidial-rule-sets-design.md`) should
-reference the **generic** channel ids from the start — do this refactor before, or
-together with, the routing-rules build to avoid a second migration.
-
-> **Note (v2.1.3):** the routing-rules build is parked (routing-rule authoring removed), so this sequencing is on hold until/unless it returns; the generic-id migration concern still stands.
+The generic channel ids must be stable and reusable: any future rule system references them, so get the id scheme right once. (The routing-rules build that would have consumed them first no longer exists, so no sequencing constraint remains; the migration concern still stands on its own.)
 
 ---
 
@@ -147,5 +143,4 @@ together with, the routing-rules build to avoid a second migration.
    or should unknown apps be hidden behind an "experimental" toggle?
 3. Should the adapter registry live in code (simple, needs app update per new app) or
    be remotely updatable (new apps supported without a release)?
-4. Timing: do this refactor before the outgoing-routing rules build (recommended —
-   avoids a second channel-id migration), or after?
+4. Timing: the outgoing-routing rules build no longer exists, so no sequencing constraint remains — schedule this refactor on its own merits.

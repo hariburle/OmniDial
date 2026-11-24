@@ -45,6 +45,6 @@ When incrementing `versionCode`/`versionName` or pushing a new Git release, ALL 
 9. **`documents/DESIGN.md`**: Update the version header, module directory listing, Room DB entity schemas, subsystem workflow descriptions, and any new architectural patterns introduced.
 10. **`docs/*.html` + `docs/guides/*.html`**: Bump every header version-tag to the new version, and re-read guide/FAQ wording against what the release changed (removed UI, renamed Settings sections/cards).
 11. **`docs/screenshots/`**: Drop or retake any shot showing removed or redesigned UI; update `index.html` references to match.
-12. **`documents/ToDo.md`**: Add a Recently Completed entry for the release; mark parked any future work the release parks.
+12. **`documents/ToDo.md`**: Add a Recently Completed entry for the release; mark removed any future work the release removes.
 13. **`documents/ROLLBACK.md` + design docs** (`MULTI_CHANNEL_CALLING_BLUEPRINT.md`, `omnidial-generic-channels-design.md`, `omnidial-rule-sets-design.md`): If the release parks or completes a phased plan, update the phase labels/status notes.
 14. **`gradle/` holds only the Gradle wrapper — never website copies.** (A stale copy of the site was found at `gradle/index.html` + `gradle/getting-started.html`, publicly reachable via GitHub Pages showing v1.5.0. Delete any web pages found there; do not re-add them.)
