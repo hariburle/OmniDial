@@ -1,5 +1,7 @@
 # Rollback Guide — 2026-09-20 performance fixes
 
+> **⚠️ HISTORICAL — Sep 20, 2026 snapshot. Do not follow as a live rollback guide.** The SHAs, branch state, and test counts below are from Sep 20, 2026 — main has moved on through v2.1.3 and v2.2.0 since. The commands below would revert months of work. Kept as a record of the Sep 20 fixes only.
+
 Everything below is local. **Nothing has been pushed.** `origin/main` is still at `f301cc9`.
 
 ## The safety net
@@ -56,7 +58,7 @@ git checkout pre-perf-fixes-baseline -- app/src/main/java/com/example/util/Conta
 
 ```bash
 ./gradlew :app:compileDebugKotlin --offline -q      # expect exit 0
-./gradlew :app:testDebugUnitTest --offline          # expect 63/63
+./gradlew :app:testDebugUnitTest --offline          # expect 93 tests (was 63/63 at the Sep 20 snapshot)
 ```
 
 Both were run clean at `3e2c82d`.
@@ -73,7 +75,5 @@ device. Before publishing, check on hardware:
 3. **In-call notification** — confirm the elapsed timer in the notification body still
    advances (the 1 Hz rebuild was deliberately kept for this reason).
 4. **Channel routing** — set a preferred channel for a contact, then call them.
-5. **Release build** — `assembleRelease` now emits a warning that the upload keystore is
-   missing and that the APK is being debug-signed. Resolve the keystore before publishing;
-   the ProGuard keeps were removed, so install the release APK and exercise search, calling
+5. **Release build** — **Resolved:** the v2.2.0 release APK was published signed with the release key (the Sep 20 keystore warning no longer applies). The ProGuard keeps were removed, so install the release APK and exercise search, calling
    and the database at least once.

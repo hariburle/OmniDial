@@ -1,6 +1,6 @@
 # 📞 OmniDial — Smart Android Phone & Call Manager
 
-[![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
+[![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
 [![Version](https://img.shields.io/badge/Version-2.2.0%20(Build%2026)-brightgreen.svg)](documents/CHANGELOG.md)
@@ -136,7 +136,7 @@
 The latest release and prior versions are available in the `apks/` directory and on the [OmniDial Website](index.html):
 
 - **[OmniDial-v2.2.0.apk](apks/OmniDial-v2.2.0.apk)** *(Latest — Build 26)*: Recents overhaul — filter buttons now show clear labels, search finds contacts by name or by number however you type it, call counts are correct, deleting asks first, and you can clear all recents at once. Contact details (address, email, company) appear in the contact sheet only when you ask for them, and a new "Show labels on buttons" setting lets you switch the filter rows back to icons only.
-- **[OmniDial-v2.1.3.apk](apks/OmniDial-v2.1.3.apk)** *(Build 25)*: In-call screen stays usable with the keypad open (End call pinned at the bottom), post-call notes field scrolls above the keyboard, cleaner in-call header with wrapping badges and a compact no-photo layout, and a simplified Rules tab — rule-creation screens parked, while roaming warnings, car/Bluetooth smart call routing, and the home-region setting keep working.
+- **[OmniDial-v2.1.3.apk](apks/OmniDial-v2.1.3.apk)** *(Build 25)*: In-call screen stays usable with the keypad open (End call pinned at the bottom), post-call notes field scrolls above the keyboard, cleaner in-call header with wrapping badges and a compact no-photo layout, and a simplified Rules tab — Smart Routing rule-creation screens parked (call automation rules, Recipes, and the rule editor still work), while roaming warnings, car/Bluetooth smart call routing, and the home-region setting keep working.
 - **[OmniDial-v2.1.2.apk](apks/OmniDial-v2.1.2.apk)** *(Build 24)*: Seamless Bluetooth & car infotainment smart call redirection (auto-routing international dials to WhatsApp VoIP from vehicle head units such as Tesla), streamlined 6-section Settings screen, and unified Spam & Call Protection card.
 - **[OmniDial-v2.1.1.apk](apks/OmniDial-v2.1.1.apk)** *(Build 23)*: Smart Telecom Routing with Zero-Mutation Runtime Overlay, Dynamic Rule Composer with 4-parameter slot pills and single-line chip wrapping prevention, context-sensitive FAB in Rules panel, chronological backup sorting by embedded timestamp, itemized save and restore completion breakdown dialogs, and comprehensive user guides.
 - **[OmniDial-v2.1.0.apk](apks/OmniDial-v2.1.0.apk)** *(Build 22)*: In-call Bento Card UI overhaul with dynamic audio routing (Speaker toggle & multi-route Bluetooth picker), split conference participant view, fresh-install auto-restore banner, dial-pad avatar & contact name tap-to-open contact details, favorites in-row direct calling, and clean default number checkbox.

@@ -3,6 +3,8 @@
 **Status:** Exploration only. No code changed. Written 2026-09-21 for later revisiting.
 **Repo state at time of research:** `origin/main` @ `2e86138`.
 
+> **⚠️ Parked (v2.1.3):** routing-rule authoring and the NL composer plan were removed in v2.1.3. Sets B/D/E below remain buildable on the surviving incoming-call engine; Set A (§6 NL rule creation, §9 Phase 1 channel-routing hub) depends on authoring returning.
+
 ---
 
 ## 1. Background: what exists today

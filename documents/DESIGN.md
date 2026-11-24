@@ -66,7 +66,7 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 ┌────────────────────────────────────────────────────────────────────────┐
 │                           DATA LAYER                                   │
 │  AppRepository.kt                                                      │
-│  ├── Room DB v17 (AppDatabase)                                         │
+│  ├── Room DB v18 (AppDatabase)                                         │
 │  │   ├── FavoriteContact, RecentCall, CallerRule, SpamNumber           │
 │  │   ├── ContactSimPreference, NumberChannelPreference, ChannelConfig  │
 │  │   ├── ContactDefaultNumber, LocalContact, IgnoredContact            │
@@ -120,8 +120,8 @@ app/src/main/java/com/example/
 │   │   ├── CallLogScreen.kt             # Recents, SIM badges, instant update via callLoggedEvent, labeled filter chips, digit-insensitive search
 │   │   ├── ContactsScreen.kt            # Directory, Nicknames filter, default number prioritization, labeled sort filters
 │   │   ├── InCallScreen.kt              # Active call UI, roaming badge, DTMF, touch/lift ring silencing
-│   │   ├── RulesScreen.kt               # Automation pipeline, recipes gallery, simulator, history
-│   │   └── SettingsScreen.kt            # 6 streamlined sections: System Health, Calling Channels, Keypad, Spam, Appearance, Backup; "Show labels on buttons" switch in Appearance & Navigation
+│   │   ├── RulesScreen.kt               # Call Automation rules list with Recipes gallery, rule editor, execution history; Smart Routing UI removed in v2.1.3
+│   │   └── SettingsScreen.kt            # 5 streamlined sections: System Health/Roles/Spam Filtering, Calling Channels, Keypad, Appearance, Backup; "Show labels on buttons" switch in Appearance & Navigation
 │   └── components/
 │       ├── CompactSearchBar.kt          # Unified 42dp pill search input
 │       ├── Keypad.kt                    # 12-key dial pad with haptics
@@ -140,7 +140,7 @@ app/src/main/java/com/example/
 │       ├── SpamManagementDialog.kt      # Blocked numbers list, search, auto-block presets
 │       └── WhatsAppIcon.kt              # Vector asset with dark-mode white contour ring
 ├── data/
-│   ├── AppDatabase.kt                   # Room Database v17, MIGRATION_11_12 through MIGRATION_16_17
+│   ├── AppDatabase.kt                   # Room Database v18, MIGRATION_11_12 through MIGRATION_17_18
 │   ├── Entities.kt                      # All DB entities (see §5 for full schema)
 │   ├── AppDao.kt                        # Room DAOs with Flow, indexed queries, transactional bulk inserts
 │   ├── AppRepository.kt                 # Aggregates Room DB + System Content Providers
@@ -202,7 +202,7 @@ Both checks are passive (no GPS, no geofence API) — zero additional battery dr
 
 ---
 
-## 5. Local Data Persistence Schema (Room v17)
+## 5. Local Data Persistence Schema (Room v18)
 
 ### `NumberChannelPreference`
 | Field | Type | Notes |

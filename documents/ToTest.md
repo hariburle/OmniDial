@@ -73,27 +73,26 @@ Items currently pending verification or undergoing testing. Verified items are a
      - Verify rules load reliably from SharedPreferences cache and synthesize the WhatsApp channel without ANR or binder timeout.
   3. **Restructured Settings Screen Layout**:
      - Open Settings tab.
-     - Verify the 6 streamlined sections appear in order:
-       1. **System Health & Roles** (`PermissionsHubCard`)
-       2. **Calling Channels & Policies** (`ChannelPreferencesCard`)
-       3. **Keypad & Speed Dial** (`T9KeypadSettingsCard`, `QuickDialPreferencesCard`)
-       4. **Spam & Call Protection** (`SpamProtectionCard` unifying auto-block switch and spam manager dialog)
-       5. **Appearance & Navigation** (`ThemeSelectorCard`, `SwipeNavigationCard`, `InCallUiSettingsCard`, `DialerDisplaySettingsCard`, `ContactSortingCard`)
-       6. **Backup & Maintenance** (`BackupCard`, `ResetPreferencesCard`, `AppInfoCard`)
+     - Verify the 5 streamlined sections appear in order:
+       1. **System Health, Roles & Spam Filtering** (`PermissionsHubCard`, "Caller ID & Spam Filtering" card, spam screening toggle, spam manager)
+       2. **Calling Channels & Dispatch Policies**
+       3. **Keypad & Speed Dial**
+       4. **Appearance & Navigation** (includes the "Show labels on buttons" switch)
+       5. **Backup & Maintenance**
      - Verify the redundant `CallRedirectionCard` is removed (already covered in `PermissionsHubCard`).
-     - Verify the spam management dialog opens smoothly from the unified Spam & Call Protection card.
+     - Verify the spam management dialog opens smoothly from section 1.
 
 ### 0. Task 16.2 (Release 2.1.1): Smart Telecom Routing, Context FAB, and Detailed Backup Reporting
 - [ ] **To Test**
 - **Test Scenarios**:
-  1. **Rules Panel Filter Chips & Non-Wrapping Typography**:
+  1. **Rules Panel Filter Chips & Non-Wrapping Typography** *(Obsolete — Smart Routing rule UI removed in v2.1.3; do not test)*:
      - Open the Rules tab. Verify the top category chips ("All", "Smart Routing", "Call Automation") are in a single scrollable row without text wrapping inside pills.
      - Test font scaling / smaller device widths. Verify smooth horizontal scroll without overflow.
-  2. **Context-Sensitive Floating Action Button**:
+  2. **Context-Sensitive Floating Action Button** *(Obsolete — Smart Routing rule UI removed in v2.1.3; do not test)*:
      - Tap **Smart Routing** filter chip. Verify the FAB changes icon and displays "New Routing Rule", and tapping it directly opens the Smart Telecom Routing dialog.
      - Tap **Call Automation** filter chip. Verify the FAB changes icon and displays "New Automation Rule", and tapping it directly opens the Call Automation dialog.
      - Tap **All** filter chip. Verify the FAB displays "New Rule", and tapping it opens the choice dialog to select between Smart Telecom Routing, Call Automation, or Recipe Templates.
-  3. **Dynamic Rule Composer Dialog Layout**:
+  3. **Dynamic Rule Composer Dialog Layout** *(Obsolete — Smart Routing rule UI removed in v2.1.3; do not test)*:
      - Open the Smart Routing rule editor.
      - Verify the dialog expands comfortably to 95% screen width.
      - Verify `@location`, `@numbers`, `@channel`, and `@guard` parameter slots use fluid FlowRow layouts with unwrapped chip text.

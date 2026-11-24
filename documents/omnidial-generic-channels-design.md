@@ -106,6 +106,8 @@ previously available channel must resolve to the same post-migration channel.
 reference the **generic** channel ids from the start — do this refactor before, or
 together with, the routing-rules build to avoid a second migration.
 
+> **Note (v2.1.3):** the routing-rules build is parked (routing-rule authoring removed), so this sequencing is on hold until/unless it returns; the generic-id migration concern still stands.
+
 ---
 
 ## 5. Difficulty assessment

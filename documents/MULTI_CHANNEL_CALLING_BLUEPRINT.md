@@ -157,6 +157,8 @@ When placing a call to any phone number, the system determines the transport cha
      └─ "Last Used Channel" ───────────────────➔ [ Use Most Recent Calling Channel ]
 ```
 
+> **Note (v2.1.3):** routing-rule creation UI was removed, so step 1 only fires for routing rules stored before the park; the engine still evaluates them.
+
 ---
 
 ## 6. 🎨 User Experience & Interaction Design
@@ -201,7 +203,7 @@ When placing a call to any phone number, the system determines the transport cha
 
 ## 7. 🚀 Phased Implementation Roadmap
 
-### 📦 Phase 13 (Current Focus): Core MCCE Foundation (Cellular & WhatsApp)
+### 📦 Phase 13 (Completed — v1.6.0): Core MCCE Foundation (Cellular & WhatsApp)
 *Build the complete multi-channel architecture and verify end-to-end on Cellular SIM 1/2 and WhatsApp.*
 - **Task 13.1: Granular Per-Number Channel Preference Entity & Repository**
   - Create Room entity `number_channel_preferences` keyed by E.164 `normalized_number`.
@@ -217,7 +219,7 @@ When placing a call to any phone number, the system determines the transport cha
   - Implement `ChannelDispatchCoordinator` executing calls through Telecom Cellular or WhatsApp VoIP.
   - Automated unit tests validating per-number resolution and dispatch.
 
-### 🌟 Phase 14 (Future Extension): Pluggable VoIP Expansion (WhatsApp Business & Google Voice)
+### 🌟 Phase 14 (Completed): Pluggable VoIP Expansion (WhatsApp Business & Google Voice)
 *Leverage the MCCE foundation to plug in additional communication providers.*
 - **Task 14.1: WhatsApp Business Provider Plugin**
   - Add `com.whatsapp.w4b` detection in `ChannelDiscoveryManager`.

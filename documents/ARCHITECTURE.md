@@ -26,7 +26,7 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
                 |       ├── SearchT9ContactsUseCase  (T9 nickname/name/number search)
                 |       └── ManageFavoritesUseCase  (star, unstar, reorder, ignore)
                 |
-                +---> AppRepository & AppDatabase (Room DB v17)
+                +---> AppRepository & AppDatabase (Room DB v18)
                 |       ├── FavoriteContact
                 |       ├── RecentCall
                 |       ├── CallerRule  (+ ambient geofence + automation fields)
@@ -78,18 +78,18 @@ The app unifies phone contacts, app-created local contacts, T9 smart dialing, au
 - **`ContactDetailsBottomSheet.kt`**: Numbers, SIM routing, channel preference, default number, plus a read-live Details section (address/email/company/job title via `ContactHelper.fetchContactDetails`) hidden behind a "Show details" toggle; Recents-only trash, sheet history long-press Note/Delete, and Report/Unmark spam in the ⋮ menu.
 - **`ContactsScreen.kt`**: Unified directory with Nicknames filter tab (`SmartContactSort.NICKNAMES`), default number prioritization, per-number SIM routing, and partitioned search outside active filters (`otherFilteredOutMatches`).
 - **`InCallScreen.kt`**: Active call UI with SIM display name chip, amber `ROAMING` alert badge, DTMF keypad, audio output selector, post-call notes, manual `[ 🔕 Silence ]` ringer chip, touch-to-silence gestures, and isolated `CallDurationStatusChip` to prevent 1Hz recomposition cascades.
-- **`RulesScreen.kt`**: Automation rule manager with visual pipeline chips, Quick-Start Recipe Gallery bottom sheet, rule dry-run simulator, execution history log, and rule duplication.
-- **`SettingsScreen.kt`**: 6 streamlined settings sections: System Health & Roles, Calling Channels & Policies, Keypad & Speed Dial, Spam & Call Protection (unified card), Appearance & Navigation, and Backup & Maintenance.
+- **`RulesScreen.kt`**: Call Automation rule manager with visual pipeline chips, Quick-Start Recipe Gallery bottom sheet, rule editor (`RuleEditDialog`), execution history log, and rule duplication. (Smart Routing rule UI removed in v2.1.3.)
+- **`SettingsScreen.kt`**: 5 streamlined settings sections: System Health, Roles & Spam Filtering (Permissions Hub + Caller ID & Spam Filtering card), Calling Channels & Dispatch Policies, Keypad & Speed Dial, Appearance & Navigation, and Backup & Maintenance.
 - **`MainActivity.kt`**: Hosts `FloatingCallPill`, observes `callLoggedEvent` for reactive Recents updates, handles `dismissAllModals()` when external calls arrive, and processes missed call deep-link intents.
 
 ---
 
 ## 3. Data Persistence & Migration
 
-- **Database Version**: v17 in `AppDatabase.kt`.
-- **Entities (v17)**: `CallerRule`, `AutomationLog`, `RecentCall`, `FavoriteContact`, `SpamNumber`, `IgnoredContact`, `LocalContact`, `ContactSimPreference`, `NumberChannelPreference`, `ChannelConfig`, `ContactDefaultNumber`.
+- **Database Version**: v18 in `AppDatabase.kt`.
+- **Entities (v18)**: `CallerRule`, `AutomationLog`, `RecentCall`, `FavoriteContact`, `SpamNumber`, `IgnoredContact`, `LocalContact`, `ContactSimPreference`, `NumberChannelPreference`, `ChannelConfig`, `ContactDefaultNumber`.
 - **Indices**: Indexed on primary query paths (`phoneNumber`, `normalized_number`, `timestamp`, `channel_id`, `contact_id`) for O(1) / indexed sub-millisecond retrieval.
-- **Migration Strategy**: Sequential migrations `MIGRATION_11_12` through `MIGRATION_16_17` applied; fallback to destructive migration retained for non-production environments.
+- **Migration Strategy**: Sequential migrations `MIGRATION_11_12` through `MIGRATION_17_18` applied; fallback to destructive migration retained for non-production environments.
 - **`NumberChannelPreference` entity**: Persists `preferredChannelId` (`sim_1`, `sim_2`, `whatsapp`, `ask`, etc.) mapped to normalized phone number with custom labels.
 - **`ContactDefaultNumber` entity**: Persists default phone number mappings synchronized with device ContactsContract.
 - **`SpamNumber` entity**: Stores both raw and `normalizedNumber` (E.164) for sub-millisecond indexed lookup via `getSpamByNormalizedNumber()`.
@@ -192,7 +192,7 @@ SHA-256 checksum and schema version are embedded in the JSON header for tamper d
 
 ---
 
-## 9. Unit Test Coverage (Build 24)
+## 9. Unit Test Coverage (Build 26)
 
 All tests run via `./gradlew testDebugUnitTest` using Robolectric (`@Config(sdk = [36])`):
 

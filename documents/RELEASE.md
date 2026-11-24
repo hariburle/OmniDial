@@ -60,7 +60,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 - **End Call Always Within Reach**: Opening the keypad during a call can no longer hide the End call button or the other controls — they stay pinned at the bottom of the screen.
 - **Notes You Can Actually See**: When you write a note after a call, the text field now moves itself above the keyboard instead of disappearing underneath it.
 - **Tidier In-Call Screen**: Contact labels now sit side by side in one row instead of stacking vertically, and calls from contacts without a photo show a neat compact header instead of a large empty placeholder.
-- **Simpler Rules Tab**: The rule-creation screens are parked for now, so the Rules tab shows your call automation rules only. Your roaming warnings, car and Bluetooth smart call routing, and home-region setting all keep working exactly as before — nothing you rely on while travelling has changed.
+- **Simpler Rules Tab**: The Smart Routing rule-creation screens are parked for now, so the Rules tab shows your call automation rules only — creating and editing those (Recipes, rule editor, Test Rule) still works. Your roaming warnings, car and Bluetooth smart call routing, and home-region setting all keep working exactly as before — nothing you rely on while travelling has changed.
 - **Old Backups Still Restore**: Backups saved before this release restore just as before.
 
 </details>
