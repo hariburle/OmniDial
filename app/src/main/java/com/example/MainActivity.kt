@@ -192,6 +192,7 @@ class MainActivity : ComponentActivity() {
         }
         handleDialIntent(intent)
         viewModel.handleIncomingIntent(intent)
+        Log.d("MainActivity", "Launch intent: action=${intent.action} hasNumber=${!extractedNumber.isNullOrBlank()}")
         if (intent.getBooleanExtra("EXTRA_IN_CALL", false)) {
             viewModel.maximizeCall()
         }
@@ -236,6 +237,8 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleDialIntent(intent)
         viewModel.handleIncomingIntent(intent)
+        val newIntentNumber = com.example.util.ContactHelper.extractPhoneNumberFromIntent(intent)
+        Log.d("MainActivity", "New intent: action=${intent.action} hasNumber=${!newIntentNumber.isNullOrBlank()}")
         if (intent.getBooleanExtra("EXTRA_IN_CALL", false)) {
             viewModel.maximizeCall()
         }
@@ -550,6 +553,7 @@ fun MainAppContent(
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
 
     val pendingNavTab by viewModel.pendingNavTab.collectAsStateWithLifecycle()
+    val pendingExternalDialNumber by viewModel.pendingExternalDialNumber.collectAsStateWithLifecycle()
     val pendingHighlightNumber by viewModel.pendingHighlightNumber.collectAsStateWithLifecycle()
 
     // Clear focus on startup and tab change so keyboard never pops unexpectedly
@@ -597,6 +601,15 @@ fun MainAppContent(
         pendingNavTab?.let { targetPage ->
             navigateToTab(targetPage)
             viewModel.clearPendingNavTab()
+        }
+    }
+
+    // Cold-start external call: the number was set before the keypad existed,
+    // so re-deliver it now that the UI is up (same path as a warm start).
+    LaunchedEffect(pendingExternalDialNumber) {
+        pendingExternalDialNumber?.let { number ->
+            viewModel.navigateToKeypad(number)
+            viewModel.consumeExternalDialNumber()
         }
     }
 

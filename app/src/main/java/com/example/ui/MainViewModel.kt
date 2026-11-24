@@ -382,6 +382,16 @@ class MainViewModel(
     private val _pendingNavTab = MutableStateFlow<Int?>(null)
     val pendingNavTab: StateFlow<Int?> = _pendingNavTab.asStateFlow()
 
+    // One-shot external dial number: a cold-start intent is applied before the
+    // keypad exists, so the number is re-delivered after composition instead
+    // of being lost. Mirrors _pendingNavTab.
+    private val _pendingExternalDialNumber = MutableStateFlow<String?>(null)
+    val pendingExternalDialNumber: StateFlow<String?> = _pendingExternalDialNumber.asStateFlow()
+
+    fun consumeExternalDialNumber() {
+        _pendingExternalDialNumber.value = null
+    }
+
     private val _pendingHighlightNumber = MutableStateFlow<String?>(null)
     val pendingHighlightNumber: StateFlow<String?> = _pendingHighlightNumber.asStateFlow()
 
@@ -436,6 +446,9 @@ class MainViewModel(
 
         if (!extractedNumber.isNullOrBlank()) {
             _dialerNumber.value = extractedNumber
+            // Re-deliver after composition: on a cold start the keypad does
+            // not exist yet when the intent is first applied.
+            _pendingExternalDialNumber.value = extractedNumber
         }
 
         if (!highlightNum.isNullOrBlank()) {
