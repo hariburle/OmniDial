@@ -1,6 +1,6 @@
 # OmniDial — Architecture & System Design Document
 
-> **Current Version**: v2.1.3 (Build 25) — November 2026
+> **Current Version**: v2.2.0 (Build 26) — November 2026
 
 This document serves as the primary technical specification and maintenance guide for **OmniDial**. It documents the system architecture, component contracts, data persistence models, telephony integrations, build pipelines, and maintenance runbooks.
 
@@ -29,6 +29,7 @@ OmniDial is a native Android Default Phone Dialer application built with modern 
 16. **Just-In-Time Reminders & Permissions Hub**: Contextual inline banners and cards across Contacts, Recents, and Rules alongside a dedicated real-time Permissions Hub card in Settings for all 6 setup wizard options.
 17. **Bento Card In-Call UI & Dynamic Audio Routing**: Modern 2x3 Bento control grid with caller hero card, dynamic 2-way Speaker toggle vs multi-route Bluetooth picker, split conference view, and dialer avatar/name tap-to-open contact sheet.
 18. **Smart Telecom & Travel Roaming Engine**: Location-aware routing with Zero-Mutation Runtime Overlay. Automatically adjusts outgoing call channels (Home cellular, Host destination SIM, or WhatsApp VoIP) when traveling abroad while preserving saved contact preferences intact. Intercepts external car/Bluetooth dials with zero-ANR cached dynamic rule evaluation.
+19. **Labeled Filter Rows, Contact Details On Demand & Recents Overhaul**: Recents filter row and Contacts sort row use labeled `FilterChip`s (icon-only buttons restored when the "Show labels on buttons" setting is off). Recents search is digit-insensitive and matches current device-contact names; call counts sum grouped entries; deletes and spam reports confirm first; Clear-all Recents lives in the overflow menu. The contact sheet shows address, email, company, and job title read live from the device Contacts provider, hidden behind a "Show details" toggle; sheet/row calls route through `initiateCall` so the preferred channel/SIM is respected.
 
 ---
 
@@ -109,18 +110,18 @@ app/src/main/java/com/example/
 │       ├── SearchT9ContactsUseCase.kt   # Nickname + name + number T9 search
 │       └── ManageFavoritesUseCase.kt    # Star, unstar, reorder, ignore contacts
 ├── ui/
-│   ├── MainViewModel.kt                 # Central ViewModel, channel state flows, dismissAllModals
+│   ├── MainViewModel.kt                 # Central ViewModel, channel state flows, showButtonLabels preference flow, dismissAllModals
 │   ├── models/
 │   │   ├── ContactSortModels.kt         # SmartContactSort enum (A-Z, Recent, NICKNAMES, etc.)
 │   │   └── FavoritesModels.kt           # Favorite card style and display config
 │   ├── screens/
 │   │   ├── DialerScreen.kt              # T9 keypad, KeypadChannelDock, 2x2 action grid, nickname suggestions
 │   │   ├── FavoritesScreen.kt           # Grid hub, drag-reorder, dual-dialer buttons
-│   │   ├── CallLogScreen.kt             # Recents, SIM badges, instant update via callLoggedEvent
-│   │   ├── ContactsScreen.kt            # Directory, Nicknames filter, default number prioritization
+│   │   ├── CallLogScreen.kt             # Recents, SIM badges, instant update via callLoggedEvent, labeled filter chips, digit-insensitive search
+│   │   ├── ContactsScreen.kt            # Directory, Nicknames filter, default number prioritization, labeled sort filters
 │   │   ├── InCallScreen.kt              # Active call UI, roaming badge, DTMF, touch/lift ring silencing
 │   │   ├── RulesScreen.kt               # Automation pipeline, recipes gallery, simulator, history
-│   │   └── SettingsScreen.kt            # 6 streamlined sections: System Health, Calling Channels, Keypad, Spam, Appearance, Backup
+│   │   └── SettingsScreen.kt            # 6 streamlined sections: System Health, Calling Channels, Keypad, Spam, Appearance, Backup; "Show labels on buttons" switch in Appearance & Navigation
 │   └── components/
 │       ├── CompactSearchBar.kt          # Unified 42dp pill search input
 │       ├── Keypad.kt                    # 12-key dial pad with haptics
@@ -128,7 +129,7 @@ app/src/main/java/com/example/
 │       ├── CallChoiceDialogs.kt         # MultiChannelChoiceDialog and CallConfirmationDialog
 │       ├── ChannelSetupDialog.kt        # Custom channel configuration and ordering dialog
 │       ├── ContactRowItem.kt            # Contact row with Phone & WhatsApp quick icons
-│       ├── ContactDetailsBottomSheet.kt # Numbers, SIM routing, channel preference, default number
+│       ├── ContactDetailsBottomSheet.kt # Numbers, SIM routing, channel preference, default number, on-demand live contact details (address/email/company)
 │       ├── RuleEditDialog.kt            # Full automation rule editor with IME insets
 │       ├── RuleCard.kt                  # Visual pipeline chips, dry-run trigger, duplicate
 │       ├── DialerSuggestionsList.kt     # T9 predictive suggestions (contactsByDigits + contactsByName)
@@ -147,9 +148,9 @@ app/src/main/java/com/example/
 │   └── ChannelPreferenceRepository.kt   # Room persistence for per-number channel preferences
 └── util/
     ├── T9Helper.kt                      # T9 digit mapping + scored search results
-    ├── ContactHelper.kt                 # Fast phone matching, ContactsContract queries, WhatsApp dispatch
+    ├── ContactHelper.kt                 # Fast phone matching, ContactsContract queries, WhatsApp dispatch, fetchContactDetails (live address/email/organization)
     ├── PhoneNumberNormalizer.kt         # libphonenumber E.164 normalization & isInternational()
-    ├── BackupManager.kt                 # Transactional JSON backup, MediaStore, SHA-256 integrity
+    ├── BackupManager.kt                 # Transactional JSON backup, MediaStore, SHA-256 integrity, show_button_labels pref in backup/restore
     ├── HapticFeedbackHelper.kt          # Android 13+ VibrationEffect primitives
     ├── CommunityCallerIdService.kt      # Offline caller trust tier lookup table
     └── AppCoroutineScope.kt             # SupervisorJob + CoroutineExceptionHandler app-wide scope

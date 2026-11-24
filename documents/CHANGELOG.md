@@ -6,6 +6,35 @@
 
 ---
 
+## 🚀 [v2.2.0] — Build 26 (November 2026)
+
+### 🌟 Enhancements (User-Facing)
+- **Labeled Recents Filters**: The Recents filter row is now labeled `FilterChip`s (All, Missed, Incoming, Outgoing, WhatsApp, Spam, Rules, Notes) in a horizontally scrollable row, replacing the icon-only 36dp buttons with tooltips.
+- **Smarter Recents Search**: Search is digit-insensitive (`(651) 330-2493` matches `+16513302493`) and matches the contact's current device-contact name/nickname, not just the name recorded at call time.
+- **Correct Call Counts**: The Recents status row sums `group.count` — it now reports real calls, not grouped entries.
+- **Confirm-Before-Delete & Clear All Recents**: Row Delete / Clear-all / Report-as-Spam now ask first (Unmark stays direct); a Clear-all Recents action lives in the Recents overflow menu with a confirm dialog.
+- **Contact Details On Demand**: The contact sheet shows address, email, company, and job title read live from the device Contacts provider, hidden by default behind a "Show details" / "Hide details" toggle; the section hides entirely when the contact has no such data.
+- **"Show labels on buttons" Setting**: New global boolean in Settings → Appearance & Navigation (default ON) controlling the labeled filter rows in Recents and Contacts; OFF restores the icon-only buttons. The setting survives backup/restore.
+- **Preferred-Channel Calls From Recents**: Sheet and row calls now go through `initiateCall` (preferred channel/SIM respected) instead of dialing the original call's channel or forcing SIM 1.
+- **Recents-Only Sheet Trash**: The sheet trash now removes Recents entries only (with confirm); full contact delete moved to the header ⋮ menu.
+- **Notes Visible on Blocked Calls**: A user note on an auto-blocked call now renders under the block badge instead of being suppressed.
+- **Filter-Aware Empty States**: An empty filter shows "No missed calls" / "No spam calls" etc. instead of a blank list.
+- **Row Copy & Message**: Copy number and Message added to the row overflow menu; nickname on an unknown number opens the create-contact flow with the nickname pre-filled (no junk "Incoming Caller" contact).
+- **Caller ID & Spam Filtering Moved**: The card now sits in Settings section 1 under the Permissions Hub; the old section is gone and sections renumbered.
+
+### 🔧 Technical / Architecture Notes
+- **Labeled Filter Branch**: `CallLogScreen.kt` filter row branches on `showButtonLabels` — ON = labeled `FilterChip`s using `FilterOptionData.shortLabel`; OFF = restored icon-only 36dp `Surface` + `TooltipBox` buttons (same onClick, colors, testTags). `ContactsScreen.kt` sort row does the same with `SmartContactSort.label`; the row scrolls only when labels are on.
+- **Setting Wiring**: `showButtonLabels` `StateFlow` in `MainViewModel.kt` (SharedPreferences key `show_button_labels`, default `true`, following the `swipeToSwitchPanels` template; re-loaded in both restore blocks), collected in `MainActivity.kt` and passed to `CallLogScreen`/`ContactsScreen` and via `RulesScreen.kt` (which hosts `SettingsScreen`) into the §4 switch (testTag `show_button_labels_switch`). `BackupManager.kt` saves/restores the key next to `swipe_to_switch_panels`. No DB/permission changes; `navBarStyle` untouched.
+- **Contact Details Read-Live**: `ContactHelper.fetchContactDetails(context, contactId)` queries `Data.CONTENT_URI` for `StructuredPostal`/`Email`/`Organization` into a new `ContactDetails` data class; the sheet loads it lazily in the existing `LaunchedEffect(contact)` IO block. `DeviceContact` unchanged, no DB migration (DB stays v18), details never feed the edit/save path.
+- **Recents Overhaul (26 findings, commit `ba9f59f`)**: `deleteAllRecentCalls()` + `clearDefaultContactNumber()` in `MainViewModel.kt` (registry-suppressed re-import, `deleteDeviceCallLogsForNumber`); sheet history long-press Note/Delete; sheet Report/Unmark spam in ⋮ menu; Sync-to-Phone banner wired from Recents; "Ask" clear-preference chip; Set/Clear default removed from the long-press dialog (checkbox is the only path); Create Rule removed from the row menu. Known caveats: clear-default is session-scoped (reopening the sheet shows the provider primary as DEFAULT again); sheet message choice is one-off and does not save a preference; sheet history does not refresh after adding a note/deleting a call until reopened.
+- **Contact-Details Fixes**: `31c82c2` — "Add to Contacts" now shows for "Incoming Caller" entries (`isUnknownNumber` also matches that display label); `67084ba` — "Edit Local Contact" inserts a `LocalContact` when none is stored, matching by normalized digits.
+- **Settings Card Move (2121d2c)**: "Caller ID & Spam Filtering" card moved into Settings section 1; old section deleted, sections renumbered to 5.
+- **Deprecation Fixes (d576855)**: `Locale("", iso)` → `Locale.Builder().setRegion(...)` in `ChannelSetupDialog.kt`; `Icons.Default.AltRoute` → `Icons.AutoMirrored.Filled.AltRoute` in `RulesScreen.kt`.
+- **GitHub Actions Debug Build**: `.github/workflows/build-debug-apk.yml` (checkout/setup-java/upload-artifact v5, setup-gradle v4) builds a debug APK on push to main and on demand; workflow files cannot be added via the GitHub connector (403) and were added through the GitHub website. Actions warnings 11 → 3 (remaining 3 sit inside upload-artifact@v5 / setup-gradle@v4, still Node 20 internally; the 9 cache warnings were a GitHub cache-service outage). The workflow generates a fresh debug keystore every run, so each run's APK has a different signature — debug APKs never install over another build.
+- Incremented `versionCode` to 26 and `versionName` to `"2.2.0"` in `app/build.gradle.kts`.
+
+---
+
 ## 🚀 [v2.1.3] — Build 25 (November 2026)
 
 ### 🌟 Enhancements (User-Facing)

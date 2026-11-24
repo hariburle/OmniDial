@@ -7,6 +7,7 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 | Version | Version Code | Release Date | Summary |
 |---------|--------------|--------------|---------|
+| `2.2.0` | `26` | Nov 2026 | Recents overhaul — labeled filter buttons, smarter search, correct call counts, confirm-before-delete and clear-all; contact details on demand in the sheet; new "Show labels on buttons" setting. |
 | `2.1.3` | `25` | Nov 2026 | End call stays reachable with the keypad open, notes field scrolls above the keyboard, compact in-call header, and a simplified Rules tab — roaming warnings and car smart routing unchanged. |
 | `2.1.2` | `24` | Sep 2026 | Reliable car & Bluetooth smart call redirection to WhatsApp VoIP, and restructured 6-section Settings screen. |
 | `2.1.1` | `23` | Sep 2026 | Smart Telecom Routing with zero-mutation overlay, Dynamic Rule Composer UX fixes, context-sensitive FAB, and itemized backup reporting. |
@@ -36,7 +37,24 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 ---
 
 <details open>
-<summary><h3>🚀 Release 2.1.3 (Latest) — In-Call Screen That Stays Usable & Simpler Rules</h3></summary>
+<summary><h3>🚀 Release 2.2.0 (Latest) — Clearer Recents, Contact Details On Demand & Labeled Filters</h3></summary>
+
+### What's New & Improvements:
+- **Filter Buttons You Can Read**: The Recents filter row now shows clear labels — All, Missed, Incoming, Outgoing, WhatsApp, Spam, Rules, Notes — instead of eight mystery icons, and it scrolls sideways so nothing gets cut off on small screens.
+- **Smarter Recents Search**: Searching finds a call however you type the number — `(651) 330-2493` finds `+16513302493` — and it matches a contact's current name, so renaming someone makes them findable under the new name.
+- **Honest Call Counts**: The count at the top of Recents now counts real calls, not grouped entries.
+- **Deleting Asks First**: Deleting a call or reporting a number as spam now asks for confirmation, and you can clear all recents at once from the menu.
+- **Contact Details When You Ask**: Opening a contact's details can now show their address, email, company, and job title, read straight from your phone's contacts. It stays hidden until you tap "Show details", so the sheet still opens with just the numbers.
+- **A Setting for Labels**: A new "Show labels on buttons" switch in Settings → Appearance & Navigation controls the labeled filter rows in Recents and Contacts. Turn it off and the icon-only buttons come back.
+- **Calls From Recents Use Your Preferences**: Calling back from Recents now respects the channel and SIM you picked for that contact, instead of always dialing the way the original call came in.
+- **Tidier Settings**: Caller ID & Spam Filtering now sits with the other permissions at the top of Settings, where you'd expect it.
+
+</details>
+
+<br>
+
+<details>
+<summary><h3>🚀 Release 2.1.3 — In-Call Screen That Stays Usable & Simpler Rules</h3></summary>
 
 ### What's New & Improvements:
 - **End Call Always Within Reach**: Opening the keypad during a call can no longer hide the End call button or the other controls — they stay pinned at the bottom of the screen.
@@ -357,8 +375,8 @@ OmniDial uses **Semantic Versioning** (`MAJOR.MINOR.PATCH`):
 
 ## 2. Versioned APK Download Scheme
 OmniDial maintains both versioned and latest APK artifacts:
-- Latest Version: `OmniDial-v2.1.3.apk` (and alias `OmniDial.apk`)
-- Prior Releases: `OmniDial-v2.1.2.apk`, `OmniDial-v2.1.1.apk`, `OmniDial-v2.1.0.apk`, `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
+- Latest Version: `OmniDial-v2.2.0.apk` (and alias `OmniDial.apk`)
+- Prior Releases: `OmniDial-v2.1.3.apk`, `OmniDial-v2.1.2.apk`, `OmniDial-v2.1.1.apk`, `OmniDial-v2.1.0.apk`, `OmniDial-v2.0.2.apk`, `OmniDial-v2.0.1.apk`, `OmniDial-v2.0.0.apk`, `OmniDial-v1.5.0.apk`, `OmniDial-v1.4.4.apk`, `OmniDial-v1.4.3.apk`, `OmniDial-v1.4.2.apk`, `OmniDial-v1.4.1.apk`, `OmniDial-v1.4.0.apk`, `OmniDial-v1.3.0.apk`, `OmniDial-v1.2.3.apk`, `OmniDial-v1.2.0.apk`, `OmniDial-v1.1.5.apk`, `OmniDial-v1.1.0.apk`
 Hosted directly on GitHub Pages under the `/apks` directory.
 
 ---

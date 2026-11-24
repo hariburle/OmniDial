@@ -6,6 +6,38 @@ Items currently pending verification or undergoing testing. Verified items are a
 
 ## 📋 Active Items To Test
 
+### 0. Task 16.5 (Release 2.2.0): Labeled Recents Filters, Contact Details On Demand, Show Labels Setting
+- [ ] **To Test**
+- **Test Scenarios**:
+  1. **Labeled filter rows**:
+     - Open Recents, verify the filter row shows labels (All, Missed, Incoming, Outgoing, WhatsApp, Spam, Rules, Notes) and scrolls sideways on a narrow screen.
+     - Open Contacts, verify the sort row shows labels (All, Favorites, Nicknames, Recents, Frequent, Rediscover).
+  2. **Show labels on buttons setting**:
+     - Open Settings → Appearance & Navigation, verify the "Show labels on buttons" switch is ON by default.
+     - Turn it OFF, verify both filter rows go back to icon-only buttons with tooltips.
+     - Turn it back ON, verify the labels return.
+     - Back up, restore, verify the switch keeps its value.
+  3. **Smarter Recents search**:
+     - In Recents search, type a formatted number like `(651) 330-2493` and verify it finds the `+16513302493` call.
+     - Rename a contact in Phone Contacts, then search Recents by the new name and verify it matches.
+  4. **Correct call counts & empty states**:
+     - Verify the Recents status row counts real calls (grouped entries counted individually).
+     - Tap the Spam filter with no spam calls, verify it shows "No spam calls" instead of a blank list.
+  5. **Confirm-before-delete & clear all**:
+     - Row ⋮ → Delete Entry, verify a confirm dialog appears.
+     - Row ⋮ → Report as Spam, verify a confirm dialog appears.
+     - Recents overflow menu → Clear all recents, verify a confirm dialog appears and clearing removes all entries.
+  6. **Contact details on demand**:
+     - Open a contact with an address/email in Phone Contacts, verify the sheet shows only numbers until "Show details" is tapped.
+     - Tap "Show details", verify address, email, company, and job title appear; tap "Hide details" and verify they hide again.
+     - Open a contact with no address/email, verify no Details section appears at all.
+  7. **Calls from Recents respect preferences**:
+     - Set a contact's preferred channel to WhatsApp (or a preferred SIM), then call back from Recents and verify it uses that channel/SIM, not SIM 1.
+  8. **Sheet trash is Recents-only**:
+     - Open a saved contact's sheet from Recents, tap trash, verify it removes Recents entries only and the contact still exists in Contacts.
+  9. **Spam card location**:
+     - Open Settings, verify "Caller ID & Spam Filtering" sits in the top Permissions section.
+
 ### 0. Task 16.4 (Release 2.1.3): Pinned In-Call Controls, Notes Above Keyboard, Compact Header, Parked Rule UI
 - [ ] **To Test**
 - **Test Scenarios**:

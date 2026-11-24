@@ -3,7 +3,7 @@
 [![Android](https://img.shields.io/badge/Android-11%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blue.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-purple.svg)](https://developer.android.com/jetpack/compose)
-[![Version](https://img.shields.io/badge/Version-2.1.3%20(Build%2025)-brightgreen.svg)](documents/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-2.2.0%20(Build%2026)-brightgreen.svg)](documents/CHANGELOG.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Running_Log-orange.svg)](documents/CHANGELOG.md)
 [![Architecture & Design](https://img.shields.io/badge/Architecture-Design_Doc-teal.svg)](documents/DESIGN.md)
 
@@ -40,7 +40,10 @@
 - **SIM Slot Badges**: Every call record displays `SIM 1` / `SIM 2` (or `WhatsApp`) badge alongside timestamp and duration.
 - **Instant Call Log Updates**: Outgoing, incoming, and missed calls appear in Recent Calls the moment a call ends — no refresh delay.
 - **SIM & Roaming Call Alerts**: Incoming calls display the receiving SIM name with a prominent amber roaming warning when the active SIM is on network roaming.
-- **Recents Search & Live Filtering**: Real-time filtering by caller name, number, or note.
+- **Recents Search & Live Filtering**: Real-time filtering by caller name, number, or note. Search understands numbers however you type them (`(651) 330-2493` finds `+16513302493`) and matches a contact's current name, not just the name recorded when the call happened.
+- **Labeled Filter Buttons**: The Recents filter row shows clear labels (All, Missed, Incoming, Outgoing, WhatsApp, Spam, Rules, Notes) instead of icons only, and scrolls sideways on narrow screens. A "Show labels on buttons" switch in Settings → Appearance & Navigation brings the icon-only buttons back if you prefer them.
+- **Confirm-Before-Delete & Clear All Recents**: Deleting a call or reporting spam asks first, and an overflow menu lets you clear all recents at once (with confirmation). The call count at the top now counts real calls, not grouped entries.
+- **Contact Details On Demand**: Opening a contact's details shows address, email, company, and job title read live from your phone's contacts — shown only when you tap "Show details", never by default.
 - **Fresh Install Call Log Import**: Automatically seeds Room SQLite with system call history on first run.
 - **Missed Call Notification Deep-Linking**: Tapping missed call notifications switches to Recents and auto-scrolls with a 3.5s highlight pulse on the target entry.
 - **Post-Call Notes & Callback Reminders**: Add timestamped notes to recent call records and set `AlarmManager`-backed callbacks immediately after hanging up.
@@ -56,6 +59,7 @@
 - **Default Number Prioritization**: Default primary number always sorted to top with a `DEFAULT` badge when expanding contact details.
 - **Partitioned Filter Search**: When a filter (Nicknames, Favorites, Recent, Frequent, Device/App) is active and you search, qualifying contacts appear at the top while any other matching contacts are cleanly partitioned into "Other Matches Outside Filter" with one-tap action sheets.
 - **Phonebook Default Number Sync**: Setting a default number updates Android's system contacts and Google Contacts, keeping everything in sync.
+- **Labeled Sort Filters**: The Contacts sort row (All, Favorites, Nicknames, Recents, Frequent, Rediscover) shows text labels next to the icons, following the same "Show labels on buttons" setting as Recents.
 - **Teach Preferred Channel Without Calling**: Set or reset channel preferences per contact directly in the Contact Details sheet.
 
 ---
@@ -131,7 +135,8 @@
 
 The latest release and prior versions are available in the `apks/` directory and on the [OmniDial Website](index.html):
 
-- **[OmniDial-v2.1.3.apk](apks/OmniDial-v2.1.3.apk)** *(Latest — Build 25)*: In-call screen stays usable with the keypad open (End call pinned at the bottom), post-call notes field scrolls above the keyboard, cleaner in-call header with wrapping badges and a compact no-photo layout, and a simplified Rules tab — rule-creation screens parked, while roaming warnings, car/Bluetooth smart call routing, and the home-region setting keep working.
+- **[OmniDial-v2.2.0.apk](apks/OmniDial-v2.2.0.apk)** *(Latest — Build 26)*: Recents overhaul — filter buttons now show clear labels, search finds contacts by name or by number however you type it, call counts are correct, deleting asks first, and you can clear all recents at once. Contact details (address, email, company) appear in the contact sheet only when you ask for them, and a new "Show labels on buttons" setting lets you switch the filter rows back to icons only.
+- **[OmniDial-v2.1.3.apk](apks/OmniDial-v2.1.3.apk)** *(Build 25)*: In-call screen stays usable with the keypad open (End call pinned at the bottom), post-call notes field scrolls above the keyboard, cleaner in-call header with wrapping badges and a compact no-photo layout, and a simplified Rules tab — rule-creation screens parked, while roaming warnings, car/Bluetooth smart call routing, and the home-region setting keep working.
 - **[OmniDial-v2.1.2.apk](apks/OmniDial-v2.1.2.apk)** *(Build 24)*: Seamless Bluetooth & car infotainment smart call redirection (auto-routing international dials to WhatsApp VoIP from vehicle head units such as Tesla), streamlined 6-section Settings screen, and unified Spam & Call Protection card.
 - **[OmniDial-v2.1.1.apk](apks/OmniDial-v2.1.1.apk)** *(Build 23)*: Smart Telecom Routing with Zero-Mutation Runtime Overlay, Dynamic Rule Composer with 4-parameter slot pills and single-line chip wrapping prevention, context-sensitive FAB in Rules panel, chronological backup sorting by embedded timestamp, itemized save and restore completion breakdown dialogs, and comprehensive user guides.
 - **[OmniDial-v2.1.0.apk](apks/OmniDial-v2.1.0.apk)** *(Build 22)*: In-call Bento Card UI overhaul with dynamic audio routing (Speaker toggle & multi-route Bluetooth picker), split conference participant view, fresh-install auto-restore banner, dial-pad avatar & contact name tap-to-open contact details, favorites in-row direct calling, and clean default number checkbox.
