@@ -35,5 +35,14 @@ git checkout main
 git pull --ff-only origin main
 git log --oneline -1
 
+# Read the version from build.gradle.kts so the APK filename always matches the build.
+$buildGradle = Get-Content app\build.gradle.kts -Raw
+if ($buildGradle -match 'versionName = "([^"]+)"') {
+  $version = $Matches[1]
+} else {
+  Write-Host "Could not read versionName from app\build.gradle.kts"
+  exit 1
+}
+
 .\gradlew.bat :app:assembleDebug
-Copy-Item -Force app\build\outputs\apk\debug\app-debug.apk apks\OmniDial-v2.1.3-debug.apk
+Copy-Item -Force app\build\outputs\apk\debug\app-debug.apk "apks\OmniDial-v$version-debug.apk"
